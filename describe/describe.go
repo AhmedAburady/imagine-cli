@@ -13,8 +13,9 @@ import (
 	"github.com/briandowns/spinner"
 	"google.golang.org/genai"
 
-	"github.com/AhmedAburady/imagine-cli/api"
 	"github.com/AhmedAburady/imagine-cli/config"
+	"github.com/AhmedAburady/imagine-cli/internal/images"
+	"github.com/AhmedAburady/imagine-cli/internal/paths"
 )
 
 // Options holds CLI configuration for describe command
@@ -56,8 +57,8 @@ func (opts *Options) Validate() error {
 	}
 
 	// Expand tilde in paths
-	opts.Input = api.ExpandTilde(opts.Input)
-	opts.Output = api.ExpandTilde(opts.Output)
+	opts.Input = paths.ExpandTilde(opts.Input)
+	opts.Output = paths.ExpandTilde(opts.Output)
 
 	// Check if input exists
 	info, err := os.Stat(opts.Input)
@@ -70,17 +71,17 @@ func (opts *Options) Validate() error {
 
 	// Validate input
 	if info.IsDir() {
-		count, _ := api.FindImagesInDir(opts.Input)
+		count, _ := images.CountInDir(opts.Input)
 		if count == 0 {
 			return fmt.Errorf("no images found in directory: %s", opts.Input)
 		}
-	} else if !api.IsSupportedImage(opts.Input) {
+	} else if !images.IsSupported(opts.Input) {
 		return fmt.Errorf("unsupported image format: %s", opts.Input)
 	}
 
 	// Check if prompt is a file path - if file exists, read prompt from it
 	if opts.Prompt != "" {
-		promptPath := api.ExpandTilde(opts.Prompt)
+		promptPath := paths.ExpandTilde(opts.Prompt)
 		if info, err := os.Stat(promptPath); err == nil && !info.IsDir() {
 			data, err := os.ReadFile(promptPath)
 			if err != nil {
@@ -172,7 +173,7 @@ func loadImagesFromDir(dirPath string) ([]*genai.Part, error) {
 			continue
 		}
 		ext := filepath.Ext(entry.Name())
-		mimeType, ok := api.GetImageMimeType(ext)
+		mimeType, ok := images.MimeType(ext)
 		if !ok {
 			continue
 		}
@@ -233,7 +234,7 @@ func loadImagesFromDir(dirPath string) ([]*genai.Part, error) {
 // loadSingleImage loads a single image file
 func loadSingleImage(filePath string) ([]*genai.Part, error) {
 	ext := filepath.Ext(filePath)
-	mimeType, ok := api.GetImageMimeType(ext)
+	mimeType, ok := images.MimeType(ext)
 	if !ok {
 		return nil, fmt.Errorf("unsupported image format: %s", ext)
 	}

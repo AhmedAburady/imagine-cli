@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 
 	"github.com/AhmedAburady/imagine-cli/config"
@@ -39,25 +38,15 @@ func GenerateImageVertex(ctx context.Context, config *Config, index int) Generat
 		return GenerationResult{Index: index, Error: fmt.Errorf("failed to create Vertex AI client: %w", err)}
 	}
 
-	// Build content parts
-	var parts []*genai.Part
-	parts = append(parts, genai.NewPartFromText(config.Prompt))
-
-	// Add reference images if in edit mode
-	for _, refImg := range config.RefImages {
-		if refImg.InlineData != nil {
-			// Decode base64 image data
-			imageData, err := base64.StdEncoding.DecodeString(refImg.InlineData.Data)
-			if err != nil {
-				return GenerationResult{Index: index, Error: fmt.Errorf("failed to decode reference image: %w", err)}
-			}
-			parts = append(parts, &genai.Part{
-				InlineData: &genai.Blob{
-					MIMEType: refImg.InlineData.MimeType,
-					Data:     imageData,
-				},
-			})
-		}
+	// Build content parts. Vertex takes raw bytes — no base64 round-trip needed.
+	parts := []*genai.Part{genai.NewPartFromText(config.Prompt)}
+	for _, ref := range config.RefImages {
+		parts = append(parts, &genai.Part{
+			InlineData: &genai.Blob{
+				MIMEType: ref.MimeType,
+				Data:     ref.Data,
+			},
+		})
 	}
 
 	contents := []*genai.Content{

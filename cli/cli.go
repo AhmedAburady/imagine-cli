@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
-	"golang.org/x/term"
 
 	"github.com/AhmedAburady/imagine-cli/api"
-	"github.com/AhmedAburady/imagine-cli/config"
+	"github.com/AhmedAburady/imagine-cli/internal/images"
+	"github.com/AhmedAburady/imagine-cli/internal/paths"
 )
 
 // Options holds the parsed CLI options for the generate/edit flow. Cobra binds
@@ -69,7 +69,7 @@ func (opts *Options) Validate() error {
 	}
 
 	// If -p points at a readable file, slurp the prompt from it.
-	promptPath := api.ExpandTilde(opts.Prompt)
+	promptPath := paths.ExpandTilde(opts.Prompt)
 	if info, err := os.Stat(promptPath); err == nil && !info.IsDir() {
 		data, err := os.ReadFile(promptPath)
 		if err != nil {
@@ -81,9 +81,9 @@ func (opts *Options) Validate() error {
 		}
 	}
 
-	opts.Output = api.ExpandTilde(opts.Output)
+	opts.Output = paths.ExpandTilde(opts.Output)
 	for i, ref := range opts.RefInputs {
-		opts.RefInputs[i] = api.ExpandTilde(ref)
+		opts.RefInputs[i] = paths.ExpandTilde(ref)
 	}
 
 	if opts.NumImages < 1 || opts.NumImages > 20 {
@@ -111,11 +111,11 @@ func (opts *Options) Validate() error {
 			return fmt.Errorf("cannot access reference path: %v", err)
 		}
 		if info.IsDir() {
-			count, _ := api.FindImagesInDir(ref)
+			count, _ := images.CountInDir(ref)
 			if count == 0 {
 				return fmt.Errorf("no images found in reference directory: %s", ref)
 			}
-		} else if !api.IsSupportedImage(ref) {
+		} else if !images.IsSupported(ref) {
 			return fmt.Errorf("unsupported image format: %s", ref)
 		}
 	}
@@ -146,13 +146,13 @@ func (opts *Options) Validate() error {
 // parallel generation, print per-image results and a summary. Returns a
 // non-nil error when any image fails or setup fails; cobra/fang handles exit.
 func Run(ctx context.Context, opts *Options, apiKey string) error {
-	var refImages []api.Part
+	var refImages []images.Reference
 	for _, ref := range opts.RefInputs {
-		parts, err := api.LoadReferences(ref)
+		refs, err := images.Load(ref)
 		if err != nil {
 			return fmt.Errorf("failed to load references: %w", err)
 		}
-		refImages = append(refImages, parts...)
+		refImages = append(refImages, refs...)
 	}
 
 	modelName := api.ModelPro
@@ -238,37 +238,4 @@ func Run(ctx context.Context, opts *Options, apiKey string) error {
 		return fmt.Errorf("%d image(s) failed", errorCount)
 	}
 	return nil
-}
-
-// PromptForAPIKey prompts the user to enter their Gemini API key and saves it.
-// Called on first-run when no key is present in env or config.
-func PromptForAPIKey() string {
-	fmt.Println("\033[33mNo API key found.\033[0m")
-	fmt.Println()
-	fmt.Println("Get your free API key from: https://aistudio.google.com/app/apikey")
-	fmt.Println()
-	fmt.Print("Enter your Gemini API key: ")
-
-	keyBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Println()
-	if err != nil {
-		fmt.Printf("\033[31mError:\033[0m Failed to read input: %v\n", err)
-		os.Exit(1)
-	}
-
-	key := strings.TrimSpace(string(keyBytes))
-	if key == "" {
-		fmt.Println("\033[31mError:\033[0m API key cannot be empty")
-		os.Exit(1)
-	}
-
-	if err := config.SaveAPIKey(key); err != nil {
-		fmt.Printf("\033[31mError:\033[0m Failed to save API key: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Println("\033[32m✓\033[0m API key saved successfully")
-	fmt.Println()
-
-	return key
 }
