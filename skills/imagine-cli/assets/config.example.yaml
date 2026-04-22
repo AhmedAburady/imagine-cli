@@ -1,0 +1,34 @@
+# imagine configuration template
+#
+# Save as ~/.config/imagine/config.yaml (on Linux/macOS/BSD)
+#         %AppData%\imagine\config.yaml (on Windows)
+#
+# Include ONLY the providers you actually use. Delete the others.
+#
+# Pick a default_provider when you have multiple configured — otherwise
+# imagine picks the alphabetically-first one, which may surprise you.
+
+default_provider: gemini    # one of: gemini, vertex, openai
+
+providers:
+
+  # Gemini (direct REST, API key auth)
+  # Get a free key at https://aistudio.google.com/app/apikey
+  gemini:
+    api_key: AIza-paste-your-gemini-key-here
+
+  # OpenAI (GPT Image models)
+  # Get a key at https://platform.openai.com
+  # Note: requires org verification for GPT Image access
+  openai:
+    api_key: sk-paste-your-openai-key-here
+
+  # Vertex AI (Gemini via GCP, ADC auth)
+  # Setup on this machine:
+  #   1. A GCP project with the Vertex AI API enabled
+  #   2. Run: gcloud auth application-default login
+  # No API key needed — ADC handles auth.
+  vertex:
+    provider_options:
+      gcp_project: your-gcp-project-id
+      location: global        # optional — "global" is the default
