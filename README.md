@@ -37,6 +37,7 @@
   - [Describe](#describe)
   - [Providers show](#providers-show)
 - [Output formats](#output-formats)
+- [AI agent skill](#ai-agent-skill)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
@@ -376,6 +377,28 @@ Markers:
 - `.png` (default)
 - `.jpg` / `.jpeg` — For Gemini/Vertex, imagine converts locally at quality 95. For OpenAI, the API returns JPEG directly.
 - `.webp` — OpenAI only.
+
+[↑ Back to top](#table-of-contents)
+
+---
+
+## AI agent skill
+
+If you use an AI coding agent (Claude Code, Cursor, Cline, Codex, Amp, Gemini CLI, Copilot, and others), install the bundled imagine skill and your agent will know the whole tool — config file schema, provider resolution, flag ownership per provider, size matrix, error handling, the works. It'll even auto-install the CLI if needed.
+
+Install via the [`skills`](https://skills.sh) CLI — pick whichever package manager you have:
+
+```bash
+npx skills add AhmedAburady/imagine-cli
+# or
+bunx skills add AhmedAburady/imagine-cli
+# or
+pnpm dlx skills add AhmedAburady/imagine-cli
+```
+
+The installer asks which agents to install for, then symlinks the skill into each agent's skills directory. After that, a prompt like "use imagine to generate a cyberpunk city banner" triggers the skill automatically.
+
+The skill source lives at [`skills/imagine-cli/`](skills/imagine-cli/) in this repo.
 
 [↑ Back to top](#table-of-contents)
 
