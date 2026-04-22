@@ -23,28 +23,28 @@ jobs:
       - name: Build binaries
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
-          LDFLAGS="-X github.com/AhmedAburady/banana-cli/cli.version=$VERSION"
+          LDFLAGS="-X github.com/AhmedAburady/imagine-cli/cli.version=$VERSION"
 
           # Linux
-          GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o banana-linux-amd64 ./cmd/banana
-          GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o banana-linux-arm64 ./cmd/banana
+          GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o imagine-linux-amd64 ./cmd/imagine
+          GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o imagine-linux-arm64 ./cmd/imagine
 
           # macOS
-          GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o banana-darwin-amd64 ./cmd/banana
-          GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o banana-darwin-arm64 ./cmd/banana
+          GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o imagine-darwin-amd64 ./cmd/imagine
+          GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o imagine-darwin-arm64 ./cmd/imagine
 
           # Windows
-          GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o banana-windows-amd64.exe ./cmd/banana
-          GOOS=windows GOARCH=arm64 go build -ldflags "$LDFLAGS" -o banana-windows-arm64.exe ./cmd/banana
+          GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o imagine-windows-amd64.exe ./cmd/imagine
+          GOOS=windows GOARCH=arm64 go build -ldflags "$LDFLAGS" -o imagine-windows-arm64.exe ./cmd/imagine
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            banana-linux-amd64
-            banana-linux-arm64
-            banana-darwin-amd64
-            banana-darwin-arm64
-            banana-windows-amd64.exe
-            banana-windows-arm64.exe
+            imagine-linux-amd64
+            imagine-linux-arm64
+            imagine-darwin-amd64
+            imagine-darwin-arm64
+            imagine-windows-amd64.exe
+            imagine-windows-arm64.exe
           generate_release_notes: true

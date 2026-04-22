@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/AhmedAburady/banana-cli/config"
+	"github.com/AhmedAburady/imagine-cli/config"
 	"google.golang.org/genai"
 )
 
@@ -14,7 +14,7 @@ import (
 func getVertexConfig() (project, location string, err error) {
 	project = config.GetGCPProject()
 	if project == "" {
-		return "", "", fmt.Errorf("GCP project is required for Vertex AI. Set GOOGLE_CLOUD_PROJECT env var or run: banana config set-project <PROJECT_ID>")
+		return "", "", fmt.Errorf("GCP project is required for Vertex AI. Set GOOGLE_CLOUD_PROJECT env var or run: imagine config set-project <PROJECT_ID>")
 	}
 
 	location = config.GetGCPLocation()

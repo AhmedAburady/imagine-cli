@@ -13,8 +13,8 @@ import (
 	"github.com/briandowns/spinner"
 	"google.golang.org/genai"
 
-	"github.com/AhmedAburady/banana-cli/api"
-	"github.com/AhmedAburady/banana-cli/config"
+	"github.com/AhmedAburady/imagine-cli/api"
+	"github.com/AhmedAburady/imagine-cli/config"
 )
 
 // Options holds CLI configuration for describe command
@@ -99,10 +99,10 @@ func (opts *Options) Validate() error {
 // PrintHelp prints the help message for describe command
 func PrintHelp() {
 	help := `
-BANANA DESCRIBE - AI-Powered Image Style Analysis
+IMAGINE DESCRIBE - AI-Powered Image Style Analysis
 
 Usage:
-  banana describe -i <image-or-folder> [flags]
+  imagine describe -i <image-or-folder> [flags]
 
 Flags:
   -i string    Input image or folder with style reference images (required)
@@ -123,11 +123,11 @@ Output Modes:
                • key_elements, avoid
 
 Examples:
-  banana describe -i photo.jpg                         # Plain text description
-  banana describe -i ./styles/ -json                   # JSON style guide
-  banana describe -i image.png -json -o style.json    # Save JSON to file
-  banana describe -i refs/ -a "2D flat vector art"    # Add style context
-  banana describe -i img.jpg -p "Focus on colors"     # Custom prompt
+  imagine describe -i photo.jpg                         # Plain text description
+  imagine describe -i ./styles/ -json                   # JSON style guide
+  imagine describe -i image.png -json -o style.json    # Save JSON to file
+  imagine describe -i refs/ -a "2D flat vector art"    # Add style context
+  imagine describe -i img.jpg -p "Focus on colors"     # Custom prompt
 `
 	fmt.Print(help)
 }
@@ -324,7 +324,7 @@ func HandleDescribeCommand(args []string) {
 		fmt.Println("\033[33mNo API key found.\033[0m")
 		fmt.Println()
 		fmt.Println("Get your free API key from: https://aistudio.google.com/app/apikey")
-		fmt.Println("Then set it with: banana config set-key <YOUR_API_KEY>")
+		fmt.Println("Then set it with: imagine config set-key <YOUR_API_KEY>")
 		fmt.Println("Or set GEMINI_API_KEY environment variable")
 		os.Exit(1)
 	}

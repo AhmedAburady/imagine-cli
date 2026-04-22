@@ -11,8 +11,8 @@ import (
 
 	"github.com/briandowns/spinner"
 
-	"github.com/AhmedAburady/banana-cli/api"
-	"github.com/AhmedAburady/banana-cli/config"
+	"github.com/AhmedAburady/imagine-cli/api"
+	"github.com/AhmedAburady/imagine-cli/config"
 	"golang.org/x/term"
 )
 
@@ -124,7 +124,7 @@ func ParseFlags() (*Options, bool) {
 
 // PrintVersion prints the version
 func PrintVersion() {
-	fmt.Printf("banana version %s\n", GetVersion())
+	fmt.Printf("imagine version %s\n", GetVersion())
 }
 
 // Validate validates the CLI options
@@ -339,16 +339,15 @@ func Run(opts *Options, apiKey string) {
 // PrintHelp prints the usage help message
 func PrintHelp() {
 	help := `
-BANANA CLI - Gemini AI Image Generator
+IMAGINE CLI - Gemini AI Image Generator
 
 Usage:
-  banana                        Open interactive TUI
-  banana [flags]                Generate/edit images from command line
-  banana describe [flags]       Describe/analyze image style using AI
-  banana config <command>       Manage configuration
+  imagine [flags]                Generate/edit images from command line
+  imagine describe [flags]       Describe/analyze image style using AI
+  imagine config <command>       Manage configuration
 
 Generate/Edit Flags:
-  -p string    Prompt text or path to prompt file (required for CLI mode)
+  -p string    Prompt text or path to prompt file (required)
   -o string    Output folder (default ".")
   -f string    Output filename (e.g. image.png); with -n >1, saves as image_1.png, image_2.png, ...
   -n int       Number of images (default 1)
@@ -372,28 +371,28 @@ Describe Flags:
   -json        Output as structured JSON format
 
 Config Commands:
-  banana config set-key <KEY>       Save your Gemini API key
-  banana config set-project <ID>    Save your GCP project ID (for -vertex)
-  banana config set-location <LOC>  Save your GCP location (default: global)
-  banana config show                Show current configuration
-  banana config path                Show config file location
+  imagine config set-key <KEY>       Save your Gemini API key
+  imagine config set-project <ID>    Save your GCP project ID (for -vertex)
+  imagine config set-location <LOC>  Save your GCP location (default: global)
+  imagine config show                Show current configuration
+  imagine config path                Show config file location
 
 Examples:
-  banana -p "a sunset over mountains" -n 3
-  banana -p "a sunset" -o ~/Documents -f sunset.png
-  banana -p "a sunset" -o ~/Documents -f sunset.png -n 5  # saves sunset_1.png ... sunset_5.png
-  banana -p prompt.txt -n 3                          # load prompt from file
-  banana -p "a sunset" -m flash                      # use flash model
-  banana -p "a sunset" -m flash -t high              # flash with high thinking
-  banana -p "a cat in supreme hoodie" -is             # with image search
-  banana -i ./photo.png -p "make it cartoon style"
-  banana -i a.png -i b.png -p "merge these styles"   # multiple reference images
-  banana -p "add rain" -s 2K -i *.png                # glob (put -i last)
-  banana -i ./photo.png -p "make it cartoon" -r      # output keeps name: photo.png
-  banana -p "a futuristic city" -g -ar 16:9 -s 2K
-  banana -i ./images/ -p "add rain effect" -n 2 -o ./output
-  banana describe -i photo.jpg                       # analyze image style
-  banana describe -i ./styles/ -o style.json         # analyze folder of images
+  imagine -p "a sunset over mountains" -n 3
+  imagine -p "a sunset" -o ~/Documents -f sunset.png
+  imagine -p "a sunset" -o ~/Documents -f sunset.png -n 5  # saves sunset_1.png ... sunset_5.png
+  imagine -p prompt.txt -n 3                          # load prompt from file
+  imagine -p "a sunset" -m flash                      # use flash model
+  imagine -p "a sunset" -m flash -t high              # flash with high thinking
+  imagine -p "a cat in supreme hoodie" -is             # with image search
+  imagine -i ./photo.png -p "make it cartoon style"
+  imagine -i a.png -i b.png -p "merge these styles"   # multiple reference images
+  imagine -p "add rain" -s 2K -i *.png                # glob (put -i last)
+  imagine -i ./photo.png -p "make it cartoon" -r      # output keeps name: photo.png
+  imagine -p "a futuristic city" -g -ar 16:9 -s 2K
+  imagine -i ./images/ -p "add rain effect" -n 2 -o ./output
+  imagine describe -i photo.jpg                       # analyze image style
+  imagine describe -i ./styles/ -o style.json         # analyze folder of images
 `
 	fmt.Print(help)
 }
@@ -407,7 +406,7 @@ func HandleConfigCommand(args []string) bool {
 	switch args[1] {
 	case "set-key":
 		if len(args) < 3 {
-			fmt.Println("Usage: banana config set-key <API_KEY>")
+			fmt.Println("Usage: imagine config set-key <API_KEY>")
 			os.Exit(1)
 		}
 		if err := config.SaveAPIKey(args[2]); err != nil {
@@ -419,7 +418,7 @@ func HandleConfigCommand(args []string) bool {
 
 	case "set-project":
 		if len(args) < 3 {
-			fmt.Println("Usage: banana config set-project <GCP_PROJECT_ID>")
+			fmt.Println("Usage: imagine config set-project <GCP_PROJECT_ID>")
 			os.Exit(1)
 		}
 		if err := config.SaveGCPProject(args[2]); err != nil {
@@ -431,7 +430,7 @@ func HandleConfigCommand(args []string) bool {
 
 	case "set-location":
 		if len(args) < 3 {
-			fmt.Println("Usage: banana config set-location <GCP_LOCATION>")
+			fmt.Println("Usage: imagine config set-location <GCP_LOCATION>")
 			os.Exit(1)
 		}
 		if err := config.SaveGCPLocation(args[2]); err != nil {

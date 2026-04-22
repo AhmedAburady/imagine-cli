@@ -1,4 +1,4 @@
-# BANANA CLI v1.1.5
+# IMAGINE CLI v1.1.5
 
 ## What's New
 
@@ -8,14 +8,14 @@ New `-f` flag lets you name your output file instead of getting the default time
 
 ```bash
 # Single image — saves as sloth.png
-banana -p "cute sloth" -f sloth.png
+imagine -p "cute sloth" -f sloth.png
 
 # Multiple images — auto-suffixed
-banana -p "cute sloth" -f sloth.png -n 5
+imagine -p "cute sloth" -f sloth.png -n 5
 # → sloth_1.png, sloth_2.png, ..., sloth_5.png
 
 # Combine with output folder
-banana -p "cute sloth" -o ~/Documents -f sloth.png
+imagine -p "cute sloth" -o ~/Documents -f sloth.png
 ```
 
 ### JPEG Output Support
@@ -23,8 +23,8 @@ banana -p "cute sloth" -o ~/Documents -f sloth.png
 Specify `.jpg` (or `.jpeg`) in `-f` to get a JPEG file. The API response is automatically re-encoded at quality 95 — fully parallel, no sequential bottleneck.
 
 ```bash
-banana -p "cute sloth" -f sloth.jpg
-banana -p "cute sloth" -f sloth.jpg -n 5
+imagine -p "cute sloth" -f sloth.jpg
+imagine -p "cute sloth" -f sloth.jpg -n 5
 # → sloth_1.jpg, sloth_2.jpg, ...
 ```
 
@@ -35,7 +35,7 @@ banana -p "cute sloth" -f sloth.jpg -n 5
 
 ---
 
-# BANANA CLI v1.1.4
+# IMAGINE CLI v1.1.4
 
 ## What's New
 
@@ -45,10 +45,10 @@ Switch between **Pro** and **Flash** models. Flash supports configurable thinkin
 
 ```bash
 # Use Flash model
-banana -p "a sunset" -m flash
+imagine -p "a sunset" -m flash
 
 # Flash with high thinking
-banana -p "a complex scene" -m flash -t high
+imagine -p "a complex scene" -m flash -t high
 ```
 
 | Flag | Description | Default |
@@ -61,7 +61,7 @@ banana -p "a complex scene" -m flash -t high
 New `-is` flag enables image search grounding — lets the model reference real images during generation. Flash model only.
 
 ```bash
-banana -p "a cat wearing a supreme hoodie" -m flash -is
+imagine -p "a cat wearing a supreme hoodie" -m flash -is
 ```
 
 ### Multiple Reference Images (`-i`)
@@ -70,10 +70,10 @@ The `-i` flag is now **repeatable** and supports **shell globs**. Pass multiple 
 
 ```bash
 # Multiple explicit references
-banana -i a.png -i b.png -p "merge these styles"
+imagine -i a.png -i b.png -p "merge these styles"
 
 # Shell glob expansion (put -i last)
-banana -p "add rain" -i *.png
+imagine -p "add rain" -i *.png
 ```
 
 ### TUI Parity
@@ -86,7 +86,7 @@ TUI forms now use a compact 2-column layout for settings and adapt to your termi
 
 ---
 
-# BANANA CLI v1.1.3
+# IMAGINE CLI v1.1.3
 
 ## What's New
 
@@ -96,23 +96,23 @@ Save your Vertex AI settings to the config file instead of using environment var
 
 ```bash
 # Save GCP project and location (one-time setup)
-banana config set-project your-project-id
-banana config set-location global
+imagine config set-project your-project-id
+imagine config set-location global
 
 # View all settings
-banana config show
+imagine config show
 ```
 
 **New Config Commands:**
 | Command | Description |
 |---------|-------------|
-| `banana config set-project <ID>` | Save GCP project ID |
-| `banana config set-location <LOC>` | Save GCP location (default: global) |
-| `banana config show` | Display all configured settings |
+| `imagine config set-project <ID>` | Save GCP project ID |
+| `imagine config set-location <LOC>` | Save GCP location (default: global) |
+| `imagine config show` | Display all configured settings |
 
 **Configuration Priority:**
 1. Environment variables (highest priority)
-2. Config file (`~/.config/banana/config.json`)
+2. Config file (`~/.config/imagine/config.json`)
 3. Default values
 
 ### Vertex AI Image Options
@@ -120,12 +120,12 @@ banana config show
 The `-ar` (aspect ratio) and `-s` (image size) flags now work correctly with Vertex AI.
 
 ```bash
-banana -p "a sunset" -vertex -ar 16:9 -s 2K
+imagine -p "a sunset" -vertex -ar 16:9 -s 2K
 ```
 
 ---
 
-# BANANA CLI v1.1.2
+# IMAGINE CLI v1.1.2
 
 ## What's New
 
@@ -136,23 +136,23 @@ Use Google Cloud's Vertex AI instead of the direct Gemini API. Perfect for enter
 ```bash
 # Set up (one-time)
 gcloud auth application-default login
-banana config set-project your-project-id
+imagine config set-project your-project-id
 
 # Generate with Vertex AI
-banana -p "a sunset over mountains" -vertex
+imagine -p "a sunset over mountains" -vertex
 
 # Edit with Vertex AI
-banana -i photo.png -p "make it watercolor" -vertex
+imagine -i photo.png -p "make it watercolor" -vertex
 
 # Describe with Vertex AI
-banana describe -i photo.jpg -vertex
+imagine describe -i photo.jpg -vertex
 ```
 
 **New Config Commands:**
 ```bash
-banana config set-project <PROJECT_ID>   # Save GCP project
-banana config set-location <LOCATION>    # Save GCP location (default: global)
-banana config show                       # View all settings
+imagine config set-project <PROJECT_ID>   # Save GCP project
+imagine config set-location <LOCATION>    # Save GCP location (default: global)
+imagine config show                       # View all settings
 ```
 
 **Configuration Priority:** Environment variables > Config file
@@ -167,7 +167,7 @@ banana config show                       # View all settings
 
 ---
 
-# BANANA CLI v1.1.1
+# IMAGINE CLI v1.1.1
 
 ## What's New
 
@@ -177,13 +177,13 @@ New `-r` flag preserves the input filename for the output when editing images.
 
 ```bash
 # Without -r: generates "generated_1_20260201_143052.png"
-banana -i photo.png -p "make it cartoon"
+imagine -i photo.png -p "make it cartoon"
 
 # With -r: outputs "photo.png" (replaces original)
-banana -i photo.png -p "make it cartoon" -r
+imagine -i photo.png -p "make it cartoon" -r
 
 # With -r and multiple images: outputs "photo_1.png", "photo_2.png", etc.
-banana -i photo.png -p "make it cartoon" -r -n 3
+imagine -i photo.png -p "make it cartoon" -r -n 3
 ```
 
 **Notes:**
@@ -192,7 +192,7 @@ banana -i photo.png -p "make it cartoon" -r -n 3
 
 ---
 
-# BANANA CLI v1.0.9
+# IMAGINE CLI v1.0.9
 
 ## What's New
 
@@ -202,16 +202,16 @@ Analyze images and extract style descriptions using AI. Perfect for creating con
 
 ```bash
 # Plain text style description
-banana describe -i photo.jpg
+imagine describe -i photo.jpg
 
 # Analyze folder of style references (unified description)
-banana describe -i ./reference_images/
+imagine describe -i ./reference_images/
 
 # Add style context to guide analysis
-banana describe -i image.png -a "2D flat vector art"
+imagine describe -i image.png -a "2D flat vector art"
 
 # Structured JSON output
-banana describe -i photo.jpg -json -o style.json
+imagine describe -i photo.jpg -json -o style.json
 ```
 
 **Features:**
@@ -230,11 +230,11 @@ banana describe -i photo.jpg -json -o style.json
 
 ```bash
 # Text prompt (as before)
-banana -p "a sunset over mountains"
+imagine -p "a sunset over mountains"
 
 # Load prompt from file
-banana -p prompt.json -n 3
-banana -p ~/prompts/calligraphy.txt -ar 1:1
+imagine -p prompt.json -n 3
+imagine -p ~/prompts/calligraphy.txt -ar 1:1
 ```
 
 ### Auto Version Detection
@@ -244,19 +244,19 @@ banana -p ~/prompts/calligraphy.txt -ar 1:1
 
 ---
 
-# BANANA CLI v1.0.8
+# IMAGINE CLI v1.0.8
 
 (Broken release - use v1.0.9 instead)
 
 ---
 
-# BANANA CLI v1.0.7
+# IMAGINE CLI v1.0.7
 
 (Broken release - use v1.0.9 instead)
 
 ---
 
-# BANANA CLI v1.0.6
+# IMAGINE CLI v1.0.6
 
 ## What's New
 
@@ -268,7 +268,7 @@ banana -p ~/prompts/calligraphy.txt -ar 1:1
 
 ---
 
-# BANANA CLI v1.0.5
+# IMAGINE CLI v1.0.5
 
 ## What's New
 
@@ -280,7 +280,7 @@ banana -p ~/prompts/calligraphy.txt -ar 1:1
 
 ---
 
-# BANANA CLI v1.0.4
+# IMAGINE CLI v1.0.4
 
 ## What's New
 
@@ -296,19 +296,19 @@ banana -p ~/prompts/calligraphy.txt -ar 1:1
 
 ---
 
-# BANANA CLI v1.0.3
+# IMAGINE CLI v1.0.3
 
 ## What's New
 
 ### API Key Configuration System
 
-No more exporting environment variables! BANANA CLI now saves your API key securely in your `~/.config/banana` folder.
+No more exporting environment variables! IMAGINE CLI now saves your API key securely in your `~/.config/imagine` folder.
 
 **New config commands:**
 ```bash
-banana config set-key YOUR_API_KEY   # Save your key
-banana config show                    # View config (key is masked)
-banana config path                    # Show config file location
+imagine config set-key YOUR_API_KEY   # Save your key
+imagine config show                    # View config (key is masked)
+imagine config path                    # Show config file location
 ```
 
 **Auto-prompt for API key:**
@@ -318,15 +318,15 @@ banana config path                    # Show config file location
 **Priority-based lookup:**
 1. `GEMINI_API_KEY` environment variable
 2. `GOOGLE_API_KEY` environment variable
-3. Config file (`~/.config/banana/config.json`)
+3. Config file (`~/.config/imagine/config.json`)
 
 This lets you override the saved key with env vars when needed.
 
 ### Version Flag
 
 ```bash
-banana --version
-banana -v
+imagine --version
+imagine -v
 ```
 
 ### Code Quality
@@ -337,7 +337,7 @@ banana -v
 ## Upgrade
 
 ```bash
-go install github.com/AhmedAburady/banana-cli/cmd/banana@latest
+go install github.com/AhmedAburady/imagine-cli/cmd/imagine@latest
 ```
 
 Or download the binary for your platform from the releases page.
@@ -346,18 +346,18 @@ Or download the binary for your platform from the releases page.
 
 ```bash
 # Save your API key once
-banana config set-key YOUR_GEMINI_API_KEY
+imagine config set-key YOUR_GEMINI_API_KEY
 
 # Generate images
-banana -p "a cyberpunk city at night" -n 3
+imagine -p "a cyberpunk city at night" -n 3
 
 # Or use the interactive TUI
-banana
+imagine
 ```
 
 ---
 
-# BANANA CLI v1.0.0 - v1.0.2
+# IMAGINE CLI v1.0.0 - v1.0.2
 
 AI-powered image generation and editing using Google's Gemini API.
 
@@ -368,7 +368,7 @@ AI-powered image generation and editing using Google's Gemini API.
 - **CLI Mode** - Scriptable command-line interface for automation
 
 ```bash
-banana -p "A beautiful sunset"
+imagine -p "A beautiful sunset"
 ```
 
 ### Image Generation

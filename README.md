@@ -1,6 +1,6 @@
 <div align="center">
 
-# BANANA CLI
+# IMAGINE CLI
 
 ### Gemini AI Image Generator
 
@@ -9,12 +9,12 @@ Features both an interactive terminal UI and a scriptable CLI interface.
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/AhmedAburady/banana-cli?include_prereleases&v=104)](https://github.com/AhmedAburady/banana-cli/releases)
+[![Release](https://img.shields.io/github/v/release/AhmedAburady/imagine-cli?include_prereleases&v=104)](https://github.com/AhmedAburady/imagine-cli/releases)
 
 [Features](#features) • [Installation](#installation) • [Quick Start](#quick-start) • [CLI Reference](#cli-reference) • [TUI Guide](#tui-guide)
 
-![BANANA CLI TUI](screenshots/tui1.png)
-![BANANA CLI TUI](screenshots/tui2.png?v=1)
+![IMAGINE CLI TUI](screenshots/tui1.png)
+![IMAGINE CLI TUI](screenshots/tui2.png?v=1)
 
 
 
@@ -45,31 +45,31 @@ Download the latest release for your platform:
 
 | Platform | Architecture | Download |
 |----------|--------------|----------|
-| **macOS** | Apple Silicon (M1/M2/M3) | [banana-darwin-arm64](https://github.com/AhmedAburady/banana-cli/releases/latest) |
-| **macOS** | Intel | [banana-darwin-amd64](https://github.com/AhmedAburady/banana-cli/releases/latest) |
-| **Linux** | x64 | [banana-linux-amd64](https://github.com/AhmedAburady/banana-cli/releases/latest) |
-| **Linux** | ARM64 | [banana-linux-arm64](https://github.com/AhmedAburady/banana-cli/releases/latest) |
-| **Windows** | x64 | [banana-windows-amd64.exe](https://github.com/AhmedAburady/banana-cli/releases/latest) |
-| **Windows** | ARM64 | [banana-windows-arm64.exe](https://github.com/AhmedAburady/banana-cli/releases/latest) |
+| **macOS** | Apple Silicon (M1/M2/M3) | [imagine-darwin-arm64](https://github.com/AhmedAburady/imagine-cli/releases/latest) |
+| **macOS** | Intel | [imagine-darwin-amd64](https://github.com/AhmedAburady/imagine-cli/releases/latest) |
+| **Linux** | x64 | [imagine-linux-amd64](https://github.com/AhmedAburady/imagine-cli/releases/latest) |
+| **Linux** | ARM64 | [imagine-linux-arm64](https://github.com/AhmedAburady/imagine-cli/releases/latest) |
+| **Windows** | x64 | [imagine-windows-amd64.exe](https://github.com/AhmedAburady/imagine-cli/releases/latest) |
+| **Windows** | ARM64 | [imagine-windows-arm64.exe](https://github.com/AhmedAburady/imagine-cli/releases/latest) |
 
 After downloading, make it executable (macOS/Linux):
 ```bash
-chmod +x banana-darwin-arm64
-mv banana-darwin-arm64 /usr/local/bin/banana
+chmod +x imagine-darwin-arm64
+mv imagine-darwin-arm64 /usr/local/bin/imagine
 ```
 
 ### Using Go
 
 ```bash
-go install github.com/AhmedAburady/banana-cli/cmd/banana@latest
+go install github.com/AhmedAburady/imagine-cli/cmd/imagine@latest
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/AhmedAburady/banana-cli.git
-cd banana-cli
-go build -o banana ./cmd/banana
+git clone https://github.com/AhmedAburady/imagine-cli.git
+cd imagine-cli
+go build -o imagine ./cmd/imagine
 ```
 
 ---
@@ -84,7 +84,7 @@ Get a free Gemini API key from [Google AI Studio](https://aistudio.google.com/ap
 
 **Option A: Save to config file (Recommended)**
 ```bash
-banana config set-key YOUR_API_KEY
+imagine config set-key YOUR_API_KEY
 ```
 
 **Option B: Environment variable**
@@ -96,22 +96,22 @@ export GEMINI_API_KEY="your_api_key_here"
 **Option C: Just run it**
 ```bash
 # CLI will prompt you to enter and save your API key
-banana -p "a sunset"
+imagine -p "a sunset"
 
 # TUI will show an API key input screen
-banana
+imagine
 ```
 
 ### 3. Generate Your First Image
 
 **Using TUI (Interactive):**
 ```bash
-banana
+imagine
 ```
 
 **Using CLI (One-liner):**
 ```bash
-banana -p "a cyberpunk city at night with neon lights"
+imagine -p "a cyberpunk city at night with neon lights"
 ```
 
 ---
@@ -123,12 +123,12 @@ The CLI mode allows you to generate or edit images directly from the command lin
 ### Basic Syntax
 
 ```
-banana [flags]
-banana describe [flags]
-banana config <command>
+imagine [flags]
+imagine describe [flags]
+imagine config <command>
 ```
 
-Running `banana` without flags opens the interactive TUI.
+Running `imagine` without flags opens the interactive TUI.
 
 ### Flags
 
@@ -150,19 +150,19 @@ Running `banana` without flags opens the interactive TUI.
 Manage your API key configuration:
 
 ```bash
-banana config set-key <KEY>   # Save your Gemini API key
-banana config show            # Show current configuration (key is masked)
-banana config path            # Show config file location
+imagine config set-key <KEY>   # Save your Gemini API key
+imagine config show            # Show current configuration (key is masked)
+imagine config path            # Show config file location
 ```
 
-The config file is stored at `~/.config/banana/config.json`.
+The config file is stored at `~/.config/imagine/config.json`.
 
 ### Describe Command
 
 Analyze images and extract style descriptions:
 
 ```bash
-banana describe -i <image-or-folder> [flags]
+imagine describe -i <image-or-folder> [flags]
 ```
 
 | Flag | Description | Default |
@@ -207,19 +207,19 @@ Generate images from text prompts:
 
 ```bash
 # Simple generation - creates 1 image in current directory
-banana -p "a mountain landscape at sunset"
+imagine -p "a mountain landscape at sunset"
 
 # Multiple images with custom output folder
-banana -p "abstract geometric patterns" -n 5 -o ./my-patterns
+imagine -p "abstract geometric patterns" -n 5 -o ./my-patterns
 
 # Widescreen wallpaper in 4K
-banana -p "northern lights over a snowy forest" -ar 16:9 -s 4K -o ~/Wallpapers
+imagine -p "northern lights over a snowy forest" -ar 16:9 -s 4K -o ~/Wallpapers
 
 # Phone wallpaper
-banana -p "minimalist gradient with soft colors" -ar 9:16 -o ./phone-wallpapers
+imagine -p "minimalist gradient with soft colors" -ar 9:16 -o ./phone-wallpapers
 
 # With Google Search grounding for current/real-world topics
-banana -p "the latest Tesla Cybertruck design" -g
+imagine -p "the latest Tesla Cybertruck design" -g
 ```
 
 ### Edit Mode
@@ -228,16 +228,16 @@ Transform existing images using the `-i` flag:
 
 ```bash
 # Edit a single image
-banana -i ./photo.jpg -p "convert to watercolor painting style"
+imagine -i ./photo.jpg -p "convert to watercolor painting style"
 
 # Use multiple reference images from a folder
-banana -i ./reference-images/ -p "create a pattern inspired by these designs" -n 3
+imagine -i ./reference-images/ -p "create a pattern inspired by these designs" -n 3
 
 # Style transfer
-banana -i ./portrait.png -p "transform into anime art style" -o ./anime-versions
+imagine -i ./portrait.png -p "transform into anime art style" -o ./anime-versions
 
 # Add effects
-banana -i ./landscape.jpg -p "add dramatic storm clouds and lightning"
+imagine -i ./landscape.jpg -p "add dramatic storm clouds and lightning"
 ```
 
 ### Describe Mode
@@ -246,16 +246,16 @@ Extract style descriptions from images:
 
 ```bash
 # Plain text style description
-banana describe -i photo.jpg
+imagine describe -i photo.jpg
 
 # Analyze folder of style references (unified description)
-banana describe -i ./reference_images/
+imagine describe -i ./reference_images/
 
 # Add style context to guide analysis
-banana describe -i image.png -a "2D flat vector art"
+imagine describe -i image.png -a "2D flat vector art"
 
 # Structured JSON output
-banana describe -i photo.jpg -json -o style.json
+imagine describe -i photo.jpg -json -o style.json
 ```
 
 ### Output Example
@@ -280,7 +280,7 @@ The Terminal User Interface provides an interactive experience for image generat
 ### Launching the TUI
 
 ```bash
-banana
+imagine
 ```
 
 ### Main Menu
@@ -356,7 +356,7 @@ All generated images are saved as **PNG** format.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        BANANA CLI                           │
+│                        IMAGINE CLI                           │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │   ┌─────────┐         ┌─────────────┐        ┌─────────┐   │
@@ -378,13 +378,13 @@ All generated images are saved as **PNG** format.
 
 ## API Key Configuration
 
-BANANA CLI looks for your API key in the following order (first found wins):
+IMAGINE CLI looks for your API key in the following order (first found wins):
 
 | Priority | Source | Description |
 |----------|--------|-------------|
 | 1 | `GEMINI_API_KEY` | Environment variable (highest priority) |
 | 2 | `GOOGLE_API_KEY` | Alternative environment variable |
-| 3 | Config file | `~/.config/banana/config.json` |
+| 3 | Config file | `~/.config/imagine/config.json` |
 
 This allows you to:
 - Use environment variables to temporarily override the saved key
@@ -419,8 +419,8 @@ export GOOGLE_APPLICATION_CREDENTIALS="path/to/your-service-account.json"
 
 Option A: Save to config file (recommended)
 ```bash
-banana config set-project your-project-id
-banana config set-location global  # optional, defaults to global
+imagine config set-project your-project-id
+imagine config set-location global  # optional, defaults to global
 ```
 
 Option B: Use environment variables
@@ -431,8 +431,8 @@ export GOOGLE_CLOUD_LOCATION="global"  # optional
 
 **Step 3: Use the `-vertex` flag**
 ```bash
-banana -p "a beautiful sunset" -vertex
-banana -p "cyberpunk city" -n 5 -vertex -ar 16:9
+imagine -p "a beautiful sunset" -vertex
+imagine -p "cyberpunk city" -n 5 -vertex -ar 16:9
 ```
 
 ### Configuration Priority
@@ -441,8 +441,8 @@ Settings are loaded in this order (first found wins):
 
 | Setting | Env Variable | Config Command | Default |
 |---------|--------------|----------------|---------|
-| GCP Project | `GOOGLE_CLOUD_PROJECT` | `banana config set-project` | - |
-| GCP Location | `GOOGLE_CLOUD_LOCATION` | `banana config set-location` | `global` |
+| GCP Project | `GOOGLE_CLOUD_PROJECT` | `imagine config set-project` | - |
+| GCP Location | `GOOGLE_CLOUD_LOCATION` | `imagine config set-location` | `global` |
 
 ### Benefits of Vertex AI
 
@@ -460,7 +460,7 @@ Settings are loaded in this order (first found wins):
 **No API key configured:**
 ```bash
 # Easiest: save to config
-banana config set-key YOUR_API_KEY
+imagine config set-key YOUR_API_KEY
 
 # Or use environment variable
 export GEMINI_API_KEY="your_key_here"
@@ -468,8 +468,8 @@ export GEMINI_API_KEY="your_key_here"
 
 **Check current configuration:**
 ```bash
-banana config show    # Shows masked key
-banana config path    # Shows config file location
+imagine config show    # Shows masked key
+imagine config path    # Shows config file location
 ```
 
 ### "No images found in directory"

@@ -36,7 +36,9 @@ input/
 *.png
 generations/
 .claude/
+/imagine
 /banana
 message.txt
 
 context/
+.agents/

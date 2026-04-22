@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/AhmedAburady/banana-cli/config"
+	"github.com/AhmedAburady/imagine-cli/config"
 	"google.golang.org/genai"
 
 	"google.golang.org/adk/agent"
@@ -111,7 +111,7 @@ func (a *DescribeAgent) DescribeImages(ctx context.Context, imageParts []*genai.
 	if a.useVertex {
 		project := config.GetGCPProject()
 		if project == "" {
-			return nil, fmt.Errorf("GCP project is required for Vertex AI. Set GOOGLE_CLOUD_PROJECT env var or run: banana config set-project <PROJECT_ID>")
+			return nil, fmt.Errorf("GCP project is required for Vertex AI. Set GOOGLE_CLOUD_PROJECT env var or run: imagine config set-project <PROJECT_ID>")
 		}
 		location := config.GetGCPLocation()
 		clientConfig = &genai.ClientConfig{
@@ -175,7 +175,7 @@ func (a *DescribeAgent) DescribeImages(ctx context.Context, imageParts []*genai.
 
 	// Create session before running
 	_, err = sessionService.Create(ctx, &session.CreateRequest{
-		AppName:   "banana-describe",
+		AppName:   "imagine-describe",
 		UserID:    "cli-user",
 		SessionID: "describe-session",
 	})
@@ -184,7 +184,7 @@ func (a *DescribeAgent) DescribeImages(ctx context.Context, imageParts []*genai.
 	}
 
 	r, err := runner.New(runner.Config{
-		AppName:        "banana-describe",
+		AppName:        "imagine-describe",
 		Agent:          describeAgent,
 		SessionService: sessionService,
 	})

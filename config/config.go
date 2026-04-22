@@ -19,7 +19,7 @@ func DefaultConfigDir() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(home, ".config", "banana")
+	return filepath.Join(home, ".config", "imagine")
 }
 
 // DefaultConfigPath returns the default config file path
