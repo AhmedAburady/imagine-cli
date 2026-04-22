@@ -46,13 +46,17 @@
 
 ## Why imagine
 
-One CLI. Three providers. No environment variables, no ceremony — a YAML config file and you're running.
+The best image models out there — Nano Banana, Nano Banana 2, and gpt-image-2 — are stuck behind web UIs. There's no official way to reach them from a terminal.
 
-- **Multi-provider** — Google Gemini (direct REST), Google Vertex AI (GCP), OpenAI (gpt-image-2).
-- **Unified generate + edit** — `-p "..."` generates; add `-i reference.png` and the same command edits.
-- **Parallelism built in** — up to 20 images per invocation. OpenAI batches up to 10 per API call automatically.
-- **Fang-styled help** — `imagine --help` renders provider-aware help with examples, model lists, and size options for whichever provider is active.
-- **Cobra-powered** — flags, subcommands, shell completion, man pages.
+I built [banana-cli](https://github.com/AhmedAburady/banana-cli) first — a focused CLI for Google's image models. imagine is the next step: same idea, built to be extensible. One tool that can grow to support whatever good image models come next, across any provider.
+
+- **The models that matter** — Nano Banana (`gemini-3-pro-image-preview`), Nano Banana 2 (`gemini-3.1-flash-image-preview`), and gpt-image-2. Direct API access, no middlemen.
+- **Built for workflows** — pipe into scripts, run inside loops, chain with other CLI tools. Anywhere a command runs, imagine runs.
+- **Concurrent generation** — `-n 10` fires off 10 images in one invocation. No clicking, no waiting for one to finish before starting the next.
+- **Iterate fast** — tweak the prompt, rerun, compare. Generate multiple variations in one shot with `-n` and keep what works. The terminal loop is the creative loop.
+- **Generate and edit in one command** — `-p "..."` generates; add `-i reference.png` and the same command switches to edit mode.
+- **One config file, no env vars** — set your keys once in `~/.config/imagine/config.yaml` and forget about it.
+- **Extensible by design** — adding a new provider is one directory under `providers/` and one import line. As new models ship, imagine can keep up.
 
 [↑ Back to top](#table-of-contents)
 
