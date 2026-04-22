@@ -1,19 +1,44 @@
+// Package config loads imagine's YAML configuration.
+//
+// Location: ~/.config/imagine/config.yaml (or config.yml — both are tried).
+// Users edit this file directly; imagine does not write to it.
+//
+// Schema:
+//
+//	default_provider: openai
+//	providers:
+//	  gemini:
+//	    api_key: AIza...
+//	  openai:
+//	    api_key: sk-...
+//	  vertex:
+//	    provider_options:
+//	      gcp_project: my-project
+//	      location: us-central1
 package config
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"gopkg.in/yaml.v3"
 )
 
-// Config holds the application configuration
+// Config is the on-disk shape.
 type Config struct {
-	APIKey      string `json:"api_key"`
-	GCPProject  string `json:"gcp_project,omitempty"`
-	GCPLocation string `json:"gcp_location,omitempty"`
+	DefaultProvider string                    `yaml:"default_provider,omitempty"`
+	Providers       map[string]ProviderConfig `yaml:"providers,omitempty"`
 }
 
-// DefaultConfigDir returns the default config directory
+// ProviderConfig is per-provider config. APIKey is the common case; extras
+// live under ProviderOptions as a free-form string map (e.g. Vertex's
+// gcp_project and location).
+type ProviderConfig struct {
+	APIKey          string            `yaml:"api_key,omitempty"`
+	ProviderOptions map[string]string `yaml:"provider_options,omitempty"`
+}
+
+// DefaultConfigDir returns ~/.config/imagine.
 func DefaultConfigDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -22,122 +47,96 @@ func DefaultConfigDir() string {
 	return filepath.Join(home, ".config", "imagine")
 }
 
-// DefaultConfigPath returns the default config file path
-func DefaultConfigPath() string {
-	return filepath.Join(DefaultConfigDir(), "config.json")
-}
-
-// Load reads the config from the default location
-func Load() (*Config, error) {
-	path := DefaultConfigPath()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return &Config{}, nil
-		}
-		return nil, err
-	}
-
-	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, err
-	}
-
-	return &cfg, nil
-}
-
-// Save writes the config to the default location
-func Save(cfg *Config) error {
+// candidatePaths returns the config file paths tried in order.
+func candidatePaths() []string {
 	dir := DefaultConfigDir()
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return err
+	return []string{
+		filepath.Join(dir, "config.yaml"),
+		filepath.Join(dir, "config.yml"),
 	}
-
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(DefaultConfigPath(), data, 0600)
 }
 
-// SaveAPIKey saves just the API key
-func SaveAPIKey(key string) error {
-	cfg, err := Load()
-	if err != nil {
-		cfg = &Config{}
-	}
-	cfg.APIKey = key
-	return Save(cfg)
+// DefaultConfigPath returns the canonical config path (config.yaml). Use this
+// in user-facing error messages; Load() also accepts the .yml variant.
+func DefaultConfigPath() string {
+	return filepath.Join(DefaultConfigDir(), "config.yaml")
 }
 
-// GetAPIKey returns the API key from env vars or config file
-// Priority: GEMINI_API_KEY > GOOGLE_API_KEY > config file
-func GetAPIKey() string {
-	// Check environment variables first
-	if key := os.Getenv("GEMINI_API_KEY"); key != "" {
-		return key
+// Load reads the config. Tries config.yaml, then config.yml. Returns a
+// zero-value *Config when neither exists (not an error).
+func Load() (*Config, error) {
+	for _, path := range candidatePaths() {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, err
+		}
+		var cfg Config
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			return nil, err
+		}
+		if cfg.Providers == nil {
+			cfg.Providers = map[string]ProviderConfig{}
+		}
+		return &cfg, nil
 	}
-	if key := os.Getenv("GOOGLE_API_KEY"); key != "" {
-		return key
-	}
+	return &Config{Providers: map[string]ProviderConfig{}}, nil
+}
 
-	// Fall back to config file
+// ProviderAPIKey returns providers.<name>.api_key.
+func (c *Config) ProviderAPIKey(name string) string {
+	if c == nil {
+		return ""
+	}
+	return c.Providers[name].APIKey
+}
+
+// ProviderOption returns providers.<name>.provider_options.<key>.
+func (c *Config) ProviderOption(name, key string) string {
+	if c == nil {
+		return ""
+	}
+	return c.Providers[name].ProviderOptions[key]
+}
+
+// -- Back-compat getters for describe (out of scope for the refactor) --------
+
+// GetGeminiAPIKey reads providers.gemini.api_key.
+func GetGeminiAPIKey() string {
 	cfg, err := Load()
 	if err != nil {
 		return ""
 	}
-	return cfg.APIKey
+	return cfg.ProviderAPIKey("gemini")
 }
 
-// GetGCPProject returns the GCP project from env vars or config file
-// Priority: GOOGLE_CLOUD_PROJECT > GCLOUD_PROJECT > config file
+// GetGCPProject reads providers.vertex.provider_options.gcp_project.
 func GetGCPProject() string {
-	if project := os.Getenv("GOOGLE_CLOUD_PROJECT"); project != "" {
-		return project
-	}
-	if project := os.Getenv("GCLOUD_PROJECT"); project != "" {
-		return project
-	}
-
 	cfg, err := Load()
 	if err != nil {
 		return ""
 	}
-	return cfg.GCPProject
+	return cfg.ProviderOption("vertex", "gcp_project")
 }
 
-// GetGCPLocation returns the GCP location from env vars or config file
-// Priority: GOOGLE_CLOUD_LOCATION > config file > default "global"
+// GetGCPLocation reads providers.vertex.provider_options.location (default "global").
 func GetGCPLocation() string {
-	if location := os.Getenv("GOOGLE_CLOUD_LOCATION"); location != "" {
-		return location
-	}
-
 	cfg, err := Load()
-	if err == nil && cfg.GCPLocation != "" {
-		return cfg.GCPLocation
+	if err == nil {
+		if l := cfg.ProviderOption("vertex", "location"); l != "" {
+			return l
+		}
 	}
-
-	return "global" // Default location
+	return "global"
 }
 
-// SaveGCPProject saves the GCP project to config
-func SaveGCPProject(project string) error {
+// GetDefaultProvider reads default_provider.
+func GetDefaultProvider() string {
 	cfg, err := Load()
 	if err != nil {
-		cfg = &Config{}
+		return ""
 	}
-	cfg.GCPProject = project
-	return Save(cfg)
-}
-
-// SaveGCPLocation saves the GCP location to config
-func SaveGCPLocation(location string) error {
-	cfg, err := Load()
-	if err != nil {
-		cfg = &Config{}
-	}
-	cfg.GCPLocation = location
-	return Save(cfg)
+	return cfg.DefaultProvider
 }

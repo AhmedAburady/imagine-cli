@@ -1,7 +1,7 @@
-// Package api owns the orchestrator that runs N parallel generation requests,
-// and the concrete provider clients (Gemini direct, Vertex). In Phase 4 the
-// provider clients move into providers/ and this package owns just the
-// orchestrator + shared types.
+// Package api owns the orchestrator: it takes a resolved Provider, a Request,
+// and orchestration-only parameters (output folder, filename rules, total
+// count), fans out provider calls in parallel while respecting MaxBatchN,
+// writes each image to disk, and returns a per-image result summary.
 package api
 
 import (
@@ -13,7 +13,17 @@ import (
 	"time"
 
 	"github.com/AhmedAburady/imagine-cli/internal/images"
+	"github.com/AhmedAburady/imagine-cli/providers"
 )
+
+// Params holds orchestration-only settings — things no provider needs to know.
+type Params struct {
+	OutputFolder     string
+	OutputFilename   string // -f
+	NumImages        int    // total, across all batches
+	PreserveFilename bool   // -r
+	RefInputPath     string // original -i path, used by -r
+}
 
 // GenerationResult is the outcome of a single image request/save.
 type GenerationResult struct {
@@ -23,79 +33,91 @@ type GenerationResult struct {
 	Error     error
 }
 
-// GenerationOutput wraps the full run: per-image results, the output folder,
-// and wall-clock elapsed time.
+// GenerationOutput wraps the full run.
 type GenerationOutput struct {
 	Results      []GenerationResult
 	OutputFolder string
 	Elapsed      time.Duration
 }
 
-// RunGeneration fans N requests out in parallel, saves each successful image
-// to disk using ResolveFilename's precedence rules, and returns the collected
-// results. Provider dispatch (Gemini direct vs Vertex) happens inline here —
-// Phase 4 replaces the bool-branch with a Provider interface.
-//
+// RunGeneration dispatches NumImages through the given Provider, batching at
+// Info().Capabilities.MaxBatchN. Each batch runs in its own goroutine; each
+// successful image is saved to disk using ResolveFilename's precedence rules.
 // ctx cancels in-flight HTTP (Ctrl+C via fang).
-func RunGeneration(ctx context.Context, config *Config) GenerationOutput {
+func RunGeneration(ctx context.Context, provider providers.Provider, request providers.Request, params Params) GenerationOutput {
 	startTime := time.Now()
 
-	if err := os.MkdirAll(config.OutputFolder, 0755); err != nil {
+	if err := os.MkdirAll(params.OutputFolder, 0755); err != nil {
 		return GenerationOutput{
 			Results: []GenerationResult{{
 				Index: 0,
 				Error: fmt.Errorf("failed to create output folder: %v", err),
 			}},
-			OutputFolder: config.OutputFolder,
+			OutputFolder: params.OutputFolder,
 			Elapsed:      time.Since(startTime),
 		}
 	}
 
-	var wg sync.WaitGroup
-	resultsChan := make(chan GenerationResult, config.NumImages)
+	// Plan batches: for providers with MaxBatchN=1 (Gemini/Vertex), this
+	// yields NumImages batches of size 1. For MaxBatchN=10 (OpenAI), fewer
+	// bigger batches.
+	maxBatch := provider.Info().Capabilities.MaxBatchN
+	if maxBatch < 1 {
+		maxBatch = 1
+	}
+	var batchSizes []int
+	remaining := params.NumImages
+	for remaining > 0 {
+		size := maxBatch
+		if remaining < size {
+			size = remaining
+		}
+		batchSizes = append(batchSizes, size)
+		remaining -= size
+	}
 
-	for i := 0; i < config.NumImages; i++ {
+	var wg sync.WaitGroup
+	resultsChan := make(chan GenerationResult, params.NumImages)
+
+	globalIndex := 0
+	for _, size := range batchSizes {
+		startIndex := globalIndex
+		globalIndex += size
+
+		batchReq := request
+		batchReq.N = size
+
 		wg.Add(1)
-		go func(index int) {
+		go func(startIndex, batchSize int, req providers.Request) {
 			defer wg.Done()
 
-			var result GenerationResult
-			if config.UseVertex {
-				result = GenerateImageVertex(ctx, config, index)
-			} else {
-				result = GenerateImage(ctx, config, index)
+			resp, err := provider.Generate(ctx, req)
+			if err != nil {
+				for i := 0; i < batchSize; i++ {
+					resultsChan <- GenerationResult{Index: startIndex + i, Error: err}
+				}
+				return
 			}
 
-			if result.Error == nil && result.ImageData != nil {
-				filename := images.ResolveFilename(images.FilenameParams{
-					Custom:       config.OutputFilename,
-					Preserve:     config.PreserveFilename,
-					RefInputPath: config.RefInputPath,
-					Index:        result.Index,
-					Total:        config.NumImages,
-				})
-
-				imageData := result.ImageData
-				if images.HasJPEGExt(filename) {
-					converted, err := images.ConvertToJPEG(imageData)
-					if err != nil {
-						result.Error = fmt.Errorf("failed to convert to JPEG: %v", err)
-						resultsChan <- result
-						return
-					}
-					imageData = converted
+			for i, img := range resp.Images {
+				if i >= batchSize {
+					// Provider returned more images than requested; ignore extras.
+					break
 				}
-
-				outputFile := filepath.Join(config.OutputFolder, filename)
-				if err := os.WriteFile(outputFile, imageData, 0644); err != nil {
-					result.Error = fmt.Errorf("failed to save: %v", err)
-				} else {
-					result.Filename = filename
-				}
+				res := GenerationResult{Index: startIndex + i, ImageData: img.Data}
+				saveOne(&res, img.Data, params)
+				resultsChan <- res
 			}
 
-			resultsChan <- result
-		}(i)
+			// If the provider returned fewer images than requested, fill the gap
+			// so the per-image error surfaces to the user.
+			for i := len(resp.Images); i < batchSize; i++ {
+				resultsChan <- GenerationResult{
+					Index: startIndex + i,
+					Error: fmt.Errorf("provider returned only %d of %d requested images", len(resp.Images), batchSize),
+				}
+			}
+		}(startIndex, size, batchReq)
 	}
 
 	go func() {
@@ -104,13 +126,43 @@ func RunGeneration(ctx context.Context, config *Config) GenerationOutput {
 	}()
 
 	var results []GenerationResult
-	for result := range resultsChan {
-		results = append(results, result)
+	for r := range resultsChan {
+		results = append(results, r)
 	}
 
 	return GenerationOutput{
 		Results:      results,
-		OutputFolder: config.OutputFolder,
+		OutputFolder: params.OutputFolder,
 		Elapsed:      time.Since(startTime),
 	}
+}
+
+// saveOne resolves the output filename (honouring -f, -r, and default rules),
+// converts to JPEG when the extension requests it, and writes the file.
+// Mutates res.Filename on success or res.Error on failure.
+func saveOne(res *GenerationResult, data []byte, params Params) {
+	filename := images.ResolveFilename(images.FilenameParams{
+		Custom:       params.OutputFilename,
+		Preserve:     params.PreserveFilename,
+		RefInputPath: params.RefInputPath,
+		Index:        res.Index,
+		Total:        params.NumImages,
+	})
+
+	if images.HasJPEGExt(filename) {
+		converted, err := images.ConvertToJPEG(data)
+		if err != nil {
+			res.Error = fmt.Errorf("failed to convert to JPEG: %v", err)
+			return
+		}
+		data = converted
+	}
+
+	outputFile := filepath.Join(params.OutputFolder, filename)
+	if err := os.WriteFile(outputFile, data, 0644); err != nil {
+		res.Error = fmt.Errorf("failed to save: %v", err)
+		return
+	}
+	res.Filename = filename
+	res.ImageData = data
 }

@@ -319,15 +319,57 @@ func HandleDescribeCommand(args []string) {
 		return
 	}
 
-	// Get API key
-	apiKey := config.GetAPIKey()
-	if apiKey == "" {
-		fmt.Println("\033[33mNo API key found.\033[0m")
-		fmt.Println()
-		fmt.Println("Get your free API key from: https://aistudio.google.com/app/apikey")
-		fmt.Println("Then set it with: imagine config set-key <YOUR_API_KEY>")
-		fmt.Println("Or set GEMINI_API_KEY environment variable")
-		os.Exit(1)
+	// Describe needs either Gemini (API key) or Vertex (GCP project).
+	apiKey := config.GetGeminiAPIKey()
+	project := config.GetGCPProject()
+
+	if opts.UseVertex {
+		if project == "" {
+			fmt.Println("describe with --vertex needs a GCP project.")
+			fmt.Println()
+			fmt.Println("1. Authenticate once on this machine:")
+			fmt.Println("     gcloud auth application-default login")
+			fmt.Println()
+			fmt.Println("2. Add your project to " + config.DefaultConfigPath() + ":")
+			fmt.Println()
+			fmt.Println("     providers:")
+			fmt.Println("       vertex:")
+			fmt.Println("         provider_options:")
+			fmt.Println("           gcp_project: your-project-id")
+			os.Exit(1)
+		}
+	} else {
+		if apiKey == "" {
+			if project != "" {
+				fmt.Println("describe uses Gemini by default. You have Vertex configured — pass --vertex to use it,")
+				fmt.Println("or add a Gemini API key to " + config.DefaultConfigPath() + ":")
+				fmt.Println()
+				fmt.Println("  providers:")
+				fmt.Println("    gemini:")
+				fmt.Println("      api_key: your-gemini-api-key")
+			} else {
+				fmt.Println("describe needs either a Gemini or Vertex provider configured.")
+				fmt.Println()
+				fmt.Println("Option A — Gemini API key. Add to " + config.DefaultConfigPath() + ":")
+				fmt.Println()
+				fmt.Println("  providers:")
+				fmt.Println("    gemini:")
+				fmt.Println("      api_key: your-gemini-api-key")
+				fmt.Println()
+				fmt.Println("Option B — Vertex AI. Run once on this machine:")
+				fmt.Println("  gcloud auth application-default login")
+				fmt.Println()
+				fmt.Println("Then add to the config:")
+				fmt.Println()
+				fmt.Println("  providers:")
+				fmt.Println("    vertex:")
+				fmt.Println("      provider_options:")
+				fmt.Println("        gcp_project: your-project-id")
+				fmt.Println()
+				fmt.Println("See README for the full schema.")
+			}
+			os.Exit(1)
+		}
 	}
 
 	if err := Run(opts, apiKey, opts.UseVertex); err != nil {

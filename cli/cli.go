@@ -1,68 +1,44 @@
-// Package cli holds the generation-run glue: option struct, validation,
-// the runtime runner (spinner + summary), and the first-run key prompt.
-// Flag parsing, help text, and subcommand dispatch live in the commands
-// package (cobra + fang).
+// Package cli holds the generation-run glue: the Options struct that cobra
+// binds common flags onto, provider-agnostic validation, and the first-run
+// key prompt. Flag parsing lives in commands/ (cobra + fang). Provider-
+// specific validation (sizes, models, capability gating) lives in each
+// provider's Info() and the root command's PreRunE.
 package cli
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/briandowns/spinner"
-
-	"github.com/AhmedAburady/imagine-cli/api"
 	"github.com/AhmedAburady/imagine-cli/internal/images"
 	"github.com/AhmedAburady/imagine-cli/internal/paths"
 )
 
-// Options holds the parsed CLI options for the generate/edit flow. Cobra binds
-// user flags directly onto the fields here in commands/root.go.
+// Options holds the common CLI options cobra binds directly.
+// Provider-private flags (grounding, thinking, quality, …) are NOT here —
+// they're declared by each provider's BindFlags and harvested via ReadFlags.
 type Options struct {
 	Prompt           string
 	Output           string
 	OutputFilename   string
 	NumImages        int
-	AspectRatio      string
+	AspectRatio     string
 	ImageSize        string
-	Grounding        bool
 	RefInputs        []string
 	PreserveFilename bool
-	UseVertex        bool
-	Model            string
-	ThinkingLevel    string
-	ImageSearch      bool
+	Model            string // raw user input; PreRunE resolves aliases via the active provider
 }
 
-var (
-	validAspectRatios = map[string]bool{
-		"":     true, // Auto (not included in request)
-		"1:1":  true,
-		"16:9": true,
-		"9:16": true,
-		"4:3":  true,
-		"3:4":  true,
-		"2:3":  true,
-		"3:2":  true,
-		"5:4":  true,
-		"4:5":  true,
-		"21:9": true,
-	}
-	validImageSizes = map[string]bool{
-		"1K": true, "2K": true, "4K": true,
-	}
-	validModels = map[string]bool{
-		"pro": true, "flash": true,
-	}
-	validThinkingLevels = map[string]bool{
-		"minimal": true, "high": true,
-	}
-)
-
-// Validate validates the CLI options.
+// Validate runs provider-agnostic checks:
+//   - -p is required (reading from a file if the value points at a path)
+//   - tilde expansion in -o, -i
+//   - -n is in range
+//   - -i paths exist and contain supported images
+//   - -f and -r are mutually exclusive (cobra also enforces)
+//   - -r requires exactly one -i pointing at a single file.
+//
+// Provider-specific validation (model aliases, allowed sizes, capability
+// gating for grounding/thinking) runs in commands/root.go's PreRunE.
 func (opts *Options) Validate() error {
 	if opts.Prompt == "" {
 		return fmt.Errorf("prompt is required (-p flag)")
@@ -89,18 +65,6 @@ func (opts *Options) Validate() error {
 	if opts.NumImages < 1 || opts.NumImages > 20 {
 		return fmt.Errorf("number of images must be between 1 and 20")
 	}
-	if !validAspectRatios[opts.AspectRatio] {
-		return fmt.Errorf("invalid aspect ratio: %s", opts.AspectRatio)
-	}
-	if !validImageSizes[opts.ImageSize] {
-		return fmt.Errorf("invalid image size: %s (valid: 1K, 2K, 4K)", opts.ImageSize)
-	}
-	if !validModels[opts.Model] {
-		return fmt.Errorf("invalid model: %s (valid: pro, flash)", opts.Model)
-	}
-	if !validThinkingLevels[opts.ThinkingLevel] {
-		return fmt.Errorf("invalid thinking level: %s (valid: minimal, high)", opts.ThinkingLevel)
-	}
 
 	for _, ref := range opts.RefInputs {
 		info, err := os.Stat(ref)
@@ -120,12 +84,10 @@ func (opts *Options) Validate() error {
 		}
 	}
 
-	// -f and -r are mutually exclusive at the cobra layer too; keep this belt-and-braces.
+	// Belt-and-braces; cobra's MarkFlagsMutuallyExclusive catches this too.
 	if opts.OutputFilename != "" && opts.PreserveFilename {
-		return fmt.Errorf("-f and -r are mutually exclusive: use one or the other")
+		return fmt.Errorf("-f and -r are mutually exclusive")
 	}
-
-	// -r requires exactly one -i pointing at a single file.
 	if opts.PreserveFilename {
 		if len(opts.RefInputs) == 0 {
 			return fmt.Errorf("-r flag requires -i with an input image file")
@@ -139,103 +101,5 @@ func (opts *Options) Validate() error {
 		}
 	}
 
-	return nil
-}
-
-// Run executes the generate/edit flow end-to-end: load references, run the
-// parallel generation, print per-image results and a summary. Returns a
-// non-nil error when any image fails or setup fails; cobra/fang handles exit.
-func Run(ctx context.Context, opts *Options, apiKey string) error {
-	var refImages []images.Reference
-	for _, ref := range opts.RefInputs {
-		refs, err := images.Load(ref)
-		if err != nil {
-			return fmt.Errorf("failed to load references: %w", err)
-		}
-		refImages = append(refImages, refs...)
-	}
-
-	modelName := api.ModelPro
-	if opts.Model == "flash" {
-		modelName = api.ModelFlash
-	}
-
-	thinkingLevel := ""
-	if opts.Model == "flash" {
-		thinkingLevel = strings.ToUpper(opts.ThinkingLevel)
-	}
-
-	refInputPath := ""
-	if len(opts.RefInputs) == 1 {
-		refInputPath = opts.RefInputs[0]
-	}
-
-	cfg := &api.Config{
-		OutputFolder:     opts.Output,
-		OutputFilename:   opts.OutputFilename,
-		NumImages:        opts.NumImages,
-		Prompt:           opts.Prompt,
-		APIKey:           apiKey,
-		AspectRatio:      opts.AspectRatio,
-		ImageSize:        opts.ImageSize,
-		Grounding:        opts.Grounding,
-		RefImages:        refImages,
-		RefInputPath:     refInputPath,
-		PreserveFilename: opts.PreserveFilename,
-		UseVertex:        opts.UseVertex,
-		Model:            modelName,
-		ThinkingLevel:    thinkingLevel,
-		ImageSearch:      opts.ImageSearch,
-	}
-
-	if err := os.MkdirAll(cfg.OutputFolder, 0755); err != nil {
-		return fmt.Errorf("failed to create output folder: %w", err)
-	}
-
-	modeText := "Generating"
-	if len(opts.RefInputs) > 0 {
-		modeText = "Editing"
-	}
-	modeText += fmt.Sprintf(" (%s", opts.Model)
-	if opts.UseVertex {
-		modeText += ", Vertex AI"
-	}
-	modeText += ")"
-
-	s := spinner.New(spinner.CharSets[14], 80*time.Millisecond)
-	s.Suffix = fmt.Sprintf(" %s %d image(s)...", modeText, opts.NumImages)
-	_ = s.Color("magenta")
-	s.Start()
-
-	output := api.RunGeneration(ctx, cfg)
-	s.Stop()
-
-	fmt.Println()
-	successCount := 0
-	errorCount := 0
-	for _, r := range output.Results {
-		if r.Error != nil {
-			fmt.Printf("\033[31m✗\033[0m Image %d: %v\n", r.Index+1, r.Error)
-			errorCount++
-		} else {
-			fmt.Printf("\033[32m✓\033[0m %s\n", r.Filename)
-			successCount++
-		}
-	}
-
-	fmt.Println()
-	fmt.Printf("Done: %d success, %d failed (%.1fs)\n", successCount, errorCount, output.Elapsed.Seconds())
-
-	outputPath := cfg.OutputFolder
-	if !filepath.IsAbs(outputPath) {
-		if abs, err := filepath.Abs(outputPath); err == nil {
-			outputPath = abs
-		}
-	}
-	fmt.Printf("Output: %s\n", outputPath)
-
-	if errorCount > 0 {
-		return fmt.Errorf("%d image(s) failed", errorCount)
-	}
 	return nil
 }

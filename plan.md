@@ -24,13 +24,14 @@ This plan takes the fork from "banana-cli source under a new name" to a lean, mo
 
 ## 1. Phase roadmap
 
-| # | Phase | Goal | Size | Verifiable end-state |
-|---|---|---|---|---|
-| 1 | Rename & demolish TUI | Binary is `imagine`, Bubble Tea is gone, single CLI path | Large (deletes ~2,300 lines) | `go build -o imagine ./cmd/imagine && ./imagine -p "test" -o /tmp/t` works; `ui/` and `views/` gone **✅ done** |
-| 2 | Modernization — Go 1.26 + Cobra+Fang | Toolchain on 1.26, `flag` pkg replaced with Cobra, Fang styles help output, ctx cancellation via Fang | Medium | `go.mod` says `go 1.26`; `imagine --help` renders Fang-styled sections; Ctrl+C cancels in-flight HTTP |
-| 3 | Consolidation (DRY) | Shared utilities live once; orchestrator separated from provider | Medium | No `ExpandTilde`/`IsSupportedImage`/etc. duplicated; `api/orchestrator.go` is provider-agnostic |
-| 4 | Provider system as Cobra subcommands + config default | Each provider owns a `*cobra.Command`; `default_provider` in config | Medium | Adding a provider = one file in `providers/<name>/` registering a cobra subcommand; `--provider` optional when config has a default |
-| 5 | OpenAI provider | `gpt-image-2` available end-to-end | Medium | `imagine --provider openai -p "a cat" -n 2` produces two PNGs; edit flow with `-i` works |
+| # | Phase | Goal | Status |
+|---|---|---|---|
+| 1 | Rename & demolish TUI | Binary is `imagine`, Bubble Tea is gone, single CLI path | **✅ done** |
+| 2 | Modernization — Go 1.26 + Cobra+Fang | Toolchain on 1.26, `flag` pkg replaced with Cobra, Fang styles help output, ctx cancellation | **✅ done** |
+| 3 | Consolidation (DRY) | Shared utilities live once; orchestrator provider-agnostic | **✅ done** |
+| 4 | Provider system + config default | Each provider self-registers; `--provider` flag; `default_provider` config; capability gating | **✅ done** |
+| 4.1 | YAML config with provider namespacing | `config.yaml` with `providers:` map instead of flat top-level keys | **✅ done** |
+| 5 | OpenAI provider | `gpt-image-2` available end-to-end | ⏳ next |
 
 Each phase is one PR, one atomic commit or small stack. Between phases, the app is always runnable.
 
@@ -71,9 +72,9 @@ On a machine with `~/.config/banana/config.json`, first run should produce `~/.c
 
 ---
 
-## 3. Phase 2 — Modernization: Go 1.26 + Cobra+Fang
+## 3. Phase 2 — Modernization: Go 1.26 + Cobra+Fang **✅ DONE**
 
-Two changes that reinforce each other: bump to Go 1.26 (toolchain + modernizers), and replace the stdlib `flag` package with **Cobra + Fang** for the CLI surface. This gives us beautiful help output, free signal-based context cancellation, and a declarative command tree that Phase 4's provider system slots into naturally.
+Two changes that reinforce each other: bump to Go 1.26 (toolchain + modernizers), and replace the stdlib `flag` package with **Cobra + Fang** for the CLI surface. Gave us the Fang-styled help output, free signal-based context cancellation, and a declarative command tree that Phase 4's provider system slotted into naturally.
 
 ### Reference implementation
 
@@ -176,17 +177,51 @@ go build -o imagine ./cmd/imagine
 ./imagine -p "a long prompt" -n 5 & sleep 2 && kill -INT %1   # Ctrl+C cancels in-flight HTTP
 ```
 
-### Non-goals for this phase
+### What actually landed vs. plan
 
-- **Provider abstraction** — still deferred to Phase 4. The root command's `RunE` in Phase 2 is Gemini-only, same as today. Phase 4 rewrites it to dispatch across providers.
-- **Huh** (interactive forms) — we have only one interactive prompt (`PromptForAPIKey`) and `term.ReadPassword` works fine. Huh is a future option if first-run setup grows.
-- **Removing `-vertex`** — keep it (as `--vertex`) through Phase 2. Removed in Phase 4 alongside `--provider` arrival.
+- Toolchain: `go.mod` now says `go 1.26.0`; installed Go is 1.26.2; workflow uses `1.26`.
+- `go fix ./...` returned no diffs. Free-wins from Go 1.26 stdlib improvements are in by virtue of the toolchain bump.
+- Cobra v1.10.2 and `charm.land/fang/v2` v2.0.1 added.
+- `cmd/imagine/main.go` is 29 lines (~15-line target + blank-imports for providers in Phase 4).
+- `commands/` package built: `root.go` (generation on root RunE), `config.go`, `describe.go`, `version.go`.
+- `cli/cli.go` shrank from ~520 → 274 lines; `ParseFlags`/`PrintHelp`/`PrintVersion`/`HandleConfigCommand`/`GetVersion`/`stringSlice` all deleted.
+- `ctx context.Context` threaded through `api.RunGeneration` + `GenerateImage` + `GenerateImageVertex`; Gemini HTTP uses `http.NewRequestWithContext`.
+- Flag renames shipped: `-vertex` → `--vertex`, `-is` → `--image-search`, `-ar` → `--aspect-ratio`, `-help` → `--help`, `-version` → `--version`. Short flags preserved: `-p -o -f -n -s -g -i -r -m -t`.
+- Fang added `imagine completion` and hidden `imagine man` commands for free.
+
+### Non-goals (kept as planned)
+
+- Provider abstraction deferred to Phase 4.
+- Huh (interactive forms) skipped — single `PromptForAPIKey` uses `term.ReadPassword`.
+- `--vertex` kept through Phase 2 (removed in Phase 4).
 
 ---
 
-## 4. Phase 3 — Consolidation (DRY pass)
+## 4. Phase 3 — Consolidation (DRY pass) **✅ DONE**
 
-The current codebase mixes provider-specific API calls with generic plumbing. Do this sweep *before* adding OpenAI so the new provider has a clean slot to drop into.
+Extracted shared utilities out of `api/` into `internal/` so every provider can reuse them. Introduced `images.Reference` as the provider-neutral handle for reference images — each provider encodes raw bytes as its API demands.
+
+### What landed
+
+- **`internal/paths/paths.go`** (25 lines) — `ExpandTilde`.
+- **`internal/images/images.go`** (154 lines) — `Reference{MimeType, Data}`, `IsSupported`, `MimeType`, `Load`, `CountInDir` + parallel dir loader.
+- **`internal/images/jpeg.go`** (23 lines) — `ConvertToJPEG` at quality 95.
+- **`internal/images/naming.go`** (60 lines) — `ResolveFilename(FilenameParams) string` (single source of truth for `-f` / `-r` / default precedence).
+- **`api/orchestrator.go`** (new) — `RunGeneration` is now provider-agnostic; Phase 4 swapped its bool-branch for a `Provider` interface.
+- **`api/gemini.go`** shrank from 575 → 248 lines (eventually deleted in Phase 4).
+- **`api/vertex.go`** now takes raw bytes from `Reference` directly — dropped the base64 encode/decode round-trip.
+- **`cli/prompt.go`** (44 lines, new) — `PromptForAPIKey` split out.
+- Call sites in `cli/cli.go` and `describe/describe.go` all swapped to use `paths.*` / `images.*`.
+
+### Explicit scope cut
+
+Describe keeps its own inline loaders (`loadImagesFromDir`, `loadSingleImage`) because it builds `*genai.Part` directly. Deduping those requires touching describe behaviour; deferred to a follow-up.
+
+---
+
+## 4.archive. Phase 3 — original consolidation inventory (reference)
+
+_Kept for traceability. The moves below all landed._
 
 ### What currently sits in the wrong place
 
@@ -247,17 +282,65 @@ Move this to `internal/images/naming.go` as `ResolveFilename(cfg, index int) str
 
 ---
 
-## 5. Phase 4 — Provider system as Cobra subcommands + config default
+## 5. Phase 4 — Provider system + config default **✅ DONE**
 
-The core architectural phase. Today's problems:
+The core architectural phase. Replaced the `UseVertex` bool-branch with a `Provider` interface + registry. Adding a new provider is now one new directory under `providers/` plus one blank-import line in `cmd/imagine/main.go`.
 
-- `-m` is validated against a hard-coded `{pro, flash}` set — no concept of per-provider model lists.
-- `-t` is validated against `{minimal, high}` but only applies to Flash — enforced by scattered ifs.
-- `-g` / `-is` silently apply to whichever model — no capability check.
-- Help is one flat list; users can't tell which flags go with which provider.
-- No default provider — users would type `--provider gemini` on every command.
+### What landed
 
-Phase 2 replaced `flag` with Cobra+Fang, so Phase 4 now uses Cobra's command tree as the declarative surface. No hand-rolled `FlagSpec`/ownership tracker — Cobra already enforces flag scoping per (sub)command.
+**New `providers/` package** — the extension point:
+- `providers/provider.go` — `Info`, `ModelInfo`, `Capabilities`, `Request`, `Response`, `GeneratedImage`, `Provider` interface.
+- `providers/auth.go` — `Auth{GeminiAPIKey, OpenAIAPIKey, GCPProject, GCPLocation}`.
+- `providers/registry.go` — `Bundle{Factory, BindFlags, SupportedFlags, ReadFlags, Info}` + `Register`/`Get`/`List`/`ProvidersSupportingFlag`.
+
+**Gemini moved into `providers/gemini/`** (fully self-contained):
+- `gemini.go` — `Provider.Generate`, wire types, `httpClient`, `ModelPro`/`ModelFlash` constants.
+- `flags.go` — idempotent `BindFlags` (shared with Vertex), `ReadFlags`, `OwnedFlags` for `--grounding`/`--thinking`/`--image-search`.
+- `register.go` — `init()` self-registers with the registry.
+
+**Vertex moved into `providers/vertex/`**:
+- `vertex.go` — `Provider.Generate` using `google.golang.org/genai`; `Info` mirrors Gemini's models but `Capabilities.ImageSearch = false`.
+- `register.go` — `init()` registers; shares Gemini's `BindFlags`/`ReadFlags`; `SupportedFlags = ["grounding", "thinking"]` (no image-search).
+
+**Orchestrator rewritten**:
+- `api/orchestrator.go` now takes `(ctx, Provider, Request, Params)`. Loops through batches respecting `Info().Capabilities.MaxBatchN` (Gemini/Vertex: 1 = one HTTP call per image; OpenAI in Phase 5: 10 = batched).
+- `api/gemini.go` and `api/vertex.go` deleted — their code lives in `providers/`.
+- `api.Config` dissolved into `providers.Request` + `api.Params`.
+
+**Root command PreRunE enforces the contract**:
+- Resolves active provider: `--provider` flag → `IMAGINE_PROVIDER` env → `config.default_provider` → `"gemini"`.
+- Rejects provider-private flags the user set but the active provider doesn't `SupportedFlags`-include → `"--image-search is not supported by provider 'vertex' (supported by: [gemini])"`.
+- Resolves `-m` aliases (`pro`/`flash`) to canonical model IDs via active provider's `Info.Models`.
+- Falls back to `Info.DefaultModel` when `-m` is empty.
+
+**Config schema** (breaking — no auto-migration, treated as fresh app):
+- `api_key` → `gemini_api_key`
+- `openai_api_key` added (empty default; Phase 5 populates).
+- `default_provider` added (env `IMAGINE_PROVIDER` overrides).
+
+**Config subcommands** (cobra tree):
+- `set-key`, `set-openai-key`, `set-project`, `set-location`, `set-default-provider`, `show`, `path`.
+- `set-default-provider` validates the name exists in the registry before saving.
+- `show` prints all five fields, masking keys.
+
+**`--vertex` flag removed**. Use `--provider vertex` instead.
+
+### Smoke evidence
+
+```
+imagine --provider nope              → unknown provider error lists available
+imagine -m bogus                     → unknown model error lists aliases + IDs
+imagine --provider vertex --image-search → capability-gating error with providers-list
+imagine config set-default-provider bogus → rejected before save
+imagine config show                  → all five fields rendered
+imagine                              → help (not an error)
+```
+
+---
+
+## 5.archive. Phase 4 — original design notes (reference)
+
+_Kept for traceability. All of the below landed as documented above, with one small deviation: `SupportedFlags` replaced the planned `OwnedFlags` because Gemini and Vertex share the same flags (grounding, thinking) so "exclusive owner" was the wrong abstraction — it's "does this provider support this flag" not "who owns it"._
 
 ### Command shape
 
@@ -438,7 +521,9 @@ IMAGINE_PROVIDER=gemini ./imagine -p "x"      # env overrides config
 
 ---
 
-## 6. Phase 5 — OpenAI provider
+## 6. Phase 5 — OpenAI provider ⏳ NEXT
+
+_Pickup notes for the next session: all the structure is ready. Adding OpenAI is literally one new directory under `providers/openai/` + one blank-import in `cmd/imagine/main.go`. The pattern to follow is in `providers/gemini/` (direct REST) or `providers/vertex/` (SDK). Design details below; unchanged from the original plan._
 
 Add `providers/openai/` implementing the Spec + Generate interface. This phase proves the Phase 4 abstraction: adding a provider should touch no code outside its own directory (except the one `_ "..."` import line).
 
@@ -561,68 +646,117 @@ The orchestrator already loads references into `[]RefImage{MimeType, Data}` (raw
 - `screenshots/` (directory)
 - TUI chunks of `cmd/banana/main.go` (lines 21-457)
 
-### Files moved
+### Files moved (all ✅)
 
 | From | To | Phase |
 |---|---|---|
-| `cmd/banana/main.go` | `cmd/imagine/main.go` | 1 ✅ |
+| `cmd/banana/main.go` | `cmd/imagine/main.go` | 1 |
 | `cli/cli.go` (flag parsing, help, version, config subcommand) | `commands/root.go` (generate on root), `commands/config.go`, `commands/version.go` | 2 |
 | `cli/cli.go` (describe subcommand entry) | `commands/describe.go` (thin wrapper around `describe.HandleDescribeCommand`) | 2 |
+| `cli/cli.go` (prompt helper) | `cli/prompt.go` | 3 |
 | `api/gemini.go` (image/path utils) | `internal/images/images.go`, `internal/paths/paths.go` | 3 |
+| `api/gemini.go` (filename resolution) | `internal/images/naming.go` | 3 |
+| `api/gemini.go` (JPEG converter) | `internal/images/jpeg.go` | 3 |
 | `api/gemini.go` (orchestrator) | `api/orchestrator.go` | 3 |
-| `api/gemini.go` (Gemini HTTP) | `providers/gemini/gemini.go` | 4 |
+| `api/gemini.go` (Gemini HTTP + wire types) | `providers/gemini/gemini.go` | 4 |
 | `api/vertex.go` | `providers/vertex/vertex.go` | 4 |
-| `cli/cli.go` (prompt helper) | `cli/prompt.go` (package retained for `Options`, `Validate`, `PromptForAPIKey`) | 3 |
+| `api/Config` struct | dissolved into `providers.Request` + `api.Params` | 4 |
 
-### Files added
+### Files added (all ✅ through Phase 4)
 
-- `cmd/imagine/main.go` — trimmed (Phase 1 ✅), rewritten as fang launcher (Phase 2)
-- `commands/root.go` (root has generation `RunE`), `commands/config.go`, `commands/describe.go`, `commands/version.go` — Phase 2
-- `internal/images/images.go`, `internal/images/jpeg.go`, `internal/images/naming.go` — Phase 3
-- `internal/paths/paths.go` — Phase 3
-- `api/orchestrator.go`, `api/types.go` — Phase 3
-- `providers/provider.go`, `providers/registry.go` — Phase 4
-- `providers/gemini/gemini.go`, `providers/gemini/flags.go`, `providers/gemini/types.go` — Phase 4
-- `providers/vertex/vertex.go`, `providers/vertex/flags.go` — Phase 4
-- `providers/openai/openai.go`, `providers/openai/edit.go`, `providers/openai/flags.go`, `providers/openai/types.go` — Phase 5
+- `cmd/imagine/main.go` — trimmed (P1), rewritten as fang launcher with provider blank-imports (P2+P4).
+- `commands/root.go`, `commands/config.go`, `commands/describe.go`, `commands/version.go` — P2.
+- `internal/paths/paths.go` — P3.
+- `internal/images/images.go`, `jpeg.go`, `naming.go` — P3.
+- `api/orchestrator.go` — P3 (rewritten to use `Provider` in P4).
+- `cli/prompt.go` — P3.
+- `providers/provider.go`, `providers/auth.go`, `providers/registry.go` — P4.
+- `providers/gemini/gemini.go`, `providers/gemini/flags.go`, `providers/gemini/register.go` — P4.
+- `providers/vertex/vertex.go`, `providers/vertex/register.go` — P4.
+
+**Phase 5 will add**: `providers/openai/openai.go`, `providers/openai/edit.go`, `providers/openai/flags.go`, `providers/openai/register.go`.
+
+### Files deleted through phases
+
+| File | When | Reason |
+|---|---|---|
+| `ui/` (7 files, 1,485 lines) | P1 | TUI removal |
+| `views/` (3 files, 339 lines) | P1 | TUI removal |
+| `screenshots/` | P1 | TUI-specific assets |
+| `api/gemini.go` | P4 | Gemini code moved to `providers/gemini/` |
+| `api/vertex.go` | P4 | Vertex code moved to `providers/vertex/` |
 
 ### Dependency evolution
 
 | Phase | Added | Removed |
 |---|---|---|
 | 1 ✅ | — | `charmbracelet/bubbletea`, `charmbracelet/bubbles`, `charmbracelet/lipgloss` |
-| 2 | `github.com/spf13/cobra`, `charm.land/fang/v2` | — (the `flag` stdlib usage becomes dead) |
+| 2 ✅ | `github.com/spf13/cobra` v1.10.2, `charm.land/fang/v2` v2.0.1 | — |
+| 3 ✅ | — | — |
+| 4 ✅ | — | — |
 
 ### Config file evolution
 
-| Version | Fields |
-|---|---|
-| pre-Phase-1 (banana) | `api_key`, `gcp_project`, `gcp_location` |
-| post-Phase-1 ✅ | Same fields, different dir (`~/.config/imagine/`) |
-| post-Phase-4 | `gemini_api_key`, `openai_api_key`, `gcp_project`, `gcp_location`, `default_provider`. Users re-run `imagine config set-key` once — no auto-migration (fresh-app decision). |
+| Phase | Format | Schema |
+|---|---|---|
+| pre-P1 (banana) | JSON at `~/.config/banana/config.json` | flat: `api_key`, `gcp_project`, `gcp_location` |
+| post-P1 ✅ | JSON at `~/.config/imagine/config.json` | same fields, new dir |
+| post-P4 ✅ | JSON at `~/.config/imagine/config.json` | flat: `gemini_api_key`, `openai_api_key`, `gcp_project`, `gcp_location`, `default_provider` |
+| post-P4.1 ✅ | **YAML** at `~/.config/imagine/config.yaml` | nested under `providers:` namespace |
+
+Current schema (post-P4.1):
+
+```yaml
+default_provider: openai
+providers:
+  gemini:
+    api_key: AIza...
+  openai:
+    api_key: sk-...
+  vertex:
+    project: my-project
+    location: global
+```
+
+Go types:
+```go
+type Config struct {
+    DefaultProvider string                    `yaml:"default_provider,omitempty"`
+    Providers       map[string]ProviderConfig `yaml:"providers,omitempty"`
+}
+type ProviderConfig struct {
+    APIKey   string `yaml:"api_key,omitempty"`
+    Project  string `yaml:"project,omitempty"`  // vertex only
+    Location string `yaml:"location,omitempty"` // vertex only
+}
+```
+
+`map[string]ProviderConfig` (not a typed struct per provider) means adding a new provider requires zero changes to the config package — just a new key under `providers:`. No auto-migration from json; users re-save keys once.
 
 ### Flags evolution
 
-| Flag | Phase 1 ✅ | Phase 2 | Phase 4 | Phase 5 |
+| Flag | P1 ✅ | P2 ✅ | P4 ✅ | P5 (planned) |
 |---|---|---|---|---|
 | `-p`, `-o`, `-f`, `-n`, `-i`, `-r` | unchanged | unchanged | common | common |
-| `-h`/`-help` | `-help` (single-dash) | `--help`/`-h` (cobra) | — | — |
+| `-h`/`-help` | `-help` (single-dash) | `--help`/`-h` (cobra/fang) | — | — |
 | `-v`/`-version` | `-version`/`-v` | `--version`/`-v` (fang) | — | — |
-| `-vertex` | still present | renamed `--vertex` | **removed**, use `--provider vertex` | — |
-| `-is` | still present | renamed `--image-search` | provider-scoped (Gemini flash only) | — |
-| `-m` | validates `{pro, flash}` | unchanged | validates against active provider's models | openai models added |
-| `-ar`, `-s`, `-g`, `-t` | Gemini behavior | unchanged | provider-scoped; rejected on non-Gemini | same |
-| `--provider` | — | — | **new**, optional if config default set | same |
+| `-vertex` | single-dash | `--vertex` (double-dash) | **removed**, use `--provider vertex` | — |
+| `-is` | two-letter short | `--image-search` | gated: Gemini only | — |
+| `-ar` | two-letter short | `--aspect-ratio` | common | common |
+| `-g` | `--grounding` | unchanged | gated: Gemini/Vertex only | — |
+| `-t` | `--thinking` | unchanged | gated: Gemini/Vertex + flash model | — |
+| `-m`, `-s` | hardcoded validation | hardcoded validation | **provider-specific**: validated via active provider's `Info` | openai models + sizes added |
+| `--provider` | — | — | **new** — flag/env/config/default precedence | same |
 | `-q`/`--quality`, `--output-format`, `--compression`, `--moderation`, `--background` | — | — | — | **new**, openai-only |
 
-### Must-preserve behaviors (don't regress during refactor)
+### Must-preserve behaviours (all ✅ through Phase 4)
 
-- Shell-glob residual handling at `cli/cli.go:113-117` — when `-i *.png` is shell-expanded, non-`-i`-prefixed args land in `flag.Args()` and must be appended to `RefInputs`. Cobra's `StringSliceVarP` + `args []string` on `RunE` equivalent needs the same treatment.
-- `-f` and `-r` are mutually exclusive (`cli/cli.go:201-204`). Use `cmd.MarkFlagsMutuallyExclusive("f", "r")` in cobra.
-- `-r` requires exactly one `-i` pointing at a single file (not a folder) (`cli/cli.go:207-218`). Keep as `PreRunE` validation.
-- `.jpg`/`.jpeg` output extension triggers `convertToJPEG` at quality 95 (`api/gemini.go:417-425`).
-- Filename resolution precedence: `-f` → `-r` → default timestamped (`api/gemini.go:388-413`).
-- Parallel image loading preserves directory order (`api/gemini.go:244-289`).
+- Shell-glob residual handling for `-i *.png` → now in `commands/root.go:RunE` (positional `args` appended to `opts.RefInputs`).
+- `-f` / `-r` mutual exclusion → `root.MarkFlagsMutuallyExclusive("filename", "replace")` in `commands/root.go`.
+- `-r` requires exactly one `-i` pointing at a single file → `cli.Options.Validate()`.
+- `.jpg` / `.jpeg` output triggers JPEG conversion at quality 95 → `internal/images/jpeg.go:ConvertToJPEG` invoked by `api/orchestrator.go:saveOne`.
+- Filename resolution precedence (`-f` → `-r` → timestamped) → `internal/images/naming.go:ResolveFilename` (single source of truth).
+- Parallel image loading preserves directory order → `internal/images/images.go:loadDir` (unchanged semantics).
 
 ### Explicit scope cuts
 

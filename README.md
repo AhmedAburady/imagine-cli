@@ -76,40 +76,59 @@ go build -o imagine ./cmd/imagine
 
 ## Quick Start
 
-### 1. Get your API Key
+### 1. Get credentials
 
-Get a free Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+- **Gemini**: free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+- **Vertex AI**:
+  1. A GCP project with the Vertex AI API enabled.
+  2. Run `gcloud auth application-default login` once on the machine — imagine uses Application Default Credentials, so there's no key to paste into the config.
+  3. Put only the project id (and optional location) in `config.yaml`.
+- **OpenAI** (Phase 5, not yet shipped): API key from [platform.openai.com](https://platform.openai.com).
 
-### 2. Configure your API Key
+### 2. Create the config file
 
-**Option A: Save to config file (Recommended)**
-```bash
-imagine config set-key YOUR_API_KEY
+imagine reads `~/.config/imagine/config.yaml` (or `config.yml`). Create it yourself — there's no `config set-*` command; just write the YAML:
+
+```yaml
+default_provider: gemini
+
+providers:
+  gemini:
+    api_key: AIza-your-key-here
+
+  openai:
+    api_key: sk-your-openai-key-here
+
+  vertex:
+    provider_options:
+      gcp_project: your-gcp-project-id
+      location: us-central1   # optional; defaults to "global"
 ```
 
-**Option B: Environment variable**
-```bash
-# Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
-export GEMINI_API_KEY="your_api_key_here"
+Only include the providers you actually use. `default_provider` is optional — if omitted, imagine picks the first provider under `providers:` (alphabetical order).
+
+#### Schema reference
+
+| Field | Required | Notes |
+|---|---|---|
+| `default_provider` | No | Which provider to use when `--provider` is not passed. If empty, first `providers:` entry wins. |
+| `providers.<name>.api_key` | For Gemini/OpenAI | Required by providers that authenticate with an API key. |
+| `providers.<name>.provider_options` | Provider-specific | Free-form string map for extras. Vertex uses `gcp_project` (required) and `location` (optional, default `global`). |
+
+#### Provider resolution precedence
+
+```
+--provider <name>      (CLI flag — highest priority)
+  ↓
+default_provider       (config)
+  ↓
+first under providers: (alphabetical)
+  ↓
+error
 ```
 
-**Option C: Just run it**
-```bash
-# CLI will prompt you to enter and save your API key
-imagine -p "a sunset"
+### 3. Generate your first image
 
-# TUI will show an API key input screen
-imagine
-```
-
-### 3. Generate Your First Image
-
-**Using TUI (Interactive):**
-```bash
-imagine
-```
-
-**Using CLI (One-liner):**
 ```bash
 imagine -p "a cyberpunk city at night with neon lights"
 ```
@@ -123,37 +142,32 @@ The CLI mode allows you to generate or edit images directly from the command lin
 ### Basic Syntax
 
 ```
-imagine [flags]
-imagine describe [flags]
-imagine config <command>
+imagine [flags]              # generate (and edit, if -i is passed)
+imagine describe [flags]     # analyze image style
+imagine version              # print version
 ```
 
-Running `imagine` without flags opens the interactive TUI.
+Run `imagine --help` for the full fang-styled help.
 
 ### Flags
 
 | Flag | Long Form | Type | Description | Default |
-|------|-----------|------|-------------|---------|
-| `-p` | | string | **Prompt** - The text description for image generation | *required* |
-| `-o` | | string | **Output** - Directory to save generated images | `.` (current) |
-| `-n` | | int | **Number** - How many images to generate (1-20) | `1` |
-| `-ar` | | string | **Aspect Ratio** - Image dimensions ratio | `Auto` |
-| `-s` | | string | **Size** - Output resolution | `1K` |
-| `-g` | | bool | **Grounding** - Enable Google Search grounding | `false` |
-| `-i` | | string | **Input** - Reference image/folder for edit mode | *none* |
+|---|---|---|---|---|
+| `-p` | `--prompt` | string | Prompt text or path to prompt file | *required* |
+| `-o` | `--output` | string | Output directory | `.` |
+| `-f` | `--filename` | string | Output filename (suffixed `_N` for n>1) | *none* |
+| `-n` | `--count` | int | Number of images (1-20) | `1` |
+| | `--aspect-ratio` | string | Aspect ratio | `Auto` |
+| `-s` | `--size` | string | Image size (provider-specific: `1K`/`2K`/`4K` for Gemini/Vertex) | `1K` |
+| `-i` | `--input` | string | Reference image/folder, repeatable (enables edit mode) | *none* |
+| `-r` | `--replace` | bool | Use the input filename for output (single file only) | `false` |
+| `-m` | `--model` | string | Model (provider-specific; aliases: `pro`, `flash` for Gemini/Vertex) | provider default |
+| | `--provider` | string | Override active provider | config |
+| `-g` | `--grounding` | bool | Google Search grounding (Gemini/Vertex) | `false` |
+| `-t` | `--thinking` | string | Thinking level: `minimal` or `high` (Gemini/Vertex flash only) | `minimal` |
+| | `--image-search` | bool | Image-search grounding (Gemini flash only) | `false` |
 | `-v` | `--version` | | Show version | |
-| | `-vertex` | bool | Use Vertex AI instead of Gemini API | `false` |
-| | `--help` | | Show help message | |
-
-### Config Commands
-
-Manage your API key configuration:
-
-```bash
-imagine config set-key <KEY>   # Save your Gemini API key
-imagine config show            # Show current configuration (key is masked)
-imagine config path            # Show config file location
-```
+| `-h` | `--help` | | Show help | |
 
 The config file is stored at `~/.config/imagine/config.json`.
 
