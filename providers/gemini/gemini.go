@@ -95,22 +95,25 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 		})
 	}
 
+	model, _ := req.Options["model"].(string)
+	size, _ := req.Options["size"].(string)
+	aspect, _ := req.Options["aspect_ratio"].(string)
+
 	body := geminiRequest{
 		Contents: []content{{Parts: parts}},
 		GenerationConfig: generationConfig{
 			ResponseModalities: []string{"TEXT", "IMAGE"},
 			ImageConfig: imageConfig{
-				AspectRatio: req.AspectRatio,
-				ImageSize:   req.Size,
+				AspectRatio: aspect,
+				ImageSize:   size,
 			},
 		},
 	}
 
-	// Gemini-specific flags lifted from req.Options.
 	if b, _ := req.Options["grounding"].(bool); b {
 		body.Tools = append(body.Tools, tool{GoogleSearch: &googleSearch{}})
 	}
-	if b, _ := req.Options["image-search"].(bool); b {
+	if b, _ := req.Options["image_search"].(bool); b {
 		body.Tools = append(body.Tools, tool{ImageSearch: &imageSearch{}})
 	}
 	if s, _ := req.Options["thinking"].(string); s != "" {
@@ -122,7 +125,7 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("%s%s:generateContent?key=%s", baseURL, req.Model, p.apiKey)
+	url := fmt.Sprintf("%s%s:generateContent?key=%s", baseURL, model, p.apiKey)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(payload))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)

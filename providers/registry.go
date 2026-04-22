@@ -30,12 +30,19 @@ type Bundle struct {
 
 	// ReadFlags harvests flag values from the cobra command into an opaque
 	// options map that ends up in Request.Options. The provider decodes it
-	// inside Generate.
-	ReadFlags func(cmd *cobra.Command) map[string]any
+	// inside Generate. Returns an error when a provider-specific flag value
+	// is invalid (unknown model, out-of-range size, …).
+	ReadFlags func(cmd *cobra.Command) (map[string]any, error)
 
 	// Info mirrors Provider.Info so the registry can answer queries without
 	// constructing the provider.
 	Info Info
+
+	// Examples returns the provider-specific block rendered under the
+	// EXAMPLES section of `imagine --help`. The provider owns this text so
+	// adding a new provider requires no edits to commands/. Empty → no
+	// EXAMPLES section.
+	Examples func() string
 }
 
 var registry = map[string]Bundle{}

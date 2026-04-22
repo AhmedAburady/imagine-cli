@@ -83,7 +83,7 @@ go build -o imagine ./cmd/imagine
   1. A GCP project with the Vertex AI API enabled.
   2. Run `gcloud auth application-default login` once on the machine — imagine uses Application Default Credentials, so there's no key to paste into the config.
   3. Put only the project id (and optional location) in `config.yaml`.
-- **OpenAI** (Phase 5, not yet shipped): API key from [platform.openai.com](https://platform.openai.com).
+- **OpenAI**: API key from [platform.openai.com](https://platform.openai.com).
 
 ### 2. Create the config file
 
@@ -151,23 +151,43 @@ Run `imagine --help` for the full fang-styled help.
 
 ### Flags
 
+**Common flags** (all providers):
+
 | Flag | Long Form | Type | Description | Default |
 |---|---|---|---|---|
 | `-p` | `--prompt` | string | Prompt text or path to prompt file | *required* |
 | `-o` | `--output` | string | Output directory | `.` |
-| `-f` | `--filename` | string | Output filename (suffixed `_N` for n>1) | *none* |
+| `-f` | `--filename` | string | Output filename (suffixed `_N` for n>1). Extension (`.png`/`.jpg`/`.webp`) drives the image format. | *none* |
 | `-n` | `--count` | int | Number of images (1-20) | `1` |
-| | `--aspect-ratio` | string | Aspect ratio | `Auto` |
-| `-s` | `--size` | string | Image size (provider-specific: `1K`/`2K`/`4K` for Gemini/Vertex) | `1K` |
 | `-i` | `--input` | string | Reference image/folder, repeatable (enables edit mode) | *none* |
 | `-r` | `--replace` | bool | Use the input filename for output (single file only) | `false` |
-| `-m` | `--model` | string | Model (provider-specific; aliases: `pro`, `flash` for Gemini/Vertex) | provider default |
 | | `--provider` | string | Override active provider | config |
-| `-g` | `--grounding` | bool | Google Search grounding (Gemini/Vertex) | `false` |
-| `-t` | `--thinking` | string | Thinking level: `minimal` or `high` (Gemini/Vertex flash only) | `minimal` |
-| | `--image-search` | bool | Image-search grounding (Gemini flash only) | `false` |
 | `-v` | `--version` | | Show version | |
 | `-h` | `--help` | | Show help | |
+
+**Gemini / Vertex flags** (rejected on other providers):
+
+| Flag | Long Form | Description | Default |
+|---|---|---|---|
+| `-m` | `--model` | `pro` or `flash` (or full ID) | `pro` |
+| `-s` | `--size` | `1K`, `2K`, `4K` | `1K` |
+| `-a` | `--aspect-ratio` | e.g. `16:9`, `1:1` | Auto |
+| `-g` | `--grounding` | Google Search grounding | `false` |
+| `-t` | `--thinking` | `minimal` or `high` (flash only) | Auto |
+| `-I` | `--image-search` | Image Search grounding (Gemini flash only) | `false` |
+
+**OpenAI flags** (rejected on other providers):
+
+| Flag | Long Form | Description | Default |
+|---|---|---|---|
+| `-m` | `--model` | `gpt-image-2`, `1.5`, `1`, `mini`, `latest` (or full ID) | `gpt-image-2` |
+| `-s` | `--size` | `1K`/`2K`/`4K` shorthand, `auto`, or raw `WxH` (e.g. `1536x1024`) | `auto` |
+| `-q` | `--quality` | `low`, `medium`, `high`, `auto` | `auto` |
+| | `--compression` | 0-100 (jpeg/webp only) | `100` |
+| | `--moderation` | `auto`, `low` | `auto` |
+| | `--background` | `auto`, `opaque`, `transparent` | `auto` |
+
+Edit endpoint size restriction: OpenAI's `/v1/images/edits` only accepts `1024x1024`, `1536x1024`, `1024x1536`, `auto`. Using `-i` with `-s 2K`/`4K`/larger WxH errors out before the API call.
 
 The config file is stored at `~/.config/imagine/config.json`.
 

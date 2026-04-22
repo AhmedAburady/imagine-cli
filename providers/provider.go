@@ -5,9 +5,35 @@ package providers
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/AhmedAburady/imagine-cli/internal/images"
 )
+
+// ResolveModel translates a raw user-supplied model string (alias or full ID)
+// into the canonical ID declared in Info.Models. Empty input returns the
+// provider's DefaultModel.
+func (i Info) ResolveModel(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return i.DefaultModel, nil
+	}
+	var accepted []string
+	for _, m := range i.Models {
+		if m.ID == raw {
+			return m.ID, nil
+		}
+		for _, a := range m.Aliases {
+			if a == raw {
+				return m.ID, nil
+			}
+		}
+		accepted = append(accepted, m.ID)
+		accepted = append(accepted, m.Aliases...)
+	}
+	return "", fmt.Errorf("unknown model %q for provider %q (accepted: %v)", raw, i.Name, accepted)
+}
 
 // Info is the static metadata a provider advertises to the CLI: its name,
 // supported models, and capability flags. Built once per provider.
@@ -42,15 +68,14 @@ type Capabilities struct {
 }
 
 // Request is the per-batch input to a provider's Generate call.
-// N ≤ Capabilities.MaxBatchN.
+// N ≤ Capabilities.MaxBatchN. Everything else the provider needs
+// (model, size, aspect ratio, grounding, quality, …) is in Options —
+// keyed by strings the provider defines and consumes.
 type Request struct {
-	Prompt      string
-	N           int
-	Model       string // resolved provider-specific model ID (aliases already expanded)
-	Size        string
-	AspectRatio string
-	References  []images.Reference
-	Options     map[string]any // provider-specific parsed flags (grounding, thinking, quality, …)
+	Prompt     string
+	N          int
+	References []images.Reference
+	Options    map[string]any
 }
 
 // GeneratedImage is a single produced image: raw bytes + MIME type.

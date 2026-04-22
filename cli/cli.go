@@ -1,8 +1,7 @@
-// Package cli holds the generation-run glue: the Options struct that cobra
-// binds common flags onto, provider-agnostic validation, and the first-run
-// key prompt. Flag parsing lives in commands/ (cobra + fang). Provider-
-// specific validation (sizes, models, capability gating) lives in each
-// provider's Info() and the root command's PreRunE.
+// Package cli holds common-flag glue: the Options struct cobra binds the
+// truly provider-agnostic flags onto, and provider-agnostic validation.
+// Provider-specific flags (model, size, aspect ratio, quality, …) live
+// inside each provider's BindFlags/ReadFlags.
 package cli
 
 import (
@@ -14,19 +13,16 @@ import (
 	"github.com/AhmedAburady/imagine-cli/internal/paths"
 )
 
-// Options holds the common CLI options cobra binds directly.
-// Provider-private flags (grounding, thinking, quality, …) are NOT here —
-// they're declared by each provider's BindFlags and harvested via ReadFlags.
+// Options holds the truly common CLI flags — same meaning for every
+// provider. Everything provider-specific lives inside each provider's
+// bundle and ends up in Request.Options.
 type Options struct {
 	Prompt           string
 	Output           string
 	OutputFilename   string
 	NumImages        int
-	AspectRatio     string
-	ImageSize        string
 	RefInputs        []string
 	PreserveFilename bool
-	Model            string // raw user input; PreRunE resolves aliases via the active provider
 }
 
 // Validate runs provider-agnostic checks:
@@ -36,15 +32,11 @@ type Options struct {
 //   - -i paths exist and contain supported images
 //   - -f and -r are mutually exclusive (cobra also enforces)
 //   - -r requires exactly one -i pointing at a single file.
-//
-// Provider-specific validation (model aliases, allowed sizes, capability
-// gating for grounding/thinking) runs in commands/root.go's PreRunE.
 func (opts *Options) Validate() error {
 	if opts.Prompt == "" {
 		return fmt.Errorf("prompt is required (-p flag)")
 	}
 
-	// If -p points at a readable file, slurp the prompt from it.
 	promptPath := paths.ExpandTilde(opts.Prompt)
 	if info, err := os.Stat(promptPath); err == nil && !info.IsDir() {
 		data, err := os.ReadFile(promptPath)
@@ -84,7 +76,6 @@ func (opts *Options) Validate() error {
 		}
 	}
 
-	// Belt-and-braces; cobra's MarkFlagsMutuallyExclusive catches this too.
 	if opts.OutputFilename != "" && opts.PreserveFilename {
 		return fmt.Errorf("-f and -r are mutually exclusive")
 	}

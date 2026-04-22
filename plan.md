@@ -31,7 +31,8 @@ This plan takes the fork from "banana-cli source under a new name" to a lean, mo
 | 3 | Consolidation (DRY) | Shared utilities live once; orchestrator provider-agnostic | **✅ done** |
 | 4 | Provider system + config default | Each provider self-registers; `--provider` flag; `default_provider` config; capability gating | **✅ done** |
 | 4.1 | YAML config with provider namespacing | `config.yaml` with `providers:` map instead of flat top-level keys | **✅ done** |
-| 5 | OpenAI provider | `gpt-image-2` available end-to-end | ⏳ next |
+| 4.2 | Fully provider-private flags | `-m`, `-s`, `-a`, `-g`, `-t`, `-I` move from common flags into each provider's `BindFlags`/`ReadFlags`. `cli.Options` shrinks; `Request` carries everything in `Options` map. | **✅ done** |
+| 5 | OpenAI provider | `gpt-image-2` available end-to-end | **✅ done** |
 
 Each phase is one PR, one atomic commit or small stack. Between phases, the app is always runnable.
 
@@ -521,9 +522,51 @@ IMAGINE_PROVIDER=gemini ./imagine -p "x"      # env overrides config
 
 ---
 
-## 6. Phase 5 — OpenAI provider ⏳ NEXT
+## 6. Phase 5 — OpenAI provider **✅ DONE**
 
-_Pickup notes for the next session: all the structure is ready. Adding OpenAI is literally one new directory under `providers/openai/` + one blank-import in `cmd/imagine/main.go`. The pattern to follow is in `providers/gemini/` (direct REST) or `providers/vertex/` (SDK). Design details below; unchanged from the original plan._
+### What landed
+
+- **`providers/openai/`** — full implementation, ~550 lines split across `openai.go`, `flags.go`, `register.go`.
+- **Generate endpoint** (`POST /v1/images/generations`, JSON) with `model`, `prompt`, `n`, `size`, `quality`, `output_format`, `output_compression`, `moderation`, `background`.
+- **Edit endpoint** (`POST /v1/images/edits`, multipart) with per-reference image parts. Edit-mode size gate rejects sizes outside `{1024x1024, 1536x1024, 1024x1536, auto}` before the API call.
+- **Model default**: `gpt-image-2` (confirmed working live — flipped from the plan's `gpt-image-1.5` default once I confirmed the API accepts it). Aliases: `2`, `1.5`, `1`, `mini`, `1-mini`, `latest`.
+- **Size handling**: `1K` → `1024x1024`, `2K` → `2048x2048`, `4K` → `3840x2160`. Raw `WxH` passes through. Empty → `auto`.
+- **`output_format` auto-inferred from `-f` extension** — `-f cat.jpg` sends `output_format=jpeg` to the API, which returns JPEG bytes directly (no local re-encoding).
+- **`--background transparent`** rejects: (a) when output format is JPEG (via `-f *.jpg`), (b) when active model is `gpt-image-2` (docs say unsupported).
+- **180s HTTP client timeout** — longer than Gemini's 120s to accommodate OpenAI's "complex prompts may take up to 2 minutes" note.
+- **Orchestrator batching** exercised for the first time — `MaxBatchN=10` means `-n 3` uses ONE API call returning 3 images (verified live: 3 images in 32.9s).
+
+### Smoke evidence (real API calls)
+
+```
+imagine -p "a red apple" --provider openai -s 1024x1024 -q low
+  → 1 image, 24s, valid PNG 1024x1024
+
+imagine -p "a logo" --provider openai -n 3 -q low
+  → 3 images in single API call, 33s
+
+imagine -p "add a green leaf" --provider openai -i apple.png
+  → edit endpoint via multipart, 62s
+
+imagine -p "sketch" --provider openai -f test.jpg
+  → -f's .jpg extension drove output_format=jpeg; API returned JPEG directly
+
+imagine -p x --provider openai -m bogus
+  → "unknown model 'bogus' ... (accepted: gpt-image-2 2 gpt-image-1.5 1.5 ...)"
+
+imagine -p x --provider openai --background transparent -f x.jpg
+  → "--background transparent requires PNG or WebP output"
+
+imagine -p x --provider openai -g
+  → "--grounding is not supported by provider 'openai' (supported by: [gemini vertex])"
+```
+
+### Design deviations from plan
+
+- **Shared flags gone**: Phase 4.2 moved `-m`, `-s`, `-a` into each provider. OpenAI's `-m` (with its own alias list) and `-s` (with its own shorthand mapping) coexist with Gemini's via idempotent BindFlags.
+- **No explicit `--output-format` flag**: inferred from `-f` extension instead (user preference). Keeps CLI surface lean.
+- **Multi-turn / streaming / partial_images / `--input-fidelity`** — explicitly out of scope.
+- **`dall-e-2`/`dall-e-3`** — not exposed. Could be added later if wanted.
 
 Add `providers/openai/` implementing the Spec + Generate interface. This phase proves the Phase 4 abstraction: adding a provider should touch no code outside its own directory (except the one `_ "..."` import line).
 

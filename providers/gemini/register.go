@@ -12,7 +12,8 @@ func init() {
 		Factory:        New,
 		BindFlags:      BindFlags,
 		ReadFlags:      ReadFlags,
-		SupportedFlags: OwnedFlags(),
+		SupportedFlags: OwnedFlags(), // includes model, size, aspect-ratio, grounding, thinking, image-search
+		Examples:       Examples,
 		Info:           info,
 	})
 }

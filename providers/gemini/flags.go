@@ -1,64 +1,103 @@
 package gemini
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
 )
 
-// Names are declared once so BindFlags / ReadFlags / OwnedFlags stay in sync.
+// Flag names. Gemini and Vertex share these — BindFlags is idempotent.
 const (
+	flagModel       = "model"
+	flagSize        = "size"
+	flagAspectRatio = "aspect-ratio"
 	flagGrounding   = "grounding"
 	flagThinking    = "thinking"
 	flagImageSearch = "image-search"
 )
 
-// ownedFlags lists the flag names Gemini (and Vertex, which mirrors Gemini)
-// claim exclusively. When the active provider is something else (OpenAI in
-// Phase 5), setting any of these triggers a "flag not valid for provider X"
-// error in the root command's PreRunE.
-var ownedFlags = []string{flagGrounding, flagThinking, flagImageSearch}
+var ownedFlags = []string{
+	flagModel, flagSize, flagAspectRatio, flagGrounding, flagThinking, flagImageSearch,
+}
 
-// BindFlags attaches Gemini-specific flags to cmd. Called once at command
-// construction by each registered provider; cobra sees every flag up front.
+// validSizes is the Gemini/Vertex shorthand set.
+var validSizes = map[string]bool{"1K": true, "2K": true, "4K": true}
+
+// BindFlags attaches Gemini's flags to cmd. Idempotent — Vertex calls this
+// too; the second call no-ops because each flag checks Lookup first.
 func BindFlags(cmd *cobra.Command) {
 	f := cmd.Flags()
-	// Register only if not already present — Vertex's BindFlags reuses this
-	// same set so we must be idempotent when both providers wire up.
+	if f.Lookup(flagModel) == nil {
+		f.StringP(flagModel, "m", "", "Model: pro, flash (default: pro)")
+	}
+	if f.Lookup(flagSize) == nil {
+		f.StringP(flagSize, "s", "", "Image size: 1K, 2K, 4K (default: 1K)")
+	}
+	if f.Lookup(flagAspectRatio) == nil {
+		f.StringP(flagAspectRatio, "a", "", "Aspect ratio (default: Auto)")
+	}
 	if f.Lookup(flagGrounding) == nil {
-		f.BoolP(flagGrounding, "g", false, "Enable grounding with Google Search")
+		f.BoolP(flagGrounding, "g", false, "Enable Google Search grounding")
 	}
 	if f.Lookup(flagThinking) == nil {
-		f.StringP(flagThinking, "t", "minimal", "Thinking level: minimal, high (flash only)")
+		f.StringP(flagThinking, "t", "", "Thinking level: minimal, high (flash only)")
 	}
 	if f.Lookup(flagImageSearch) == nil {
 		f.BoolP(flagImageSearch, "I", false, "Enable Image Search grounding (flash only)")
 	}
 }
 
-// ReadFlags harvests Gemini-specific flag values into a Request.Options map.
-// Only includes flags the user actually set (Changed()) OR flags with
-// non-default semantic values, so downstream capability gating can detect
-// unset-vs-explicit-default.
-func ReadFlags(cmd *cobra.Command) map[string]any {
+// ReadFlags validates and resolves Gemini's flags, returning them in a form
+// Generate consumes. Called once per run from the root command's PreRunE.
+func ReadFlags(cmd *cobra.Command) (map[string]any, error) {
 	out := map[string]any{}
 	f := cmd.Flags()
 
-	if b, err := f.GetBool(flagGrounding); err == nil && b {
-		out[flagGrounding] = true
+	// Model (alias resolution via providers.Info)
+	info := (&Provider{}).Info()
+	rawModel, _ := f.GetString(flagModel)
+	model, err := info.ResolveModel(rawModel)
+	if err != nil {
+		return nil, err
 	}
-	if b, err := f.GetBool(flagImageSearch); err == nil && b {
-		out["image-search"] = true
+	out["model"] = model
+
+	// Size (default 1K, validate against {1K, 2K, 4K})
+	size, _ := f.GetString(flagSize)
+	if size == "" {
+		size = "1K"
 	}
-	// Thinking is only meaningful with flash; the caller (orchestrator) already
-	// gates on model. Normalise to upper-case (what the API wants).
-	if s, err := f.GetString(flagThinking); err == nil && s != "" {
-		out["thinking"] = strings.ToUpper(s)
+	if !validSizes[size] {
+		return nil, fmt.Errorf("invalid --size %q for gemini (valid: 1K, 2K, 4K)", size)
 	}
-	return out
+	out["size"] = size
+
+	// Aspect ratio (any string, empty = Auto)
+	if ar, _ := f.GetString(flagAspectRatio); ar != "" {
+		out["aspect_ratio"] = ar
+	}
+
+	// Grounding / ImageSearch (bools)
+	if b, _ := f.GetBool(flagGrounding); b {
+		out["grounding"] = true
+	}
+	if b, _ := f.GetBool(flagImageSearch); b {
+		out["image_search"] = true
+	}
+
+	// Thinking level (flash-only, case-normalised to upper)
+	if t, _ := f.GetString(flagThinking); t != "" {
+		t = strings.ToUpper(strings.TrimSpace(t))
+		if t != "MINIMAL" && t != "HIGH" {
+			return nil, fmt.Errorf("invalid --thinking %q for gemini (valid: minimal, high)", strings.ToLower(t))
+		}
+		out["thinking"] = t
+	}
+
+	return out, nil
 }
 
-// OwnedFlags returns the flags Gemini owns (shared with Vertex).
-func OwnedFlags() []string {
-	return append([]string(nil), ownedFlags...)
-}
+// OwnedFlags returns the flag names Gemini supports. Vertex calls this too
+// and filters out the ones it doesn't honour (image-search).
+func OwnedFlags() []string { return append([]string(nil), ownedFlags...) }

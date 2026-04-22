@@ -15,6 +15,7 @@ import (
 	// providers registry; the CLI then discovers them by name. Adding a
 	// provider means one new directory under providers/ and one line here.
 	_ "github.com/AhmedAburady/imagine-cli/providers/gemini"
+	_ "github.com/AhmedAburady/imagine-cli/providers/openai"
 	_ "github.com/AhmedAburady/imagine-cli/providers/vertex"
 )
 
@@ -25,7 +26,10 @@ func main() {
 	// Silence default slog so nothing in the codebase leaks log lines.
 	slog.SetDefault(slog.New(slog.DiscardHandler))
 
-	root := commands.NewRootCmd(version)
+	// Peek --provider + config before fang renders help, so flag visibility
+	// and the provider cheatsheet reflect the right provider.
+	hint := commands.ProviderHintFromArgs(os.Args[1:])
+	root := commands.NewRootCmd(version, hint)
 	if err := fang.Execute(context.Background(), root,
 		fang.WithVersion(version),
 		fang.WithNotifySignal(os.Interrupt, syscall.SIGTERM),

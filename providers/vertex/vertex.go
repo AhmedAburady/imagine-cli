@@ -91,21 +91,24 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 	}
 	contents := []*genai.Content{{Parts: parts, Role: "user"}}
 
+	model, _ := req.Options["model"].(string)
+	size, _ := req.Options["size"].(string)
+	aspect, _ := req.Options["aspect_ratio"].(string)
+
 	genConfig := &genai.GenerateContentConfig{
 		ResponseModalities: []string{"TEXT", "IMAGE"},
 	}
-	if req.AspectRatio != "" || req.Size != "" {
+	if aspect != "" || size != "" {
 		imgCfg := &genai.ImageConfig{}
-		if req.AspectRatio != "" {
-			imgCfg.AspectRatio = req.AspectRatio
+		if aspect != "" {
+			imgCfg.AspectRatio = aspect
 		}
-		if req.Size != "" {
-			imgCfg.ImageSize = req.Size
+		if size != "" {
+			imgCfg.ImageSize = size
 		}
 		genConfig.ImageConfig = imgCfg
 	}
 
-	// Optional flags from Request.Options.
 	if b, _ := req.Options["grounding"].(bool); b {
 		genConfig.Tools = append(genConfig.Tools, &genai.Tool{GoogleSearch: &genai.GoogleSearch{}})
 	}
@@ -115,7 +118,7 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 		}
 	}
 
-	resp, err := client.Models.GenerateContent(ctx, req.Model, contents, genConfig)
+	resp, err := client.Models.GenerateContent(ctx, model, contents, genConfig)
 	if err != nil {
 		return nil, fmt.Errorf("generation failed: %w", err)
 	}
