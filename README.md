@@ -103,7 +103,16 @@ mv imagine-darwin-arm64 /usr/local/bin/imagine
 
 ## Configuration
 
-imagine reads one file — `~/.config/imagine/config.yaml` (or `config.yml`). Write it yourself with an editor; there are no `config set-*` commands. Only include the providers you actually use.
+imagine reads one file. Location depends on your OS:
+
+| OS | Path |
+|---|---|
+| Linux / macOS / *BSD | `~/.config/imagine/config.yaml` |
+| Windows | `%AppData%\imagine\config.yaml` (typically `C:\Users\<you>\AppData\Roaming\imagine\config.yaml`) |
+
+Both `config.yaml` and `config.yml` extensions are accepted. Write the file yourself with any editor — there are no `config set-*` commands. Only include the providers you actually use.
+
+> macOS note: imagine intentionally uses `~/.config/imagine/` rather than `~/Library/Application Support/imagine/`. The XDG-style path has no spaces, is easy to browse, and plays nicely with dotfiles repos.
 
 ### Schema
 
@@ -374,7 +383,7 @@ Markers:
 
 ## Troubleshooting
 
-**`no provider configured`** — create `~/.config/imagine/config.yaml` with at least one provider under `providers:`. See [Configuration](#configuration).
+**`no provider configured`** — create the config file with at least one provider under `providers:`. The path is OS-specific; run `imagine -p test` with no config and the error tells you the exact path. See [Configuration](#configuration).
 
 **`unknown model "xyz" for provider "..."`** — the active provider doesn't know that model. Run `imagine --help` to see the accepted models for the active provider.
 

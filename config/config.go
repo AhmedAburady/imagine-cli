@@ -20,6 +20,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"gopkg.in/yaml.v3"
 )
@@ -38,8 +39,25 @@ type ProviderConfig struct {
 	ProviderOptions map[string]string `yaml:"provider_options,omitempty"`
 }
 
-// DefaultConfigDir returns ~/.config/imagine.
+// DefaultConfigDir returns the imagine config directory for the current OS.
+//
+// Unix (Linux, macOS, *BSD): ~/.config/imagine/
+//   Uses the XDG convention most developer CLIs follow. macOS users get
+//   ~/.config rather than ~/Library/Application Support/ because the latter
+//   has a space in the path, is awkward to browse, and breaks dotfiles repos.
+//
+// Windows: %AppData%/imagine/
+//   Via os.UserConfigDir(). Typical location: C:\Users\<name>\AppData\Roaming\imagine\
+//
+// Returns "" if the underlying home / config dir cannot be resolved.
 func DefaultConfigDir() string {
+	if runtime.GOOS == "windows" {
+		base, err := os.UserConfigDir()
+		if err != nil {
+			return ""
+		}
+		return filepath.Join(base, "imagine")
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
