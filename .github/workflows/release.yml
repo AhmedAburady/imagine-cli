@@ -23,7 +23,7 @@ jobs:
       - name: Build binaries
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
-          LDFLAGS="-X github.com/AhmedAburady/imagine-cli/cli.version=$VERSION"
+          LDFLAGS="-X main.version=$VERSION"
 
           # Linux
           GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o imagine-linux-amd64 ./cmd/imagine

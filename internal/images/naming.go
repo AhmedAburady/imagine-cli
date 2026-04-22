@@ -21,7 +21,7 @@ type FilenameParams struct {
 // the output filename for a single generated image. The returned name is
 // just the base (e.g. "sunset_2.png"), not a full path.
 //
-// Rules (identical to banana-cli's behaviour):
+// Rules:
 //   - -f "image.png":   single → "image.png"; multi → "image_1.png", "image_2.png", …
 //     Only .jpg/.jpeg extensions are honoured; anything else falls back to .png.
 //   - -r with RefInputPath "photo.jpg": single → "photo.png"; multi → "photo_1.png", …

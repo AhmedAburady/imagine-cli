@@ -350,9 +350,9 @@ default_provider: gemini
 
 providers:
   gemini  [active, default]
-    api_key: AIzaSyAU...44b0
+    api_key: AIzaSy...REDACTED
   openai
-    api_key: sk-proj-...v4IA
+    api_key: sk-proj...REDACTED
   vertex
     provider_options:
       gcp_project: my-project
