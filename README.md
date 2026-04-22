@@ -1,93 +1,111 @@
 <div align="center">
 
-# IMAGINE CLI
+```
+              ██╗███╗   ███╗ █████╗  ██████╗ ██╗███╗   ██╗███████╗
+              ██║████╗ ████║██╔══██╗██╔════╝ ██║████╗  ██║██╔════╝
+              ██║██╔████╔██║███████║██║  ███╗██║██╔██╗ ██║█████╗  
+              ██║██║╚██╔╝██║██╔══██║██║   ██║██║██║╚██╗██║██╔══╝  
+              ██║██║ ╚═╝ ██║██║  ██║╚██████╔╝██║██║ ╚████║███████╗
+              ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝╚══════╝
+                                                                  
+```
 
-### Gemini AI Image Generator
-
-A powerful command-line tool for generating and editing images using Google's Gemini AI.
-Features both an interactive terminal UI and a scriptable CLI interface.
-
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/AhmedAburady/imagine-cli?include_prereleases&v=104)](https://github.com/AhmedAburady/imagine-cli/releases)
-
-[Features](#features) • [Installation](#installation) • [Quick Start](#quick-start) • [CLI Reference](#cli-reference) • [TUI Guide](#tui-guide)
-
-![IMAGINE CLI TUI](screenshots/tui1.png)
-![IMAGINE CLI TUI](screenshots/tui2.png?v=1)
-
-
+[![Release](https://img.shields.io/github/v/release/AhmedAburady/imagine-cli?include_prereleases)](https://github.com/AhmedAburady/imagine-cli/releases)
 
 </div>
 
 ---
 
-## Features
+## Table of contents
 
-| Feature | Description |
-|---------|-------------|
-| **Dual Interface** | Interactive TUI for exploration, CLI for scripting and automation |
-| **Image Generation** | Create images from text prompts with Gemini AI |
-| **Image Editing** | Transform existing images using reference-based editing |
-| **Style Analysis** | Extract style descriptions from images with `describe` command |
-| **Parallel Processing** | Generate up to 20 images simultaneously |
-| **Flexible Output** | Control aspect ratio (1:1, 16:9, 9:16, 4:3, 3:4) and size (1K, 2K, 4K) |
-| **Google Search Grounding** | Enhance prompts with real-time web search context |
-| **Path Autocomplete** | Tab completion for file paths in TUI (supports `~` expansion) |
+- [Why imagine](#why-imagine)
+- [Installation](#installation)
+  - [go install](#go-install)
+  - [From source](#from-source)
+  - [Pre-built binaries](#pre-built-binaries)
+- [Configuration](#configuration)
+  - [Schema](#schema)
+  - [Provider resolution](#provider-resolution)
+  - [Credentials](#credentials)
+- [Quick start](#quick-start)
+- [Usage](#usage)
+  - [Common flags](#common-flags)
+  - [Gemini and Vertex](#gemini-and-vertex)
+  - [OpenAI](#openai)
+  - [Describe](#describe)
+  - [Providers show](#providers-show)
+- [Output formats](#output-formats)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Why imagine
+
+One CLI. Three providers. No environment variables, no ceremony — a YAML config file and you're running.
+
+- **Multi-provider** — Google Gemini (direct REST), Google Vertex AI (GCP), OpenAI (gpt-image-2).
+- **Unified generate + edit** — `-p "..."` generates; add `-i reference.png` and the same command edits.
+- **Parallelism built in** — up to 20 images per invocation. OpenAI batches up to 10 per API call automatically.
+- **Fang-styled help** — `imagine --help` renders provider-aware help with examples, model lists, and size options for whichever provider is active.
+- **Cobra-powered** — flags, subcommands, shell completion, man pages.
+
+[↑ Back to top](#table-of-contents)
 
 ---
 
 ## Installation
 
-### Pre-built Binaries (Recommended)
+### go install
 
-Download the latest release for your platform:
-
-| Platform | Architecture | Download |
-|----------|--------------|----------|
-| **macOS** | Apple Silicon (M1/M2/M3) | [imagine-darwin-arm64](https://github.com/AhmedAburady/imagine-cli/releases/latest) |
-| **macOS** | Intel | [imagine-darwin-amd64](https://github.com/AhmedAburady/imagine-cli/releases/latest) |
-| **Linux** | x64 | [imagine-linux-amd64](https://github.com/AhmedAburady/imagine-cli/releases/latest) |
-| **Linux** | ARM64 | [imagine-linux-arm64](https://github.com/AhmedAburady/imagine-cli/releases/latest) |
-| **Windows** | x64 | [imagine-windows-amd64.exe](https://github.com/AhmedAburady/imagine-cli/releases/latest) |
-| **Windows** | ARM64 | [imagine-windows-arm64.exe](https://github.com/AhmedAburady/imagine-cli/releases/latest) |
-
-After downloading, make it executable (macOS/Linux):
-```bash
-chmod +x imagine-darwin-arm64
-mv imagine-darwin-arm64 /usr/local/bin/imagine
-```
-
-### Using Go
+Requires Go 1.26 or later.
 
 ```bash
 go install github.com/AhmedAburady/imagine-cli/cmd/imagine@latest
 ```
 
-### From Source
+This drops an `imagine` binary in `$GOBIN` (or `$GOPATH/bin`). Make sure that directory is on your `$PATH`.
+
+### From source
 
 ```bash
 git clone https://github.com/AhmedAburady/imagine-cli.git
 cd imagine-cli
 go build -o imagine ./cmd/imagine
+./imagine --help
 ```
+
+### Pre-built binaries
+
+Download from [Releases](https://github.com/AhmedAburady/imagine-cli/releases):
+
+| Platform | Architecture | Binary |
+|---|---|---|
+| macOS | Apple Silicon | `imagine-darwin-arm64` |
+| macOS | Intel | `imagine-darwin-amd64` |
+| Linux | x64 | `imagine-linux-amd64` |
+| Linux | ARM64 | `imagine-linux-arm64` |
+| Windows | x64 | `imagine-windows-amd64.exe` |
+| Windows | ARM64 | `imagine-windows-arm64.exe` |
+
+On macOS/Linux:
+```bash
+chmod +x imagine-darwin-arm64
+mv imagine-darwin-arm64 /usr/local/bin/imagine
+```
+
+[↑ Back to top](#table-of-contents)
 
 ---
 
-## Quick Start
+## Configuration
 
-### 1. Get credentials
+imagine reads one file — `~/.config/imagine/config.yaml` (or `config.yml`). Write it yourself with an editor; there are no `config set-*` commands. Only include the providers you actually use.
 
-- **Gemini**: free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
-- **Vertex AI**:
-  1. A GCP project with the Vertex AI API enabled.
-  2. Run `gcloud auth application-default login` once on the machine — imagine uses Application Default Credentials, so there's no key to paste into the config.
-  3. Put only the project id (and optional location) in `config.yaml`.
-- **OpenAI**: API key from [platform.openai.com](https://platform.openai.com).
-
-### 2. Create the config file
-
-imagine reads `~/.config/imagine/config.yaml` (or `config.yml`). Create it yourself — there's no `config set-*` command; just write the YAML:
+### Schema
 
 ```yaml
 default_provider: gemini
@@ -102,438 +120,290 @@ providers:
   vertex:
     provider_options:
       gcp_project: your-gcp-project-id
-      location: us-central1   # optional; defaults to "global"
+      location: us-central1       # optional, defaults to "global"
 ```
-
-Only include the providers you actually use. `default_provider` is optional — if omitted, imagine picks the first provider under `providers:` (alphabetical order).
-
-#### Schema reference
 
 | Field | Required | Notes |
 |---|---|---|
-| `default_provider` | No | Which provider to use when `--provider` is not passed. If empty, first `providers:` entry wins. |
+| `default_provider` | No | Which provider to use when `--provider` is not passed. Defaults to the first provider under `providers:` (alphabetical). |
 | `providers.<name>.api_key` | For Gemini/OpenAI | Required by providers that authenticate with an API key. |
-| `providers.<name>.provider_options` | Provider-specific | Free-form string map for extras. Vertex uses `gcp_project` (required) and `location` (optional, default `global`). |
+| `providers.<name>.provider_options` | Provider-specific | Free-form string map. Vertex uses `gcp_project` (required) and `location` (optional). |
 
-#### Provider resolution precedence
+### Provider resolution
+
+The active provider is resolved per-invocation with this precedence:
 
 ```
---provider <name>      (CLI flag — highest priority)
+--provider <name>          # CLI flag — highest priority
   ↓
-default_provider       (config)
+default_provider           # config.yaml
   ↓
-first under providers: (alphabetical)
+first under providers:     # alphabetical
   ↓
-error
+error (no provider configured)
 ```
 
-### 3. Generate your first image
+### Credentials
+
+- **Gemini** — get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey) and paste into `providers.gemini.api_key`.
+- **OpenAI** — get an API key from [platform.openai.com](https://platform.openai.com) and paste into `providers.openai.api_key`.
+- **Vertex AI** — no key in the config. Two steps on the machine:
+  1. A GCP project with the Vertex AI API enabled.
+  2. `gcloud auth application-default login` — imagine uses Application Default Credentials.
+
+  Then put the project id (and optional location) in `providers.vertex.provider_options`.
+
+[↑ Back to top](#table-of-contents)
+
+---
+
+## Quick start
 
 ```bash
 imagine -p "a cyberpunk city at night with neon lights"
 ```
 
+Uses `default_provider` from your config, writes a timestamped PNG to the current directory.
+
+```bash
+imagine -p "make it winter" -i city.png --provider openai
+```
+
+Switches to OpenAI for this invocation and uses `/v1/images/edits` because `-i` was passed.
+
+[↑ Back to top](#table-of-contents)
+
 ---
 
-## CLI Reference
+## Usage
 
-The CLI mode allows you to generate or edit images directly from the command line, perfect for scripting and automation.
+### Common flags
 
-### Basic Syntax
+These flags work with any provider:
 
-```
-imagine [flags]              # generate (and edit, if -i is passed)
-imagine describe [flags]     # analyze image style
-imagine version              # print version
-```
+| Flag | Long | Description | Default |
+|---|---|---|---|
+| `-p` | `--prompt` | Prompt text or path to a prompt file | *required* |
+| `-o` | `--output` | Output directory | `.` |
+| `-f` | `--filename` | Output filename. Extension (`.png`/`.jpg`/`.webp`) drives the image format. With `-n >1`, filenames get `_N` suffixes. | auto |
+| `-n` | `--count` | Number of images (1–20) | `1` |
+| `-i` | `--input` | Reference image or folder, repeatable; presence flips the command into edit mode | — |
+| `-r` | `--replace` | Use the input filename for output (single `-i` file only) | `false` |
+|  | `--provider` | Override the active provider for this invocation | config |
+| `-v` | `--version` | Print version | — |
+| `-h` | `--help` | Show provider-aware help | — |
 
-Run `imagine --help` for the full fang-styled help.
+Provider-specific flags live with each provider below. When you set a flag that the active provider doesn't support, imagine errors out clearly and tells you which provider *does* support it.
 
-### Flags
+### Gemini and Vertex
 
-**Common flags** (all providers):
+Models and flags are shared between Gemini (direct REST) and Vertex (Gemini via GCP).
 
-| Flag | Long Form | Type | Description | Default |
-|---|---|---|---|---|
-| `-p` | `--prompt` | string | Prompt text or path to prompt file | *required* |
-| `-o` | `--output` | string | Output directory | `.` |
-| `-f` | `--filename` | string | Output filename (suffixed `_N` for n>1). Extension (`.png`/`.jpg`/`.webp`) drives the image format. | *none* |
-| `-n` | `--count` | int | Number of images (1-20) | `1` |
-| `-i` | `--input` | string | Reference image/folder, repeatable (enables edit mode) | *none* |
-| `-r` | `--replace` | bool | Use the input filename for output (single file only) | `false` |
-| | `--provider` | string | Override active provider | config |
-| `-v` | `--version` | | Show version | |
-| `-h` | `--help` | | Show help | |
-
-**Gemini / Vertex flags** (rejected on other providers):
-
-| Flag | Long Form | Description | Default |
+| Flag | Long | Description | Default |
 |---|---|---|---|
 | `-m` | `--model` | `pro` or `flash` (or full ID) | `pro` |
-| `-s` | `--size` | `1K`, `2K`, `4K` | `1K` |
-| `-a` | `--aspect-ratio` | e.g. `16:9`, `1:1` | Auto |
+| `-s` | `--size` | `1K`, `2K`, or `4K` | `1K` |
+| `-a` | `--aspect-ratio` | e.g. `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `21:9` | Auto |
 | `-g` | `--grounding` | Google Search grounding | `false` |
 | `-t` | `--thinking` | `minimal` or `high` (flash only) | Auto |
 | `-I` | `--image-search` | Image Search grounding (Gemini flash only) | `false` |
 
-**OpenAI flags** (rejected on other providers):
+**Examples**
 
-| Flag | Long Form | Description | Default |
+```bash
+# Multi-image generation
+imagine -p "a sunset" -n 3 -s 2K -a 16:9
+
+# Flash model with high thinking
+imagine -p "futuristic city" -m flash -t high
+
+# Edit a photo, keep its filename
+imagine -p "add rain" -i photo.png -r
+
+# Image Search grounding (Gemini flash only)
+imagine -p "cat wearing a hoodie" -m flash -I
+```
+
+**Vertex** — same flags, add `--provider vertex`:
+
+```bash
+imagine -p "a sunset" --provider vertex -n 3
+```
+
+Vertex does not support `--image-search`.
+
+### OpenAI
+
+Uses `gpt-image-2` by default.
+
+| Flag | Long | Description | Default |
 |---|---|---|---|
-| `-m` | `--model` | `gpt-image-2`, `1.5`, `1`, `mini`, `latest` (or full ID) | `gpt-image-2` |
-| `-s` | `--size` | `1K`/`2K`/`4K` shorthand, `auto`, or raw `WxH` (e.g. `1536x1024`) | `auto` |
+| `-m` | `--model` | `gpt-image-2`, `1.5`, `1`, `mini`, `1-mini`, `latest` (or full ID) | `gpt-image-2` |
+| `-s` | `--size` | `1K` / `2K` / `4K` shorthand, `auto`, or raw `WxH` (e.g. `1536x1024`) | `auto` |
 | `-q` | `--quality` | `low`, `medium`, `high`, `auto` | `auto` |
-| | `--compression` | 0-100 (jpeg/webp only) | `100` |
-| | `--moderation` | `auto`, `low` | `auto` |
-| | `--background` | `auto`, `opaque`, `transparent` | `auto` |
+|  | `--compression` | 0–100 (jpeg/webp only) | `100` |
+|  | `--moderation` | `auto`, `low` | `auto` |
+|  | `--background` | `auto`, `opaque`, `transparent` | `auto` |
 
-Edit endpoint size restriction: OpenAI's `/v1/images/edits` only accepts `1024x1024`, `1536x1024`, `1024x1536`, `auto`. Using `-i` with `-s 2K`/`4K`/larger WxH errors out before the API call.
+**Size shorthand**
 
-The config file is stored at `~/.config/imagine/config.json`.
+| Short | Dimensions |
+|---|---|
+| `1K` | `1024x1024` |
+| `2K` | `2048x2048` |
+| `4K` | `3840x2160` |
+| `auto` | model picks (default) |
 
-### Describe Command
+**Popular raw dimensions**
 
-Analyze images and extract style descriptions:
+| Dimensions | Shape |
+|---|---|
+| `1024x1024` | square |
+| `1536x1024` | landscape |
+| `1024x1536` | portrait |
+| `2048x2048` | 2K square |
+| `2048x1152` | 2K landscape |
+| `3840x2160` | 4K landscape |
+| `2160x3840` | 4K portrait |
+
+Any `WxH` is accepted if: edge ≤ 3840px, both multiples of 16, long:short ≤ 3:1, total pixels 655,360–8,294,400.
+
+**Edit-mode restriction** — OpenAI's `/v1/images/edits` only accepts `1024x1024`, `1536x1024`, `1024x1536`, `auto`. Using `-i` with `-s 2K` / `4K` / larger raw dimensions errors before the API call.
+
+**Output format** — inferred from `-f` extension:
+- `-f cat.png` → API returns PNG
+- `-f cat.jpg` → API returns JPEG directly (no local re-encode)
+- `-f cat.webp` → API returns WebP
+
+**Transparent background** — requires PNG or WebP output (not JPEG). `gpt-image-2` does not currently support transparent backgrounds per the OpenAI docs; use `-m 1.5` for transparency.
+
+**Examples**
+
+```bash
+# Fast draft
+imagine -p "a red apple" --provider openai -q low
+
+# Batched — one API call returns 3 images (MaxBatchN=10)
+imagine -p "logo variants" --provider openai -n 3
+
+# 4K landscape, high quality, JPEG output
+imagine -p "hero banner" --provider openai -s 3840x2160 -q high -f hero.jpg
+
+# Edit with a reference
+imagine -p "make it winter" --provider openai -i photo.png
+
+# Transparent sticker (1.5 only)
+imagine -p "sticker" --provider openai -m 1.5 --background transparent -f sticker.png
+```
+
+### Describe
+
+Analyze an image and produce a style description usable as a generation prompt.
 
 ```bash
 imagine describe -i <image-or-folder> [flags]
 ```
 
 | Flag | Description | Default |
-|------|-------------|---------|
-| `-i` | Input image or folder (required) | - |
+|---|---|---|
+| `-i` | Input image or folder (required) | — |
 | `-o` | Output file path | stdout |
-| `-p` | Custom prompt (overrides default) | - |
-| `-a` | Additional context (prepended to default) | - |
-| `-json` | Output as structured JSON | `false` |
+| `-p` | Custom prompt (overrides default instruction) | — |
+| `-a` | Additional instructions prepended to the default | — |
+| `-json` | Output structured JSON | `false` |
+| `-vertex` | Use Vertex AI instead of Gemini direct | `false` |
 
-### Aspect Ratios
-
-| Value | Use Case |
-|-------|----------|
-| `Auto` | **Default** - Let Gemini decide the best ratio |
-| `1:1` | Square - Social media posts, profile pictures |
-| `16:9` | Landscape - Desktop wallpapers, YouTube thumbnails |
-| `9:16` | Portrait - Phone wallpapers, Instagram stories |
-| `4:3` | Classic - Presentations, traditional photos |
-| `3:4` | Portrait Classic - Portraits, posters |
-| `2:3` | Portrait - Standard photo print ratio |
-| `3:2` | Landscape - DSLR camera ratio |
-| `5:4` | Near-square - Medium format photos |
-| `4:5` | Portrait - Instagram portrait posts |
-| `21:9` | Ultra-wide - Cinematic, ultrawide monitors |
-
-### Image Sizes
-
-| Value | Resolution | Best For |
-|-------|------------|----------|
-| `1K` | ~1024px | Quick previews, web use |
-| `2K` | ~2048px | High-quality prints, detailed work |
-| `4K` | ~4096px | Maximum quality, large prints |
-
----
-
-## CLI Examples
-
-### Generate Mode
-
-Generate images from text prompts:
+Describe uses Gemini or Vertex — whichever you have configured. It's functionally unchanged from earlier versions.
 
 ```bash
-# Simple generation - creates 1 image in current directory
-imagine -p "a mountain landscape at sunset"
-
-# Multiple images with custom output folder
-imagine -p "abstract geometric patterns" -n 5 -o ./my-patterns
-
-# Widescreen wallpaper in 4K
-imagine -p "northern lights over a snowy forest" -ar 16:9 -s 4K -o ~/Wallpapers
-
-# Phone wallpaper
-imagine -p "minimalist gradient with soft colors" -ar 9:16 -o ./phone-wallpapers
-
-# With Google Search grounding for current/real-world topics
-imagine -p "the latest Tesla Cybertruck design" -g
-```
-
-### Edit Mode
-
-Transform existing images using the `-i` flag:
-
-```bash
-# Edit a single image
-imagine -i ./photo.jpg -p "convert to watercolor painting style"
-
-# Use multiple reference images from a folder
-imagine -i ./reference-images/ -p "create a pattern inspired by these designs" -n 3
-
-# Style transfer
-imagine -i ./portrait.png -p "transform into anime art style" -o ./anime-versions
-
-# Add effects
-imagine -i ./landscape.jpg -p "add dramatic storm clouds and lightning"
-```
-
-### Describe Mode
-
-Extract style descriptions from images:
-
-```bash
-# Plain text style description
+# Plain text description
 imagine describe -i photo.jpg
 
-# Analyze folder of style references (unified description)
-imagine describe -i ./reference_images/
+# JSON style guide from a folder of references
+imagine describe -i ./styles/ -json -o style.json
 
-# Add style context to guide analysis
-imagine describe -i image.png -a "2D flat vector art"
-
-# Structured JSON output
-imagine describe -i photo.jpg -json -o style.json
+# Vertex backend
+imagine describe -i photo.jpg -vertex
 ```
 
-### Output Example
+### Providers show
+
+List the providers declared in your config, with which is active and which is the default:
+
+```bash
+imagine providers show
+```
+
+Output:
 
 ```
-⠋ Generating 3 image(s)...
+default_provider: gemini
 
-✓ generated_1_20260123_143052.png
-✓ generated_2_20260123_143053.png
-✓ generated_3_20260123_143054.png
-
-Done: 3 success, 0 failed (12.4s)
-Output: /Users/ahmed/my-images
+providers:
+  gemini  [active, default]
+    api_key: AIzaSyAU...44b0
+  openai
+    api_key: sk-proj-...v4IA
+  vertex
+    provider_options:
+      gcp_project: my-project
+      location: global
 ```
+
+Markers:
+- `active` — what this binary would use right now (after `--provider`/default/first resolution)
+- `default` — whatever's in `default_provider:`
+- `unknown: not built into this binary` — a provider your config mentions but this binary wasn't compiled with
+
+[↑ Back to top](#table-of-contents)
 
 ---
 
-## TUI Guide
+## Output formats
 
-The Terminal User Interface provides an interactive experience for image generation.
+**Input** (reference images for edit mode): `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`
 
-### Launching the TUI
+**Output** — driven by the `-f` filename extension:
+- `.png` (default)
+- `.jpg` / `.jpeg` — For Gemini/Vertex, imagine converts locally at quality 95. For OpenAI, the API returns JPEG directly.
+- `.webp` — OpenAI only.
 
-```bash
-imagine
-```
-
-### Main Menu
-
-From the main menu, choose between:
-
-- **Generate Image** - Create new images from text prompts
-- **Edit Image** - Transform existing images with AI
-
-### Form Fields
-
-#### Generate Image Form
-
-| Field | Description |
-|-------|-------------|
-| **Output Folder** | Where to save images (supports `~` and tab completion) |
-| **Number of Images** | 1-20 images generated in parallel |
-| **Prompt** | Your image description |
-| **Aspect Ratio** | Select from 1:1, 16:9, 9:16, 4:3, 3:4 |
-| **Image Size** | Select from 1K, 2K, 4K |
-| **Grounding** | ON/OFF - Enable Google Search grounding |
-
-#### Edit Image Form
-
-Same as Generate, plus:
-
-| Field | Description |
-|-------|-------------|
-| **Reference Path** | Image file or folder containing reference images |
-
-### Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `↑` `↓` | Navigate between form fields |
-| `←` `→` | Cycle through options (aspect ratio, size, grounding) |
-| `Tab` | Accept path autocomplete suggestion |
-| `Ctrl+N` | Insert newline in prompt field |
-| `Ctrl+S` | Submit form and start generation |
-| `Esc` | Go back to previous screen |
-| `Enter` | Select menu item |
-| `q` | Quit from main menu |
-| `Ctrl+C` | Force quit |
-
-### Path Autocomplete
-
-The TUI supports intelligent path autocomplete:
-
-- Start typing a path and press `Tab` to see suggestions
-- Use `~` for home directory (e.g., `~/Pictures`)
-- Works for both output folders and reference images
-
----
-
-## Supported Formats
-
-### Input (Reference Images)
-
-| Format | Extensions |
-|--------|------------|
-| JPEG | `.jpg`, `.jpeg` |
-| PNG | `.png` |
-| GIF | `.gif` |
-| WebP | `.webp` |
-
-### Output
-
-All generated images are saved as **PNG** format.
-
----
-
-## How It Works
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        IMAGINE CLI                           │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│   ┌─────────┐         ┌─────────────┐        ┌─────────┐   │
-│   │   TUI   │────────▶│             │───────▶│  Save   │   │
-│   └─────────┘         │   Gemini    │        │  PNG    │   │
-│                       │   API       │        │  Files  │   │
-│   ┌─────────┐         │             │        └─────────┘   │
-│   │   CLI   │────────▶│  (Parallel) │                      │
-│   └─────────┘         └─────────────┘                      │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-1. **Input**: Prompt text + optional reference images
-2. **Processing**: Parallel API calls to Gemini (up to 20 concurrent)
-3. **Output**: PNG images saved to specified folder
-
----
-
-## API Key Configuration
-
-IMAGINE CLI looks for your API key in the following order (first found wins):
-
-| Priority | Source | Description |
-|----------|--------|-------------|
-| 1 | `GEMINI_API_KEY` | Environment variable (highest priority) |
-| 2 | `GOOGLE_API_KEY` | Alternative environment variable |
-| 3 | Config file | `~/.config/imagine/config.json` |
-
-This allows you to:
-- Use environment variables to temporarily override the saved key
-- Keep a default key in the config file for convenience
-- Use different keys for different projects via env vars
-
----
-
-## Vertex AI Configuration (Alternative)
-
-Instead of using a Gemini API key, you can use **Vertex AI** with Google Cloud authentication. This is useful if you have a GCP project with better quotas or enterprise features.
-
-### Prerequisites
-
-1. A Google Cloud project with the Vertex AI API enabled
-2. A service account with the **Vertex AI User** role (or equivalent)
-3. Google Cloud CLI (`gcloud`) installed
-
-### Setup
-
-**Step 1: Authenticate with Google Cloud**
-```bash
-# Login with your Google account
-gcloud auth application-default login
-
-# Or use a service account
-gcloud auth activate-service-account --key-file=your-service-account.json
-export GOOGLE_APPLICATION_CREDENTIALS="path/to/your-service-account.json"
-```
-
-**Step 2: Configure your GCP project**
-
-Option A: Save to config file (recommended)
-```bash
-imagine config set-project your-project-id
-imagine config set-location global  # optional, defaults to global
-```
-
-Option B: Use environment variables
-```bash
-export GOOGLE_CLOUD_PROJECT="your-project-id"
-export GOOGLE_CLOUD_LOCATION="global"  # optional
-```
-
-**Step 3: Use the `-vertex` flag**
-```bash
-imagine -p "a beautiful sunset" -vertex
-imagine -p "cyberpunk city" -n 5 -vertex -ar 16:9
-```
-
-### Configuration Priority
-
-Settings are loaded in this order (first found wins):
-
-| Setting | Env Variable | Config Command | Default |
-|---------|--------------|----------------|---------|
-| GCP Project | `GOOGLE_CLOUD_PROJECT` | `imagine config set-project` | - |
-| GCP Location | `GOOGLE_CLOUD_LOCATION` | `imagine config set-location` | `global` |
-
-### Benefits of Vertex AI
-
-- **No API key exposure** - Uses Google Cloud IAM authentication
-- **Enterprise quotas** - Higher rate limits based on your GCP project
-- **VPC Service Controls** - Network security features
-- **Audit logging** - Cloud Audit Logs integration
+[↑ Back to top](#table-of-contents)
 
 ---
 
 ## Troubleshooting
 
-### API Key Issues
+**`no provider configured`** — create `~/.config/imagine/config.yaml` with at least one provider under `providers:`. See [Configuration](#configuration).
 
-**No API key configured:**
-```bash
-# Easiest: save to config
-imagine config set-key YOUR_API_KEY
+**`unknown model "xyz" for provider "..."`** — the active provider doesn't know that model. Run `imagine --help` to see the accepted models for the active provider.
 
-# Or use environment variable
-export GEMINI_API_KEY="your_key_here"
-```
+**`--X is not supported by provider "Y"`** — you used a flag that belongs to a different provider. The error tells you which providers *do* support it. Example: `--grounding` is Gemini/Vertex-only; swap providers or drop the flag.
 
-**Check current configuration:**
-```bash
-imagine config show    # Shows masked key
-imagine config path    # Shows config file location
-```
+**`--background transparent is not supported by gpt-image-2`** — known OpenAI limitation; use `-m 1.5` for transparency.
 
-### "No images found in directory"
+**Ctrl+C hangs** — it shouldn't. imagine uses context cancellation; in-flight HTTP requests are aborted when you press Ctrl+C.
 
-When using `-i` with a folder, ensure it contains supported image formats (.jpg, .jpeg, .png, .gif, .webp).
+**Vertex "failed to create Vertex AI client"** — you haven't run `gcloud auth application-default login` yet, or the project id in your config is wrong / doesn't have the Vertex AI API enabled.
 
-### API Rate Limits
-
-If generating many images, you may hit rate limits. The tool handles this gracefully - failed images will show error messages while successful ones are saved.
-
----
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
+[↑ Back to top](#table-of-contents)
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Feel free to:
+Bugs, features, and PRs welcome. The codebase is documented for provider authors — adding a new backend is one new directory under `providers/` + one blank-import line in `cmd/imagine/main.go`. See [plan.md](plan.md) for architecture notes.
 
-- Report bugs
-- Suggest features
-- Submit pull requests
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
 
 ---
 
 <div align="center">
 
-Made with Go and Gemini AI
+Built in Go. No TUI, no env vars, no ceremony.
 
 </div>
