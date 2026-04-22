@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -351,8 +352,9 @@ func convertToJPEG(imgData []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// RunGeneration performs parallel image generation and saves results
-func RunGeneration(config *Config) GenerationOutput {
+// RunGeneration performs parallel image generation and saves results.
+// ctx cancels in-flight requests when the caller aborts (Ctrl+C via fang).
+func RunGeneration(ctx context.Context, config *Config) GenerationOutput {
 	startTime := time.Now()
 
 	// Ensure output folder exists
@@ -377,9 +379,9 @@ func RunGeneration(config *Config) GenerationOutput {
 			defer wg.Done()
 			var result GenerationResult
 			if config.UseVertex {
-				result = GenerateImageVertex(config, index)
+				result = GenerateImageVertex(ctx, config, index)
 			} else {
-				result = GenerateImage(config, index)
+				result = GenerateImage(ctx, config, index)
 			}
 
 			// Save if successful
@@ -455,8 +457,8 @@ func RunGeneration(config *Config) GenerationOutput {
 	}
 }
 
-// GenerateImage performs a single image generation request
-func GenerateImage(config *Config, index int) GenerationResult {
+// GenerateImage performs a single image generation request.
+func GenerateImage(ctx context.Context, config *Config, index int) GenerationResult {
 	// Build request parts: text prompt only for generate, text + images for edit
 	var parts []Part
 	parts = append(parts, Part{Text: config.Prompt})
@@ -504,8 +506,8 @@ func GenerateImage(config *Config, index int) GenerationResult {
 	// Build URL with model and API key
 	url := fmt.Sprintf("%s?key=%s", GeminiURL(config.Model), config.APIKey)
 
-	// Make request using shared client with connection pooling
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	// Context-aware request so Ctrl+C cancels in-flight generations.
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return GenerationResult{Index: index, Error: fmt.Errorf("failed to create request: %v", err)}
 	}

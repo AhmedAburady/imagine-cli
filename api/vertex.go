@@ -21,10 +21,9 @@ func getVertexConfig() (project, location string, err error) {
 	return project, location, nil
 }
 
-// GenerateImageVertex performs a single image generation request using Vertex AI
-func GenerateImageVertex(config *Config, index int) GenerationResult {
-	ctx := context.Background()
-
+// GenerateImageVertex performs a single image generation request using Vertex AI.
+// ctx propagates cancellation from the caller (Ctrl+C via fang) through to the SDK call.
+func GenerateImageVertex(ctx context.Context, config *Config, index int) GenerationResult {
 	project, location, err := getVertexConfig()
 	if err != nil {
 		return GenerationResult{Index: index, Error: err}
