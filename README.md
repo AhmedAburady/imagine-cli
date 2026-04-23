@@ -38,6 +38,7 @@
   - [Providers show](#providers-show)
 - [Output formats](#output-formats)
 - [AI agent skill](#ai-agent-skill)
+- [Development](#development)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
@@ -404,6 +405,27 @@ The skill source lives at [`skills/imagine-cli/`](skills/imagine-cli/) in this r
 
 ---
 
+## Development
+
+imagine is built around a small provider framework so adding a new backend is almost entirely local to its own package. You write a tagged `Options` struct, implement `Generate`, and register a Bundle — the framework handles Cobra flag binding, validation, HTTP plumbing, model-level flag enforcement, and test coverage.
+
+- **[Docs/adding-a-provider.md](Docs/adding-a-provider.md)** — step-by-step guide for adding a new provider (file layout, `flagspec` tags, `transport` helpers, `providertest` harness, worked example).
+
+Key packages for provider authors:
+
+| Package | Purpose |
+|---|---|
+| [`providers/flagspec`](providers/flagspec/) | Reflection-based flag DSL — declare flags as struct tags |
+| [`internal/transport`](internal/transport/) | Shared HTTP primitives: `PostJSON[R]`, auth injectors, `APIError`, base64 decode |
+| [`providers/providertest`](providers/providertest/) | Contract test harness — one-line `TestContract` runs 12 invariants |
+| [`providers`](providers/) | Core interfaces: `Provider`, `Bundle`, `RequestLabeler`, `ResolvedModeler` |
+
+Files you **don't** edit when adding a provider: `commands/`, `cli/`, `api/`, `config/`, `cmd/imagine/main.go`. If a change there seems necessary, that's a framework gap worth an issue.
+
+[↑ Back to top](#table-of-contents)
+
+---
+
 ## Troubleshooting
 
 **`no provider configured`** — create the config file with at least one provider under `providers:`. The path is OS-specific; run `imagine -p test` with no config and the error tells you the exact path. See [Configuration](#configuration).
@@ -424,7 +446,7 @@ The skill source lives at [`skills/imagine-cli/`](skills/imagine-cli/) in this r
 
 ## Contributing
 
-Bugs, features, and PRs welcome. The codebase is documented for provider authors — adding a new backend is one new directory under `providers/` + one blank-import line in `cmd/imagine/main.go`. See [plan.md](plan.md) for architecture notes.
+Bugs, features, and PRs welcome. Adding a new provider is one new directory under `providers/` plus one blank-import line in [`providers/all/all.go`](providers/all/all.go) — see [Development](#development) and the full [adding-a-provider guide](Docs/adding-a-provider.md).
 
 ---
 
