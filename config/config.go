@@ -1,7 +1,11 @@
 // Package config loads imagine's YAML configuration.
 //
 // Location: ~/.config/imagine/config.yaml (or config.yml — both are tried).
-// Users edit this file directly; imagine does not write to it.
+// Users edit this file directly for credentials (api_key) and
+// provider_options. imagine only mutates one field: default_provider,
+// via `imagine providers use <name>` / `imagine providers select`. See
+// Save() for the narrow write path — it preserves comments, ordering,
+// and quoting.
 //
 // Schema:
 //
