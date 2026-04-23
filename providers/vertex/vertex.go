@@ -17,8 +17,9 @@ import (
 
 // Provider is the Vertex AI implementation of providers.Provider.
 type Provider struct {
-	project  string
-	location string
+	project     string
+	location    string
+	visionModel string
 }
 
 // New builds a Vertex provider. Reads gcp_project and location from the
@@ -32,7 +33,7 @@ func New(auth providers.Auth) (providers.Provider, error) {
 	if location == "" {
 		location = "global"
 	}
-	return &Provider{project: project, location: location}, nil
+	return &Provider{project: project, location: location, visionModel: auth.Get("vision_model")}, nil
 }
 
 // ConfigSchema declares the fields `imagine providers add vertex` collects.
@@ -50,6 +51,12 @@ func (p *Provider) ConfigSchema() []providers.ConfigField {
 			Title:       "Location",
 			Description: "Vertex AI region (default: global)",
 			Default:     "global",
+		},
+		{
+			Key:         "vision_model",
+			Title:       "Vision Model",
+			Description: "Model for `imagine describe` (multimodal Gemini 3 variants)",
+			Default:     DefaultVisionModel,
 		},
 	}
 }

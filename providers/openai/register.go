@@ -16,5 +16,6 @@ func init() {
 		Examples:       Examples,
 		Info:           info,
 		ConfigSchema:   (&Provider{}).ConfigSchema(),
+		Vision:         &providers.Vision{DefaultModel: DefaultVisionModel},
 	})
 }

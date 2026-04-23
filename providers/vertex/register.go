@@ -25,5 +25,6 @@ func init() {
 		Examples:       gemini.Examples, // Vertex reuses Gemini's examples
 		Info:           info,
 		ConfigSchema:   (&Provider{}).ConfigSchema(),
+		Vision:         &providers.Vision{DefaultModel: DefaultVisionModel},
 	})
 }

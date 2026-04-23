@@ -135,3 +135,38 @@ type ConfigField struct {
 	Required    bool
 	Default     string // used as form default and for flag default
 }
+
+// Vision declares describe capability on the Bundle. Non-nil means the
+// Provider also implements Describer.
+type Vision struct {
+	DefaultModel string
+}
+
+// Describer is implemented by providers that analyse images.
+type Describer interface {
+	Describe(ctx context.Context, req DescribeRequest) (*ImageDescription, error)
+}
+
+type DescribeRequest struct {
+	Images           []images.Reference
+	CustomPrompt     string
+	Additional       string
+	Model            string
+	StructuredOutput bool
+}
+
+type ImageDescription struct {
+	Text       string
+	Structured *StyleAnalysis
+}
+
+type StyleAnalysis struct {
+	StyleName    string   `json:"style_name"`
+	Description  string   `json:"description"`
+	StyleSummary string   `json:"style_summary"`
+	Colors       []string `json:"colors"`
+	Medium       string   `json:"medium"`
+	Composition  string   `json:"composition,omitempty"`
+	KeyElements  []string `json:"key_elements,omitempty"`
+	Avoid        []string `json:"avoid,omitempty"`
+}
