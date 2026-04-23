@@ -2,6 +2,7 @@ package providers
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/spf13/cobra"
@@ -86,11 +87,8 @@ func List() []string {
 func ProvidersSupportingFlag(flagName string) []string {
 	var out []string
 	for name, b := range registry {
-		for _, f := range b.SupportedFlags {
-			if f == flagName {
-				out = append(out, name)
-				break
-			}
+		if slices.Contains(b.SupportedFlags, flagName) {
+			out = append(out, name)
 		}
 	}
 	sort.Strings(out)

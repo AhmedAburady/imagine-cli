@@ -40,6 +40,11 @@ func newProvidersAddCmd() *cobra.Command {
 	// Fan out: one sub-sub-command per registered provider. Fixes the
 	// flag-collision problem (--api-key means different things for
 	// gemini vs openai; --gcp-project only applies to vertex).
+	//
+	// Snapshot of providers.List() at command-tree build time. Every
+	// built-in provider registers via init() (see providers/all), so by
+	// the time main() calls NewRootCmd the list is complete. Runtime
+	// registration after this point is not supported.
 	for _, name := range providers.List() {
 		cmd.AddCommand(newProvidersAddForCmd(name))
 	}

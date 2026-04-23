@@ -60,9 +60,9 @@ func enforceFlagSupport(cmd *cobra.Command, active providers.Bundle) error {
 // the resolved model doesn't honour (e.g. --thinking under Gemini's pro
 // model). Rule:
 //
-//   advanced = union of Info.Models[].SupportedFlags across the provider
-//   user-set flag is rejected iff it's in advanced but not in the
-//     resolved model's SupportedFlags
+//	advanced = union of Info.Models[].SupportedFlags across the provider
+//	user-set flag is rejected iff it's in advanced but not in the
+//	  resolved model's SupportedFlags
 //
 // Flags outside the advanced set are unaffected — the bundle-level gate
 // (enforceFlagSupport) already handled them. When no model declares any

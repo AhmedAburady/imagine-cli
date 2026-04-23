@@ -282,4 +282,3 @@ func unknownProviderError(name string, choices []string) error {
 	b.WriteString("Run `imagine providers select` for an interactive picker.")
 	return errors.New(b.String())
 }
-

@@ -6,6 +6,7 @@ package providers
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/AhmedAburady/imagine-cli/internal/images"
@@ -24,10 +25,8 @@ func (i Info) ResolveModel(raw string) (string, error) {
 		if m.ID == raw {
 			return m.ID, nil
 		}
-		for _, a := range m.Aliases {
-			if a == raw {
-				return m.ID, nil
-			}
+		if slices.Contains(m.Aliases, raw) {
+			return m.ID, nil
 		}
 		accepted = append(accepted, m.ID)
 		accepted = append(accepted, m.Aliases...)

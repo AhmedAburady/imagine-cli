@@ -61,17 +61,11 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 	// Plan batches: for providers with MaxBatchN=1 (Gemini/Vertex), this
 	// yields NumImages batches of size 1. For MaxBatchN=10 (OpenAI), fewer
 	// bigger batches.
-	maxBatch := provider.Info().Capabilities.MaxBatchN
-	if maxBatch < 1 {
-		maxBatch = 1
-	}
+	maxBatch := max(provider.Info().Capabilities.MaxBatchN, 1)
 	var batchSizes []int
 	remaining := params.NumImages
 	for remaining > 0 {
-		size := maxBatch
-		if remaining < size {
-			size = remaining
-		}
+		size := min(remaining, maxBatch)
 		batchSizes = append(batchSizes, size)
 		remaining -= size
 	}
@@ -93,7 +87,7 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 
 			resp, err := provider.Generate(ctx, req)
 			if err != nil {
-				for i := 0; i < batchSize; i++ {
+				for i := range batchSize {
 					resultsChan <- GenerationResult{Index: startIndex + i, Error: err}
 				}
 				return

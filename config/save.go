@@ -81,8 +81,11 @@ func SaveProviderFields(name string, fields map[string]string) error {
 	providersNode := findOrCreateMapping(top, "providers")
 	providerNode := findOrCreateMapping(providersNode, name)
 
-	// Migrate legacy provider_options sub-map if present.
-	removeMappingKey(providerNode, "provider_options")
+	// Migrate legacy provider_options sub-map if present. Treat the
+	// removal itself as a change — otherwise, a config that has BOTH the
+	// legacy shape AND the equivalent flat keys would never get cleaned
+	// up, because setMappingScalar below would no-op for every key.
+	changed := removeMappingKey(providerNode, "provider_options")
 
 	// Deterministic write order so new keys appear alphabetically.
 	keys := make([]string, 0, len(fields))
@@ -91,7 +94,6 @@ func SaveProviderFields(name string, fields map[string]string) error {
 	}
 	sort.Strings(keys)
 
-	changed := false
 	for _, k := range keys {
 		if setMappingScalar(providerNode, k, fields[k]) {
 			changed = true
@@ -121,25 +123,36 @@ func readExistingConfig() (string, []byte, error) {
 
 // writeInitialConfig writes a minimal config.yaml with one provider entry.
 // Called by SaveProviderFields when no existing config is present.
+//
+// Routes through the same node-tree + yaml.Encoder path SaveProviderFields
+// uses on updates so the encoder handles quoting for YAML-special values.
+// A naive printf-to-bytes approach would silently produce malformed YAML
+// when a field value contains characters like `:`, `#`, or leading `[`.
 func writeInitialConfig(name string, fields map[string]string) error {
 	dir := DefaultConfigDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
-	path := DefaultConfigPath()
+
+	var root yaml.Node
+	top, err := documentMapping(&root)
+	if err != nil {
+		return err
+	}
+
+	upsertScalarPrepend(top, "default_provider", name)
+	providerNode := findOrCreateMapping(findOrCreateMapping(top, "providers"), name)
 
 	keys := make([]string, 0, len(fields))
 	for k := range fields {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "default_provider: %s\n\nproviders:\n  %s:\n", name, name)
 	for _, k := range keys {
-		fmt.Fprintf(&buf, "    %s: %s\n", k, fields[k])
+		setMappingScalar(providerNode, k, fields[k])
 	}
-	return atomicWrite(path, buf.Bytes(), 0o600)
+
+	return writeNodeFile(&root, DefaultConfigPath())
 }
 
 // documentMapping returns the top-level mapping node of a parsed config.
@@ -233,15 +246,18 @@ func findOrCreateMapping(parent *yaml.Node, key string) *yaml.Node {
 }
 
 // removeMappingKey deletes key (and its value) from a mapping node, if
-// present. Used to migrate away from the legacy provider_options layout.
-func removeMappingKey(mapping *yaml.Node, key string) {
+// present. Returns true when the mapping was actually modified so the
+// caller can treat the removal as a change worth writing (needed for
+// legacy-shape migrations where the flat values may already match).
+func removeMappingKey(mapping *yaml.Node, key string) bool {
 	for i := 0; i+1 < len(mapping.Content); i += 2 {
 		k := mapping.Content[i]
 		if k.Kind == yaml.ScalarNode && k.Value == key {
 			mapping.Content = append(mapping.Content[:i], mapping.Content[i+2:]...)
-			return
+			return true
 		}
 	}
+	return false
 }
 
 // writeNodeFile encodes root with 2-space indent and atomically replaces
