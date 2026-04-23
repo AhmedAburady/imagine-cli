@@ -85,6 +85,11 @@ func (p *Provider) Info() providers.Info {
 
 // Generate performs one Gemini API call for a single image (MaxBatchN=1).
 func (p *Provider) Generate(ctx context.Context, req providers.Request) (*providers.Response, error) {
+	opts, ok := req.Options.(*Options)
+	if !ok {
+		return nil, fmt.Errorf("gemini: internal: expected *Options, got %T", req.Options)
+	}
+
 	parts := []part{{Text: req.Prompt}}
 	for _, ref := range req.References {
 		parts = append(parts, part{
@@ -95,29 +100,25 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 		})
 	}
 
-	model, _ := req.Options["model"].(string)
-	size, _ := req.Options["size"].(string)
-	aspect, _ := req.Options["aspect_ratio"].(string)
-
 	body := geminiRequest{
 		Contents: []content{{Parts: parts}},
 		GenerationConfig: generationConfig{
 			ResponseModalities: []string{"TEXT", "IMAGE"},
 			ImageConfig: imageConfig{
-				AspectRatio: aspect,
-				ImageSize:   size,
+				AspectRatio: opts.AspectRatio,
+				ImageSize:   opts.Size,
 			},
 		},
 	}
 
-	if b, _ := req.Options["grounding"].(bool); b {
+	if opts.Grounding {
 		body.Tools = append(body.Tools, tool{GoogleSearch: &googleSearch{}})
 	}
-	if b, _ := req.Options["image_search"].(bool); b {
+	if opts.ImageSearch {
 		body.Tools = append(body.Tools, tool{ImageSearch: &imageSearch{}})
 	}
-	if s, _ := req.Options["thinking"].(string); s != "" {
-		body.GenerationConfig.ThinkingConfig = &thinkingConfig{ThinkingLevel: s}
+	if opts.Thinking != "" {
+		body.GenerationConfig.ThinkingConfig = &thinkingConfig{ThinkingLevel: opts.Thinking}
 	}
 
 	payload, err := json.Marshal(body)
@@ -125,7 +126,7 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("%s%s:generateContent?key=%s", baseURL, model, p.apiKey)
+	url := fmt.Sprintf("%s%s:generateContent?key=%s", baseURL, opts.Model, p.apiKey)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(payload))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)

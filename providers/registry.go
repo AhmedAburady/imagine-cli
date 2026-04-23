@@ -29,10 +29,11 @@ type Bundle struct {
 	SupportedFlags []string
 
 	// ReadFlags harvests flag values from the cobra command into an opaque
-	// options map that ends up in Request.Options. The provider decodes it
-	// inside Generate. Returns an error when a provider-specific flag value
+	// options value that ends up in Request.Options. The provider decodes it
+	// inside Generate (typically a *XOptions struct, or a legacy
+	// map[string]any). Returns an error when a provider-specific flag value
 	// is invalid (unknown model, out-of-range size, …).
-	ReadFlags func(cmd *cobra.Command) (map[string]any, error)
+	ReadFlags func(cmd *cobra.Command) (any, error)
 
 	// Info mirrors Provider.Info so the registry can answer queries without
 	// constructing the provider.

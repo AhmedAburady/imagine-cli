@@ -78,13 +78,17 @@ func (p *Provider) Info() providers.Info {
 // Generate calls /v1/images/generations (pure generate) or /v1/images/edits
 // (when References are present).
 func (p *Provider) Generate(ctx context.Context, req providers.Request) (*providers.Response, error) {
-	model, _ := req.Options["model"].(string)
-	size, _ := req.Options["size"].(string)
-	quality, _ := req.Options["quality"].(string)
-	outputFormat, _ := req.Options["output_format"].(string)
-	moderation, _ := req.Options["moderation"].(string)
-	background, _ := req.Options["background"].(string)
-	compression, _ := req.Options["compression"].(int)
+	opts, ok := req.Options.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("openai: internal: expected map[string]any options, got %T", req.Options)
+	}
+	model, _ := opts["model"].(string)
+	size, _ := opts["size"].(string)
+	quality, _ := opts["quality"].(string)
+	outputFormat, _ := opts["output_format"].(string)
+	moderation, _ := opts["moderation"].(string)
+	background, _ := opts["background"].(string)
+	compression, _ := opts["compression"].(int)
 
 	// Edit mode when references are present.
 	if len(req.References) > 0 {

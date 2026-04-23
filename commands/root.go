@@ -36,8 +36,9 @@ func NewRootCmd(version, activeHint string) *cobra.Command {
 	opts := &cli.Options{}
 	var providerName string
 	// providerOptions is populated in PreRunE from the active provider's
-	// ReadFlags call and consumed by RunE.
-	var providerOptions map[string]any
+	// ReadFlags call and consumed by RunE. Opaque at this layer — only the
+	// provider's Generate type-asserts it.
+	var providerOptions any
 
 	longDesc := `imagine is a CLI for generating and editing images through multiple AI providers.
 

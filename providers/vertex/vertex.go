@@ -70,6 +70,11 @@ func (p *Provider) Info() providers.Info {
 
 // Generate runs one image generation via Vertex. MaxBatchN=1.
 func (p *Provider) Generate(ctx context.Context, req providers.Request) (*providers.Response, error) {
+	opts, ok := req.Options.(*Options)
+	if !ok {
+		return nil, fmt.Errorf("vertex: internal: expected *Options, got %T", req.Options)
+	}
+
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		Project:  p.project,
 		Location: p.location,
@@ -91,34 +96,32 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 	}
 	contents := []*genai.Content{{Parts: parts, Role: "user"}}
 
-	model, _ := req.Options["model"].(string)
-	size, _ := req.Options["size"].(string)
-	aspect, _ := req.Options["aspect_ratio"].(string)
-
 	genConfig := &genai.GenerateContentConfig{
 		ResponseModalities: []string{"TEXT", "IMAGE"},
 	}
-	if aspect != "" || size != "" {
+	// Guard: only set ImageConfig when at least one sub-field is populated.
+	// Empty strings into the SDK may not be equivalent to omission.
+	if opts.AspectRatio != "" || opts.Size != "" {
 		imgCfg := &genai.ImageConfig{}
-		if aspect != "" {
-			imgCfg.AspectRatio = aspect
+		if opts.AspectRatio != "" {
+			imgCfg.AspectRatio = opts.AspectRatio
 		}
-		if size != "" {
-			imgCfg.ImageSize = size
+		if opts.Size != "" {
+			imgCfg.ImageSize = opts.Size
 		}
 		genConfig.ImageConfig = imgCfg
 	}
 
-	if b, _ := req.Options["grounding"].(bool); b {
+	if opts.Grounding {
 		genConfig.Tools = append(genConfig.Tools, &genai.Tool{GoogleSearch: &genai.GoogleSearch{}})
 	}
-	if s, _ := req.Options["thinking"].(string); s != "" {
+	if opts.Thinking != "" {
 		genConfig.ThinkingConfig = &genai.ThinkingConfig{
-			ThinkingLevel: genai.ThinkingLevel(s),
+			ThinkingLevel: genai.ThinkingLevel(opts.Thinking),
 		}
 	}
 
-	resp, err := client.Models.GenerateContent(ctx, model, contents, genConfig)
+	resp, err := client.Models.GenerateContent(ctx, opts.Model, contents, genConfig)
 	if err != nil {
 		return nil, fmt.Errorf("generation failed: %w", err)
 	}

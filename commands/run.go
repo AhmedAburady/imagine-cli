@@ -38,17 +38,33 @@ func refInputPathFor(opts *cli.Options) string {
 	return ""
 }
 
+// requestLabel extracts a short status-line label from opaque provider
+// options. Prefers providers.RequestLabeler; falls back to the legacy
+// map[string]any "model" key for providers still on the map interface.
+// Returns "" when nothing usable is available.
+func requestLabel(opts any) string {
+	if l, ok := opts.(providers.RequestLabeler); ok {
+		return l.RequestLabel()
+	}
+	if m, ok := opts.(map[string]any); ok {
+		if s, _ := m["model"].(string); s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
 // runGeneration wraps the orchestrator in a spinner and prints per-image results.
 // Returns a non-nil error when any image fails or setup fails; fang uses the
 // return value to decide the process exit code.
-func runGeneration(ctx context.Context, provider providers.Provider, req providers.Request, params api.Params, opts *cli.Options, providerOpts map[string]any) error {
+func runGeneration(ctx context.Context, provider providers.Provider, req providers.Request, params api.Params, opts *cli.Options, providerOpts any) error {
 	modeText := "Generating"
 	if len(opts.RefInputs) > 0 {
 		modeText = "Editing"
 	}
 	modeText += fmt.Sprintf(" (%s", provider.Info().Name)
-	if m, _ := providerOpts["model"].(string); m != "" && m != provider.Info().DefaultModel {
-		modeText += ", " + m
+	if label := requestLabel(providerOpts); label != "" && label != provider.Info().DefaultModel {
+		modeText += ", " + label
 	}
 	modeText += ")"
 
