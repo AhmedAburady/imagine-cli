@@ -5,18 +5,15 @@ package openai
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"mime/multipart"
-	"net/http"
 	"net/textproto"
 	"strings"
 	"time"
 
 	"github.com/AhmedAburady/imagine-cli/internal/images"
+	"github.com/AhmedAburady/imagine-cli/internal/transport"
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
 
@@ -29,14 +26,7 @@ const (
 
 // httpClient uses a longer timeout than Gemini — OpenAI docs note that
 // complex prompts may take up to 2 minutes.
-var httpClient = &http.Client{
-	Timeout: 180 * time.Second,
-	Transport: &http.Transport{
-		MaxIdleConns:        20,
-		MaxIdleConnsPerHost: 20,
-		IdleConnTimeout:     90 * time.Second,
-	},
-}
+var httpClient = transport.NewClient(180 * time.Second)
 
 // Provider is the OpenAI Images implementation of providers.Provider.
 type Provider struct {
@@ -78,13 +68,17 @@ func (p *Provider) Info() providers.Info {
 // Generate calls /v1/images/generations (pure generate) or /v1/images/edits
 // (when References are present).
 func (p *Provider) Generate(ctx context.Context, req providers.Request) (*providers.Response, error) {
-	model, _ := req.Options["model"].(string)
-	size, _ := req.Options["size"].(string)
-	quality, _ := req.Options["quality"].(string)
-	outputFormat, _ := req.Options["output_format"].(string)
-	moderation, _ := req.Options["moderation"].(string)
-	background, _ := req.Options["background"].(string)
-	compression, _ := req.Options["compression"].(int)
+	opts, ok := req.Options.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("openai: internal: expected map[string]any options, got %T", req.Options)
+	}
+	model, _ := opts["model"].(string)
+	size, _ := opts["size"].(string)
+	quality, _ := opts["quality"].(string)
+	outputFormat, _ := opts["output_format"].(string)
+	moderation, _ := opts["moderation"].(string)
+	background, _ := opts["background"].(string)
+	compression, _ := opts["compression"].(int)
 
 	// Edit mode when references are present.
 	if len(req.References) > 0 {
@@ -162,19 +156,11 @@ func (p *Provider) generate(ctx context.Context, r generateRequest) (*providers.
 		body.OutputCompression = &c
 	}
 
-	payload, err := json.Marshal(body)
+	resp, err := transport.PostJSON[generationsResponse](ctx, httpClient, baseURL+generationsPath, transport.Bearer(p.apiKey), body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, err
 	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+generationsPath, bytes.NewBuffer(payload))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
-
-	return p.doAndDecode(httpReq, mimeTypeFor(r.OutputFormat))
+	return decodeImages(resp, mimeTypeFor(r.OutputFormat))
 }
 
 // -- Edit (multipart) ---------------------------------------------------------
@@ -192,9 +178,9 @@ type editRequest struct {
 }
 
 func (p *Provider) edit(ctx context.Context, r editRequest) (*providers.Response, error) {
-	// Edit endpoint constraints: size must be one of 1024x1024, 1536x1024,
-	// 1024x1536, auto. The flag layer (providers/openai/flags.go) maps 1K etc.
-	// to dimensions already; catch out-of-range values here.
+	// Edit endpoint constraint: size must be one of 1024x1024, 1536x1024,
+	// 1024x1536, auto. The flag layer maps 1K etc. to dimensions; reject
+	// anything else client-side.
 	switch r.Size {
 	case "", "auto", "1024x1024", "1536x1024", "1024x1536":
 		// ok
@@ -258,59 +244,26 @@ func (p *Provider) edit(ctx context.Context, r editRequest) (*providers.Response
 		return nil, fmt.Errorf("failed to finalize multipart: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+editsPath, &buf)
+	resp, err := transport.PostMultipart[generationsResponse](ctx, httpClient, baseURL+editsPath, transport.Bearer(p.apiKey), &buf, w.FormDataContentType())
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, err
 	}
-	httpReq.Header.Set("Content-Type", w.FormDataContentType())
-	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
-
-	return p.doAndDecode(httpReq, mimeTypeFor(r.OutputFormat))
+	return decodeImages(resp, mimeTypeFor(r.OutputFormat))
 }
 
 // -- Shared ------------------------------------------------------------------
 
-func (p *Provider) doAndDecode(httpReq *http.Request, outMime string) (*providers.Response, error) {
-	resp, err := httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	raw, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		var errResp struct {
-			Error struct {
-				Message string `json:"message"`
-			} `json:"error"`
-		}
-		if err := json.Unmarshal(raw, &errResp); err == nil && errResp.Error.Message != "" {
-			msg := errResp.Error.Message
-			if len(msg) > 200 {
-				msg = msg[:197] + "..."
-			}
-			return nil, errors.New(msg)
-		}
-		return nil, fmt.Errorf("openai API error (status %d)", resp.StatusCode)
-	}
-
-	var parsed generationsResponse
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
+// decodeImages unpacks /v1/images responses (generations + edits share the
+// same data[].b64_json shape). outMime is applied to every emitted image.
+func decodeImages(parsed *generationsResponse, outMime string) (*providers.Response, error) {
 	imgs := make([]providers.GeneratedImage, 0, len(parsed.Data))
 	for _, d := range parsed.Data {
 		if d.B64JSON == "" {
 			continue
 		}
-		data, err := base64.StdEncoding.DecodeString(d.B64JSON)
+		data, err := transport.DecodeB64(d.B64JSON)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode image: %w", err)
+			return nil, err
 		}
 		imgs = append(imgs, providers.GeneratedImage{Data: data, MimeType: outMime})
 	}

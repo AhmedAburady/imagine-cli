@@ -48,8 +48,13 @@ func BindFlags(cmd *cobra.Command) {
 	}
 }
 
-// ReadFlags resolves, validates, and packages all OpenAI flags into a map.
-func ReadFlags(cmd *cobra.Command) (map[string]any, error) {
+// ReadFlags resolves, validates, and packages all OpenAI flags into an
+// opaque map carried through Request.Options. The provider's Generate
+// type-asserts back to map[string]any. OpenAI keeps the legacy map layout
+// because its validation (raw WxH sizes, --background transparent vs.
+// gpt-image-2 conflict) doesn't fit the declarative flagspec tags cleanly
+// — a deliberate demonstration that flagspec is opt-in.
+func ReadFlags(cmd *cobra.Command) (any, error) {
 	out := map[string]any{}
 	f := cmd.Flags()
 

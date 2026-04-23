@@ -69,13 +69,16 @@ type Capabilities struct {
 
 // Request is the per-batch input to a provider's Generate call.
 // N ≤ Capabilities.MaxBatchN. Everything else the provider needs
-// (model, size, aspect ratio, grounding, quality, …) is in Options —
-// keyed by strings the provider defines and consumes.
+// (model, size, aspect ratio, grounding, quality, …) travels in Options
+// as a provider-private value: the Bundle.ReadFlags harvester produced it,
+// and the provider's Generate is the only thing that type-asserts it.
+// Typed providers use a *XOptions struct; legacy providers may still use
+// map[string]any.
 type Request struct {
 	Prompt     string
 	N          int
 	References []images.Reference
-	Options    map[string]any
+	Options    any
 }
 
 // GeneratedImage is a single produced image: raw bytes + MIME type.
@@ -94,4 +97,22 @@ type Response struct {
 type Provider interface {
 	Info() Info
 	Generate(ctx context.Context, req Request) (*Response, error)
+}
+
+// RequestLabeler is an optional interface a provider's Options type may
+// implement to supply a short human-readable label (typically the resolved
+// model alias or ID) for status output. When unset the CLI falls back to
+// just the provider name.
+type RequestLabeler interface {
+	RequestLabel() string
+}
+
+// ResolvedModeler is an optional interface a provider's Options type may
+// implement so the framework can read the canonical model ID after flag
+// parsing — used by the model-level flag-support gate. Kept separate from
+// RequestLabeler because that method is for display and could legitimately
+// return a decorated string ("flash+grounding"); ResolvedModel must return
+// the bare canonical ID that matches Info.Models[*].ID.
+type ResolvedModeler interface {
+	ResolvedModel() string
 }
