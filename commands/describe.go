@@ -165,22 +165,26 @@ func indent(text, prefix string) string {
 //	default_provider in config
 //	first describer-capable provider configured
 func resolveDescriber(flagValue string, cfg *config.Config) (string, error) {
-	describers := describerChoices(cfg)
-	if len(describers) == 0 {
-		return "", noDescribersError()
-	}
-
+	// When the user explicitly names a provider, produce the most specific
+	// error possible — even if no describers are configured yet, telling
+	// them "add the one you just named" is more actionable than a generic
+	// "nothing is configured".
 	if flagValue != "" {
 		if _, ok := providers.Get(flagValue); !ok {
 			return "", fmt.Errorf("unknown provider %q (available: %v)", flagValue, providers.List())
 		}
 		if !supportsVision(flagValue) {
-			return "", fmt.Errorf("provider %q doesn't support vision. describe-capable providers: %v", flagValue, describers)
+			return "", fmt.Errorf("provider %q doesn't support vision. describe-capable providers: %v", flagValue, describerChoices(cfg))
 		}
 		if _, configured := cfg.Providers[flagValue]; !configured {
 			return "", fmt.Errorf("provider %q isn't configured. add it with `imagine providers add %s`", flagValue, flagValue)
 		}
 		return flagValue, nil
+	}
+
+	describers := describerChoices(cfg)
+	if len(describers) == 0 {
+		return "", noDescribersError()
 	}
 
 	for _, candidate := range []string{cfg.VisionDefaultProvider, cfg.DefaultProvider} {

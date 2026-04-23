@@ -170,3 +170,22 @@ type StyleAnalysis struct {
 	KeyElements  []string `json:"key_elements,omitempty"`
 	Avoid        []string `json:"avoid,omitempty"`
 }
+
+// PickInstruction composes the final prompt for a describe call.
+// CustomPrompt replaces the provider's default entirely; Additional
+// prepends a "CRITICAL USER CONTEXT" preamble. Shared across providers so
+// instruction-composition logic stays consistent — only the default
+// prompt texts are per-provider.
+func PickInstruction(req DescribeRequest, textDefault, jsonDefault string) string {
+	base := textDefault
+	if req.StructuredOutput {
+		base = jsonDefault
+	}
+	if req.CustomPrompt != "" {
+		base = req.CustomPrompt
+	}
+	if req.Additional != "" {
+		return "CRITICAL USER CONTEXT - You MUST incorporate this into your analysis:\n" + req.Additional + "\n\n" + base
+	}
+	return base
+}

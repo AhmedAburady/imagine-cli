@@ -38,7 +38,6 @@ func (p *Provider) Describe(ctx context.Context, req providers.DescribeRequest) 
 			Type: "json_schema",
 			JSONSchema: &jsonSchemaWrapper{
 				Name:   "style_analysis",
-				Strict: true,
 				Schema: styleSchema(),
 			},
 		}
@@ -71,7 +70,7 @@ func (p *Provider) DefaultInstructions() (text, json string) {
 }
 
 func buildContent(req providers.DescribeRequest) []contentPart {
-	instruction := pickInstruction(req)
+	instruction := providers.PickInstruction(req, TextInstruction, JSONInstruction)
 	parts := []contentPart{{Type: "text", Text: instruction}}
 	for _, ref := range req.Images {
 		parts = append(parts, contentPart{
@@ -86,20 +85,6 @@ func dataURL(mime string, data []byte) string {
 	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
 }
 
-func pickInstruction(req providers.DescribeRequest) string {
-	base := TextInstruction
-	if req.StructuredOutput {
-		base = JSONInstruction
-	}
-	if req.CustomPrompt != "" {
-		base = req.CustomPrompt
-	}
-	if req.Additional != "" {
-		return "CRITICAL USER CONTEXT - You MUST incorporate this into your analysis:\n" + req.Additional + "\n\n" + base
-	}
-	return base
-}
-
 // TextInstruction / JSONInstruction are the built-in prompts used when
 // the caller doesn't pass a custom one. Exported so `imagine describe
 // --show-instructions` can display them.
@@ -111,6 +96,10 @@ Focus on what you actually SEE: colors, shapes, patterns, textures, art style, m
 
 const JSONInstruction = `Analyze the image style. Respond with a JSON object matching the provided schema. Be concise and specific.`
 
+// styleSchema mirrors the JSON shape returned by gvision so both providers
+// produce the same StyleAnalysis output. Optional fields stay optional —
+// matches `omitempty` tags on providers.StyleAnalysis and lets the model
+// skip them when not applicable (e.g. composition on flat vector art).
 func styleSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
@@ -124,8 +113,7 @@ func styleSchema() map[string]any {
 			"key_elements":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 			"avoid":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		},
-		"required":             []string{"style_name", "description", "style_summary", "colors", "medium", "composition", "key_elements", "avoid"},
-		"additionalProperties": false,
+		"required": []string{"style_name", "description", "style_summary", "colors", "medium"},
 	}
 }
 
@@ -159,7 +147,6 @@ type responseFormat struct {
 
 type jsonSchemaWrapper struct {
 	Name   string         `json:"name"`
-	Strict bool           `json:"strict"`
 	Schema map[string]any `json:"schema"`
 }
 

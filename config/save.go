@@ -39,6 +39,13 @@ func Save(cfg *Config) error {
 		if upsertScalarPrepend(top, "vision_default_provider", cfg.VisionDefaultProvider) {
 			changed = true
 		}
+	} else {
+		// Empty value means "unset" — remove the key from the file so the
+		// describer routing falls back to default_provider. Symmetric to
+		// the upsert path above.
+		if removeMappingKey(top, "vision_default_provider") {
+			changed = true
+		}
 	}
 	if !changed {
 		return nil

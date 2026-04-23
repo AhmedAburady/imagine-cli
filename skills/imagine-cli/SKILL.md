@@ -74,6 +74,15 @@ imagine providers add openai --api-key sk-XXX
 imagine providers add vertex --gcp-project <gcp-project-id> --location us-central1
 ```
 
+Each provider also accepts an optional `--vision-model` flag to override the default model used by `imagine describe`:
+
+```bash
+imagine providers add openai --api-key sk-XXX --vision-model gpt-5.4
+imagine providers add gemini --api-key AIza-XXX --vision-model gemini-3.1-pro-preview
+```
+
+Defaults (used when `vision_model` is unset): `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), `gpt-5.4-mini` (openai).
+
 `imagine providers add <name>` writes to `~/.config/imagine/config.yaml` (creates the file on first run), preserves existing comments and unrelated keys, and writes atomically.
 
 To see the exact required/optional flags for a provider:
@@ -84,10 +93,13 @@ imagine providers add <name> --help
 ### Step 4 — Set the default provider (optional)
 
 ```bash
-imagine providers use <name>
+imagine providers use <name>            # sets default_provider (image generation)
+imagine providers use <name> --vision   # sets vision_default_provider (describe)
 ```
 
-If `<name>` isn't configured or isn't built-in, imagine errors with the list of valid options. When `default_provider` is unset, imagine picks the alphabetically-first configured provider — ok for quick scripts, worth setting explicitly otherwise.
+If `<name>` isn't configured or isn't built-in, imagine errors with the list of valid options. `--vision` additionally rejects providers that don't implement describe.
+
+When `default_provider` is unset, imagine picks the alphabetically-first configured provider. `vision_default_provider` falls back to `default_provider` when unset.
 
 ## Provider resolution
 
@@ -134,34 +146,61 @@ Provider pick heuristic:
 
 ## Describe subcommand
 
-Analyse an image and produce a style description.
+Analyse an image and produce a style description. Works with **all three providers** — each picks its own vision model.
 
 ```bash
-imagine describe -i photo.jpg                     # plain text
-imagine describe -i ./styles/ -json -o style.json # structured JSON from a folder of refs
-imagine describe -i photo.jpg -vertex             # Vertex backend
+imagine describe -i photo.jpg                                  # plain text, active describer
+imagine describe -i ./styles/ --json -o style.json             # structured JSON from a folder
+imagine describe -i photo.jpg --provider openai                # per-invocation override
+imagine describe -i photo.jpg --provider vertex -m gemini-3.1-pro-preview   # model override
+imagine describe --show-instructions                            # print built-in prompts, exit
 ```
 
-Gemini or Vertex only (no OpenAI support). Needs `providers.gemini.api_key` OR `providers.vertex.gcp_project` configured. Describe keeps a legacy `-vertex` single-dash flag — this is the one place that pattern survives in the CLI.
+| Flag | Purpose |
+|---|---|
+| `-i` | Input image or folder (required) |
+| `-o` | Output file path (default stdout) |
+| `-p` | Custom instruction (replaces default) |
+| `-a` | Additional context prepended to default |
+| `-m` | Override the vision model for this invocation |
+| `--provider` | Override the describer provider |
+| `--json` | Emit structured JSON (StyleAnalysis schema) |
+| `--show-instructions` | Print the built-in prompts for the active describer and exit |
+
+Resolution order when `--provider` is omitted:
+1. `vision_default_provider` in config (set via `imagine providers use <name> --vision`)
+2. `default_provider` in config
+3. First configured describer-capable provider
+
+Default vision models per provider (overridable in config as `vision_model`):
+- **gemini**: `gemini-pro-latest`
+- **vertex**: `gemini-3-flash-preview`
+- **openai**: `gpt-5.4-mini`
+
+Bare `imagine describe` (no flags) prints help and exits 0.
 
 ## Config file schema
 
-Flat per-provider fields. Full schema and legacy `provider_options:` migration notes in [references/config.md](references/config.md).
+Flat per-provider fields. Full schema, defaults, and legacy `provider_options:` migration notes in [references/config.md](references/config.md).
 
 ```yaml
-default_provider: gemini
+default_provider: gemini               # image-gen default
+vision_default_provider: openai        # describe default (optional; falls back to default_provider)
 
 providers:
   gemini:
     api_key: AIza-...
+    vision_model: gemini-pro-latest    # optional per-provider describe model
   openai:
     api_key: sk-...
+    vision_model: gpt-5.4-mini
   vertex:
     gcp_project: my-project-id
-    location: global        # optional — "global" when omitted
+    location: global                   # optional — "global" when omitted
+    vision_model: gemini-3-flash-preview
 ```
 
-Older configs with `providers.vertex.provider_options.gcp_project` still load correctly; the next `imagine providers add` / `imagine providers use` rewrites them flat.
+Older configs with `providers.vertex.provider_options.gcp_project` still load; the next `imagine providers add` / `use` rewrites them flat.
 
 ## Examples
 

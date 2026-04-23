@@ -31,7 +31,7 @@ func Describe(ctx context.Context, cc *genai.ClientConfig, model string, req pro
 		return nil, fmt.Errorf("create model: %w", err)
 	}
 
-	instruction := pickInstruction(req)
+	instruction := providers.PickInstruction(req, TextInstruction, JSONInstruction)
 
 	cfg := llmagent.Config{
 		Name:        "style_analyzer",
@@ -107,20 +107,6 @@ func firstText(parts []*genai.Part) string {
 		}
 	}
 	return ""
-}
-
-func pickInstruction(req providers.DescribeRequest) string {
-	base := TextInstruction
-	if req.StructuredOutput {
-		base = JSONInstruction
-	}
-	if req.CustomPrompt != "" {
-		base = req.CustomPrompt
-	}
-	if req.Additional != "" {
-		return "CRITICAL USER CONTEXT - You MUST incorporate this into your analysis:\n" + req.Additional + "\n\n" + base
-	}
-	return base
 }
 
 func parse(text string, structured bool) *providers.ImageDescription {
