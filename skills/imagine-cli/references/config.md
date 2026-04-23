@@ -20,18 +20,22 @@ imagine intentionally uses `~/.config/imagine/` rather than `~/Library/Applicati
 ## Full schema
 
 ```yaml
-default_provider: gemini         # optional — see precedence below
+default_provider: gemini                # image-gen default — optional, see precedence below
+vision_default_provider: openai         # describe default — optional, falls back to default_provider
 
 providers:
   gemini:
     api_key: AIza-your-key-here
+    vision_model: gemini-pro-latest     # optional, defaults to gemini-pro-latest
 
   openai:
     api_key: sk-your-openai-key-here
+    vision_model: gpt-5.4-mini          # optional, defaults to gpt-5.4-mini
 
   vertex:
     gcp_project: your-gcp-project-id
-    location: us-central1         # optional, defaults to "global"
+    location: us-central1               # optional, defaults to "global"
+    vision_model: gemini-3-flash-preview
 ```
 
 Per-provider config is **flat**: every key/value under `providers.<name>` is a direct field (no nested `provider_options:` sub-map). Each provider declares its fields via a `ConfigSchema` in the code, and `imagine providers add` surfaces them as flags + form inputs.
@@ -40,12 +44,14 @@ Per-provider config is **flat**: every key/value under `providers.<name>` is a d
 
 | Field | Required | Notes |
 |---|---|---|
-| `default_provider` | No | Which provider to use when `--provider` is omitted. If empty, imagine picks the first provider under `providers:` alphabetically. |
+| `default_provider` | No | Provider for image generation when `--provider` is omitted. If empty, imagine picks the first provider under `providers:` alphabetically. |
+| `vision_default_provider` | No | Provider for `imagine describe` when `--provider` is omitted. Falls back to `default_provider` when empty. Must name a describe-capable provider. |
 | `providers.<name>` | Yes (at least one) | Per-provider block. The `<name>` must be one of the providers compiled into this binary (currently `gemini`, `vertex`, `openai`). |
 | `providers.gemini.api_key` | Yes | Google AI Studio API key. |
 | `providers.openai.api_key` | Yes | OpenAI platform API key. |
 | `providers.vertex.gcp_project` | Yes | GCP project id with Vertex AI API enabled. |
 | `providers.vertex.location` | No | Vertex region. Defaults to `global`. |
+| `providers.<name>.vision_model` | No | Model `imagine describe` uses for this provider. Defaults: `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), `gpt-5.4-mini` (openai). |
 
 ### Legacy `provider_options:` shape (still supported on read)
 

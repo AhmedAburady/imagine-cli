@@ -27,7 +27,7 @@
   - [Gemini and Vertex](#gemini-and-vertex)
   - [OpenAI](#openai)
   - [Describe](#describe)
-  - [Providers show](#providers-show)
+  - [Provider management](#provider-management)
 - [Output formats](#output-formats)
 - [AI agent skill](#ai-agent-skill)
 - [Development](#development)
@@ -108,33 +108,42 @@ imagine reads one file. Location depends on your OS:
 | Linux / macOS / *BSD | `~/.config/imagine/config.yaml` |
 | Windows | `%AppData%\imagine\config.yaml` (typically `C:\Users\<you>\AppData\Roaming\imagine\config.yaml`) |
 
-Both `config.yaml` and `config.yml` extensions are accepted. Write the file yourself with any editor — there are no `config set-*` commands. Only include the providers you actually use.
+Both `config.yaml` and `config.yml` extensions are accepted. You can edit the file by hand OR use `imagine providers add <name>` / `providers use` / `providers select` — both paths preserve your comments and formatting.
 
 > macOS note: imagine intentionally uses `~/.config/imagine/` rather than `~/Library/Application Support/imagine/`. The XDG-style path has no spaces, is easy to browse, and plays nicely with dotfiles repos.
 
 ### Schema
 
 ```yaml
-default_provider: gemini
+default_provider: gemini              # image-generation default
+vision_default_provider: openai       # optional — describe default, falls back to default_provider
 
 providers:
   gemini:
     api_key: AIza-your-key-here
+    vision_model: gemini-pro-latest   # optional — defaults to gemini-pro-latest
 
   openai:
     api_key: sk-your-openai-key-here
+    vision_model: gpt-5.4-mini        # optional — defaults to gpt-5.4-mini
 
   vertex:
-    provider_options:
-      gcp_project: your-gcp-project-id
-      location: us-central1       # optional, defaults to "global"
+    gcp_project: your-gcp-project-id
+    location: us-central1             # optional, defaults to "global"
+    vision_model: gemini-3-flash-preview
 ```
 
 | Field | Required | Notes |
 |---|---|---|
-| `default_provider` | No | Which provider to use when `--provider` is not passed. Defaults to the first provider under `providers:` (alphabetical). |
-| `providers.<name>.api_key` | For Gemini/OpenAI | Required by providers that authenticate with an API key. |
-| `providers.<name>.provider_options` | Provider-specific | Free-form string map. Vertex uses `gcp_project` (required) and `location` (optional). |
+| `default_provider` | No | Provider used for image generation when `--provider` is omitted. Defaults to the first provider under `providers:` (alphabetical). |
+| `vision_default_provider` | No | Provider used for `imagine describe` when `--provider` is omitted. Falls back to `default_provider` when empty. |
+| `providers.gemini.api_key` | Yes | Google AI Studio API key. |
+| `providers.openai.api_key` | Yes | OpenAI platform API key. |
+| `providers.vertex.gcp_project` | Yes | GCP project id with the Vertex AI API enabled. |
+| `providers.vertex.location` | No | Vertex region. Defaults to `global`. |
+| `providers.<name>.vision_model` | No | Model `imagine describe` uses for that provider. Defaults are `gemini-pro-latest` (gemini/vertex) and `gpt-5.4-mini` (openai). |
+
+Older configs that nested Vertex credentials under `provider_options:` still load — they're auto-migrated to flat on the next `imagine providers` write.
 
 ### Provider resolution
 
@@ -152,13 +161,21 @@ error (no provider configured)
 
 ### Credentials
 
-- **Gemini** — get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey) and paste into `providers.gemini.api_key`.
-- **OpenAI** — get an API key from [platform.openai.com](https://platform.openai.com) and paste into `providers.openai.api_key`.
-- **Vertex AI** — no key in the config. Two steps on the machine:
+Easiest path — use `providers add` (interactive form in a terminal, non-interactive via flags):
+
+```bash
+imagine providers add gemini --api-key AIza-your-key
+imagine providers add openai --api-key sk-your-key
+imagine providers add vertex --gcp-project your-gcp-project-id
+```
+
+Or edit `config.yaml` by hand (shape above). Either way:
+
+- **Gemini** — get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+- **OpenAI** — get an API key from [platform.openai.com](https://platform.openai.com).
+- **Vertex AI** — no key. Two steps on the machine first:
   1. A GCP project with the Vertex AI API enabled.
   2. `gcloud auth application-default login` — imagine uses Application Default Credentials.
-
-  Then put the project id (and optional location) in `providers.vertex.provider_options`.
 
 [↑ Back to top](#table-of-contents)
 
@@ -305,7 +322,7 @@ imagine -p "sticker" --provider openai -m 1.5 --background transparent -f sticke
 
 ### Describe
 
-Analyze an image and produce a style description usable as a generation prompt.
+Analyze an image and produce a style description usable as a generation prompt. Works across all three providers — each picks its own vision model.
 
 ```bash
 imagine describe -i <image-or-folder> [flags]
@@ -315,52 +332,92 @@ imagine describe -i <image-or-folder> [flags]
 |---|---|---|
 | `-i` | Input image or folder (required) | — |
 | `-o` | Output file path | stdout |
-| `-p` | Custom prompt (overrides default instruction) | — |
-| `-a` | Additional instructions prepended to the default | — |
-| `-json` | Output structured JSON | `false` |
-| `-vertex` | Use Vertex AI instead of Gemini direct | `false` |
+| `-p` | Custom instruction (replaces default) | — |
+| `-a` | Additional context prepended to the default instruction | — |
+| `-m` | Override the provider's vision model for this invocation | config / provider default |
+|   | `--provider` | Override the describer provider for this invocation | — |
+|   | `--json` | Emit structured JSON (`StyleAnalysis` schema) | `false` |
+|   | `--show-instructions` | Print the built-in prompts for the active describer and exit | `false` |
 
-Describe uses Gemini or Vertex — whichever you have configured. It's functionally unchanged from earlier versions.
+**Provider resolution** for describe:
+
+```
+--provider <name>          # CLI flag — wins
+  ↓
+vision_default_provider    # config.yaml
+  ↓
+default_provider           # config.yaml
+  ↓
+first describer-capable provider configured
+  ↓
+error
+```
+
+Default vision models per provider:
+
+| Provider | Default | Override |
+|---|---|---|
+| gemini | `gemini-pro-latest` | `providers.gemini.vision_model` OR `-m <id>` |
+| vertex | `gemini-3-flash-preview` | `providers.vertex.vision_model` OR `-m <id>` |
+| openai | `gpt-5.4-mini` | `providers.openai.vision_model` OR `-m <id>` |
+
+**Examples**
 
 ```bash
-# Plain text description
+# Plain text, active describer (vision default → default)
 imagine describe -i photo.jpg
 
-# JSON style guide from a folder of references
-imagine describe -i ./styles/ -json -o style.json
+# Structured JSON from a folder of style references
+imagine describe -i ./styles/ --json -o style.json
 
-# Vertex backend
-imagine describe -i photo.jpg -vertex
+# Per-invocation provider + model override
+imagine describe -i photo.jpg --provider openai -m gpt-5.4
+
+# See what instruction the active describer sends
+imagine describe --show-instructions
 ```
 
-### Providers show
-
-List the providers declared in your config, with which is active and which is the default:
+**Set a persistent describe default** different from the image-gen default:
 
 ```bash
-imagine providers show
+imagine providers use openai --vision      # sets vision_default_provider
+imagine providers select --vision          # interactive picker
 ```
 
-Output:
+### Provider management
+
+Four subcommands cover inspection and configuration. Every write is atomic and preserves your file's comments.
+
+| Command | Purpose |
+|---|---|
+| `imagine providers` | List configured providers with status pills and capability badges |
+| `imagine providers add <name>` | Register credentials (interactive form in a TTY, flags otherwise) |
+| `imagine providers use <name>` | Set `default_provider` |
+| `imagine providers use <name> --vision` | Set `vision_default_provider` |
+| `imagine providers select` | Interactive picker for `default_provider` |
+| `imagine providers select --vision` | Interactive picker for `vision_default_provider` (filtered to describers) |
+
+Listing output:
 
 ```
-default_provider: gemini
+  PROVIDERS
 
-providers:
-  gemini  [active, default]
-    api_key: AIzaSy...REDACTED
-  openai
-    api_key: sk-proj...REDACTED
-  vertex
-    provider_options:
-      gcp_project: my-project
-      location: global
+  ●  gemini   ACTIVE   DEFAULT    generate  describe
+  ·  openai            VISION     generate  describe
+  ·  vertex                       generate  describe
+
+  3 configured  ·  /Users/you/.config/imagine/config.yaml
 ```
 
-Markers:
-- `active` — what this binary would use right now (after `--provider`/default/first resolution)
-- `default` — whatever's in `default_provider:`
-- `unknown: not built into this binary` — a provider your config mentions but this binary wasn't compiled with
+Pills + badges:
+- `●` green bullet — the currently-active image-gen provider
+- `ACTIVE` — same info, explicit
+- `DEFAULT` — matches `default_provider:` in config
+- `VISION` — matches `vision_default_provider:` (only shown when it differs from `DEFAULT`)
+- `NOT BUILT-IN` — a provider your config lists that this binary wasn't compiled with
+- `generate` / `describe` — the capabilities this provider implements
+
+`providers add <name> --help` shows the exact fields for each provider (api_key, vision_model, gcp_project, location as applicable). Non-TTY invocation with missing required fields errors with the exact flag names — deterministic output for scripts and CI.
 
 [↑ Back to top](#table-of-contents)
 

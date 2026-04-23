@@ -16,13 +16,8 @@ import (
 // auto-create path for the onboarding flow.
 var ErrNoConfig = errors.New("no config file found")
 
-// Save writes cfg back to the active config path, mutating only the
-// default_provider field. Preserves comments, key ordering, and quoting.
-//
-// Everything else on *Config is ignored — Save is deliberately narrow.
-// Credentials and provider_options are owned by the user and by
-// SaveProviderFields (which `providers add` calls).
-//
+// Save writes the top-level default_provider and vision_default_provider
+// fields back to config.yaml. Preserves comments and unrelated keys.
 // Returns ErrNoConfig when no config file exists.
 func Save(cfg *Config) error {
 	path, existing, err := readExistingConfig()
@@ -34,18 +29,27 @@ func Save(cfg *Config) error {
 	if err := yaml.Unmarshal(existing, &root); err != nil {
 		return fmt.Errorf("parse existing config: %w", err)
 	}
-
 	top, err := documentMapping(&root)
 	if err != nil {
 		return err
 	}
 
-	// default_provider reads best at the top of the file — prepend when
-	// inserting for the first time. Updates-in-place leave position alone.
-	if !upsertScalarPrepend(top, "default_provider", cfg.DefaultProvider) {
-		return nil // idempotent: avoid touching mtime when value matches
+	changed := upsertScalarPrepend(top, "default_provider", cfg.DefaultProvider)
+	if cfg.VisionDefaultProvider != "" {
+		if upsertScalarPrepend(top, "vision_default_provider", cfg.VisionDefaultProvider) {
+			changed = true
+		}
+	} else {
+		// Empty value means "unset" — remove the key from the file so the
+		// describer routing falls back to default_provider. Symmetric to
+		// the upsert path above.
+		if removeMappingKey(top, "vision_default_provider") {
+			changed = true
+		}
 	}
-
+	if !changed {
+		return nil
+	}
 	return writeNodeFile(&root, path)
 }
 

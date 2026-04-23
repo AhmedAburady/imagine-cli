@@ -46,12 +46,23 @@ type Bundle struct {
 	// EXAMPLES section.
 	Examples func() string
 
-	// ConfigSchema describes the fields `imagine providers add` needs to
-	// collect for this provider. Populated at registration time so the
-	// command can read it without instantiating the provider (instantiation
-	// requires valid auth — a chicken-and-egg for onboarding). A nil slice
-	// falls back to a single required api_key field.
+	// ConfigSchema describes the fields `providers add` collects.
 	ConfigSchema []ConfigField
+
+	// Vision is non-nil iff the provider implements Describer.
+	Vision *Vision
+}
+
+// ProvidersSupportingDescribe returns describe-capable provider names, sorted.
+func ProvidersSupportingDescribe() []string {
+	var out []string
+	for name, b := range registry {
+		if b.Vision != nil {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 var registry = map[string]Bundle{}

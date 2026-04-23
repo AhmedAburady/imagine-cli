@@ -33,8 +33,9 @@ import (
 
 // Config is the on-disk shape.
 type Config struct {
-	DefaultProvider string                    `yaml:"default_provider,omitempty"`
-	Providers       map[string]ProviderConfig `yaml:"providers,omitempty"`
+	DefaultProvider       string                    `yaml:"default_provider,omitempty"`
+	VisionDefaultProvider string                    `yaml:"vision_default_provider,omitempty"`
+	Providers             map[string]ProviderConfig `yaml:"providers,omitempty"`
 }
 
 // ProviderConfig is the flat per-provider config — any key/value pair the

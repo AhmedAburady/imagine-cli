@@ -32,7 +32,8 @@ var httpClient = transport.NewClient(120 * time.Second)
 
 // Provider is the Gemini direct-REST implementation of providers.Provider.
 type Provider struct {
-	apiKey string
+	apiKey      string
+	visionModel string
 }
 
 // New builds a Gemini provider from auth. Errors when api_key is empty.
@@ -41,7 +42,7 @@ func New(auth providers.Auth) (providers.Provider, error) {
 	if key == "" {
 		return nil, errors.New("gemini provider requires providers.gemini.api_key in ~/.config/imagine/config.yaml")
 	}
-	return &Provider{apiKey: key}, nil
+	return &Provider{apiKey: key, visionModel: auth.Get("vision_model")}, nil
 }
 
 // ConfigSchema declares the fields `imagine providers add gemini` collects.
@@ -53,6 +54,12 @@ func (p *Provider) ConfigSchema() []providers.ConfigField {
 			Description: "Gemini API key from Google AI Studio (aistudio.google.com/app/apikey)",
 			Secret:      true,
 			Required:    true,
+		},
+		{
+			Key:         "vision_model",
+			Title:       "Vision Model",
+			Description: "Model for `imagine describe` (multimodal Gemini 3 variants)",
+			Default:     DefaultVisionModel,
 		},
 	}
 }
