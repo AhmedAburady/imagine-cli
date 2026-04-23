@@ -35,10 +35,24 @@ type Provider struct {
 
 // New builds an OpenAI provider from auth.
 func New(auth providers.Auth) (providers.Provider, error) {
-	if auth.APIKey == "" {
+	key := auth.Get("api_key")
+	if key == "" {
 		return nil, errors.New("openai provider requires providers.openai.api_key in ~/.config/imagine/config.yaml")
 	}
-	return &Provider{apiKey: auth.APIKey}, nil
+	return &Provider{apiKey: key}, nil
+}
+
+// ConfigSchema declares the fields `imagine providers add openai` collects.
+func (p *Provider) ConfigSchema() []providers.ConfigField {
+	return []providers.ConfigField{
+		{
+			Key:         "api_key",
+			Title:       "API Key",
+			Description: "OpenAI API key from platform.openai.com",
+			Secret:      true,
+			Required:    true,
+		},
+	}
 }
 
 // Info advertises OpenAI's models + capabilities.

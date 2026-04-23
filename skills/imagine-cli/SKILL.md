@@ -1,26 +1,27 @@
 ---
 name: imagine-cli
-description: imagine is a multi-provider command-line tool for generating and editing images via Google Gemini, Google Vertex AI, and OpenAI (gpt-image-2).
+description: imagine is a multi-provider command-line tool for generating and editing images via Google Gemini, Google Vertex AI, and OpenAI (gpt-image-2). Use this skill whenever the user mentions imagine, wants to generate or edit images from the terminal, needs to set up an API key for Gemini / OpenAI / Vertex, switches default providers, or runs any `imagine providers` / `imagine describe` subcommand — even if they don't say the word "imagine" explicitly.
 ---
 
 # imagine CLI
 
-`imagine` is a multi-provider image-generation CLI. One binary, one YAML config file, three providers (gemini, vertex, openai). `-p "..."` generates; add `-i reference.png` and it edits — no separate subcommand.
+`imagine` is a multi-provider image-generation CLI. One binary, one YAML config file, three providers (gemini, vertex, openai). `imagine -p "..."` generates; add `-i reference.png` and the same command edits.
 
 ## When to use
 
 Use this skill whenever the user:
 
-- Mentions the `imagine` command, any of its flags, providers (gemini, vertex, openai), or model aliases (`gpt-image-2`, `pro`, `flash`, `1.5`, etc.)
+- Mentions `imagine`, any of its flags, providers (gemini, vertex, openai), or model aliases (`gpt-image-2`, `pro`, `flash`, `1.5`, etc.)
 - Wants to generate or edit images from the command line
-- Is setting up the tool for the first time
-- Hits an error they don't understand (most imagine errors are self-explanatory but the full list + fixes live in [references/troubleshooting.md](references/troubleshooting.md))
+- Is setting up the tool, adding an API key, or changing the default provider
+- Runs any `imagine providers …` or `imagine describe` subcommand
+- Hits an error — fixes live in [references/troubleshooting.md](references/troubleshooting.md)
 - Asks which provider to pick for a task
 - References sizes (`1K`, `2K`, `4K`, `1024x1024`, `3840x2160`, etc.)
 
 ## Workflow
 
-Always walk these three pre-flight steps **before** running an imagine command.
+Three pre-flight steps before running any generation command.
 
 ### Step 1 — Is imagine installed?
 
@@ -28,15 +29,12 @@ Always walk these three pre-flight steps **before** running an imagine command.
 command -v imagine || echo NOT_INSTALLED
 ```
 
-If `NOT_INSTALLED`, decide the install method automatically — don't prompt the user to pick.
-
-**Decision:** check for Go first. If the user has Go, install from source (faster, keeps the binary up-to-date with `go install …@latest` on re-runs). Otherwise fall back to the pre-built binary.
+If `NOT_INSTALLED`, pick the install method automatically (don't prompt). Go available → install from source. Otherwise → pre-built binary.
 
 ```bash
 if command -v go >/dev/null 2>&1; then
   go install github.com/AhmedAburady/imagine-cli/cmd/imagine@latest
 else
-  # Detect platform, pick the matching release asset
   case "$(uname -s)-$(uname -m)" in
     Darwin-arm64)  ASSET=imagine-darwin-arm64 ;;
     Darwin-x86_64) ASSET=imagine-darwin-amd64 ;;
@@ -48,50 +46,64 @@ else
   chmod +x imagine
   sudo mv imagine /usr/local/bin/imagine
 fi
-```
-
-After install, verify:
-```bash
 imagine --version
 ```
 
-Windows users: download `imagine-windows-amd64.exe` (or `-arm64.exe`) from the releases page, rename to `imagine.exe`, and place on `%PATH%`.
+Windows: download `imagine-windows-amd64.exe` (or `-arm64.exe`) from the releases page, rename to `imagine.exe`, place on `%PATH%`.
 
-### Step 2 — Does the config file exist with at least one provider?
+### Step 2 — Is a provider configured?
 
 ```bash
-cat ~/.config/imagine/config.yaml 2>/dev/null \
-  || cat ~/.config/imagine/config.yml 2>/dev/null \
-  || echo NO_CONFIG
+imagine providers
 ```
 
-Windows path: `%AppData%\imagine\config.yaml`.
+If output is "No providers configured" or the command errors with "no provider configured", register one before running any generation command.
 
-If missing or the `providers:` block is empty, walk the user through creating one. Full schema and per-provider credential setup in [references/config.md](references/config.md). A ready-to-copy template sits at [assets/config.example.yaml](assets/config.example.yaml).
+### Step 3 — Register a provider (non-interactive)
 
-Minimal Gemini-only example:
-```yaml
-default_provider: gemini
-providers:
-  gemini:
-    api_key: AIza-paste-key-here
+Always pass the credentials as flags. Don't run `imagine providers add <name>` without flags — that opens an interactive form intended for humans and hangs in a non-terminal environment.
+
+```bash
+# Gemini (free tier at https://aistudio.google.com/app/apikey)
+imagine providers add gemini --api-key AIza-XXX
+
+# OpenAI (requires org verification for GPT Image at platform.openai.com)
+imagine providers add openai --api-key sk-XXX
+
+# Vertex AI — needs `gcloud auth application-default login` run on the machine first
+imagine providers add vertex --gcp-project <gcp-project-id> --location us-central1
 ```
 
-### Step 3 — Resolve the active provider
+`imagine providers add <name>` writes to `~/.config/imagine/config.yaml` (creates the file on first run), preserves existing comments and unrelated keys, and writes atomically.
 
-Every `imagine` invocation runs under one active provider. Precedence:
+To see the exact required/optional flags for a provider:
+```bash
+imagine providers add <name> --help
+```
+
+### Step 4 — Set the default provider (optional)
+
+```bash
+imagine providers use <name>
+```
+
+If `<name>` isn't configured or isn't built-in, imagine errors with the list of valid options. When `default_provider` is unset, imagine picks the alphabetically-first configured provider — ok for quick scripts, worth setting explicitly otherwise.
+
+## Provider resolution
+
+Every invocation resolves an active provider in this order:
 
 ```
---provider <name>          (CLI flag — highest)
+--provider <name>          (CLI flag — wins)
   ↓
 default_provider           (config.yaml)
   ↓
 first under providers:     (alphabetical)
   ↓
-error
+error: no provider configured
 ```
 
-`imagine providers show` prints the current state with `[active]` and `[default]` markers — use it when there's ambiguity.
+`imagine providers` shows which is currently active.
 
 ## Common flags (every provider)
 
@@ -100,71 +112,85 @@ error
 | `-p` | `--prompt` | Prompt (required). Also accepts a file path. |
 | `-o` | `--output` | Output folder (default `.`) |
 | `-f` | `--filename` | Output filename. Extension (`.png`/`.jpg`/`.webp`) drives format. With `-n >1`, `_1`, `_2`, … suffixes. |
-| `-n` | `--count` | 1-20 images |
+| `-n` | `--count` | 1–20 images |
 | `-i` | `--input` | Reference image/folder, repeatable. Flips to **edit mode**. |
 | `-r` | `--replace` | Use input filename for output (single `-i` only; mutually exclusive with `-f`) |
 |   | `--provider` | Per-invocation override |
 
+`-f` and `-r` are mutually exclusive. `-r` requires exactly one `-i` pointing at a single file.
+
 ## Provider-specific flags
 
-Flags that don't belong to the active provider are rejected with a clear error. Deep detail per provider:
+Setting a flag that doesn't belong to the active provider returns `--X is not supported by provider "Y" (supported by: [Z])`. Either drop the flag or switch providers with `--provider Z`.
 
-- **Gemini / Vertex** → [references/gemini.md](references/gemini.md). Flags: `-m pro/flash`, `-s 1K/2K/4K`, `-a aspect-ratio`, `-g grounding`, `-t thinking` (flash only), `-I image-search` (gemini flash only).
-- **OpenAI** → [references/openai.md](references/openai.md). Flags: `-m gpt-image-2 family`, `-s shorthand/raw WxH`, `-q quality`, `--compression`, `--moderation`, `--background`. Includes the full size matrix and edit-mode size restriction.
+- **Gemini / Vertex** → [references/gemini.md](references/gemini.md). Flags: `-m pro/flash`, `-s 1K/2K/4K`, `-a <aspect-ratio>`, `-g` (grounding), `-t minimal|high` (flash only), `-I` (image-search, Gemini flash only — Vertex does not support).
+- **OpenAI** → [references/openai.md](references/openai.md). Flags: `-m gpt-image-2 family`, `-s shorthand or raw WxH`, `-q quality`, `--compression`, `--moderation`, `--background`. Edit-mode size is restricted to `1024x1024`, `1536x1024`, `1024x1536`, `auto`.
 
-When the user is unsure which provider to pick:
+Provider pick heuristic:
 
 - Photorealism, text rendering, intricate prompts → **OpenAI `gpt-image-2`**
-- Fast iteration, Google ecosystem, live-search grounding → **Gemini** or **Vertex**
+- Fast iteration, Google ecosystem, live-search grounding → **Gemini**
 - GCP-native auth / enterprise quotas → **Vertex**
 
 ## Describe subcommand
 
+Analyse an image and produce a style description.
+
 ```bash
-imagine describe -i photo.jpg                   # plain text
-imagine describe -i ./styles/ -json -o style.json
-imagine describe -i photo.jpg -vertex           # Vertex backend
+imagine describe -i photo.jpg                     # plain text
+imagine describe -i ./styles/ -json -o style.json # structured JSON from a folder of refs
+imagine describe -i photo.jpg -vertex             # Vertex backend
 ```
 
-**Gemini/Vertex only** — describe doesn't support OpenAI. Needs either `providers.gemini.api_key` or `providers.vertex.provider_options.gcp_project` configured. If the user has only OpenAI configured, describe prints friendly setup instructions (with `gcloud auth application-default login` for Vertex) and exits.
+Gemini or Vertex only (no OpenAI support). Needs `providers.gemini.api_key` OR `providers.vertex.gcp_project` configured. Describe keeps a legacy `-vertex` single-dash flag — this is the one place that pattern survives in the CLI.
+
+## Config file schema
+
+Flat per-provider fields. Full schema and legacy `provider_options:` migration notes in [references/config.md](references/config.md).
+
+```yaml
+default_provider: gemini
+
+providers:
+  gemini:
+    api_key: AIza-...
+  openai:
+    api_key: sk-...
+  vertex:
+    gcp_project: my-project-id
+    location: global        # optional — "global" when omitted
+```
+
+Older configs with `providers.vertex.provider_options.gcp_project` still load correctly; the next `imagine providers add` / `imagine providers use` rewrites them flat.
 
 ## Examples
 
 ```bash
-# Generate (active provider from config)
+# Generate with active provider
 imagine -p "a sunset over mountains"
 
-# Batch with size + aspect (Gemini/Vertex)
+# Batch, size + aspect (Gemini/Vertex)
 imagine -p "cityscape" -n 3 -s 2K -a 16:9 -o ./city
 
-# OpenAI — fast draft
+# OpenAI, fast draft
 imagine -p "logo idea" --provider openai -q low
 
-# OpenAI — 4K hero banner as JPEG
+# OpenAI, 4K hero banner as JPEG
 imagine -p "hero banner" --provider openai -s 3840x2160 -q high -f hero.jpg
 
 # Edit, keep input filename
 imagine -p "add rain" -i photo.png -r
 
-# Multi-reference edit (OpenAI supports up to 16 refs/call)
+# Multi-reference edit (OpenAI accepts up to 16 refs per call)
 imagine -p "gift basket of these" --provider openai \
   -i lotion.png -i candle.png -i soap.png
 
-# Vertex — same flags as Gemini, different auth
+# Vertex, same flags as Gemini
 imagine -p "a cat" --provider vertex -n 3
 ```
 
-For more, run `imagine --help` — provider-aware help surfaces the active provider's flags and a tailored EXAMPLES block.
-
-## Anti-patterns — do NOT do these
-
-- **Never** suggest `GEMINI_API_KEY`, `OPENAI_API_KEY`, or any env var for credentials. imagine does **not** read env vars. Config file only.
-- **Never** suggest `imagine config set-*` — those commands don't exist. Users edit `config.yaml` directly.
-- **Never** use `-ar`, `-is`, `-vertex` as single-dash flags. They're `--aspect-ratio`, `--image-search`, `--provider vertex`. (Describe keeps its own legacy `-vertex` flag — the exception.)
-- **Never** combine `--background transparent` with `gpt-image-2`. Unsupported — use `-m 1.5`.
-- **Never** combine `-f` with `-r` — mutually exclusive.
-- **Never** suggest `--provider openai` for the describe subcommand. Describe is Gemini/Vertex only.
+`imagine --help` is provider-aware — hides flags from providers other than the active one, renders a tailored EXAMPLES block.
 
 ## Troubleshooting
 
-When imagine errors, read [references/troubleshooting.md](references/troubleshooting.md) before guessing. Covers every error message the CLI can produce with its specific fix.
+[references/troubleshooting.md](references/troubleshooting.md) — every error message the CLI produces with its fix.

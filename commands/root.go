@@ -98,10 +98,9 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}
-			auth := providers.Auth{
-				APIKey:  cfg.ProviderAPIKey(active),
-				Options: cfg.Providers[active].ProviderOptions,
-			}
+			// Flat auth: every field under providers.<active> in the config
+			// is surfaced to the factory. Providers read via auth.Get(key).
+			auth := providers.Auth(cfg.Providers[active])
 
 			provider, err := bundle.Factory(auth)
 			if err != nil {

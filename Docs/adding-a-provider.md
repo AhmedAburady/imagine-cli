@@ -12,9 +12,10 @@ This guide walks you through adding a new image-generation provider to imagine. 
 - [Step 1 — Create the package](#step-1--create-the-package)
 - [Step 2 — Declare Options with flagspec](#step-2--declare-options-with-flagspec)
 - [Step 3 — Implement Provider](#step-3--implement-provider)
-- [Step 4 — Register the Bundle](#step-4--register-the-bundle)
-- [Step 5 — Add the contract test](#step-5--add-the-contract-test)
-- [Step 6 — Wire into providers/all](#step-6--wire-into-providersall)
+- [Step 4 — Declare ConfigSchema (onboarding)](#step-4--declare-configschema-onboarding)
+- [Step 5 — Register the Bundle](#step-5--register-the-bundle)
+- [Step 6 — Add the contract test](#step-6--add-the-contract-test)
+- [Step 7 — Wire into providers/all](#step-7--wire-into-providersall)
 - [Worked example](#worked-example)
 - [Non-HTTP providers](#non-http-providers)
 - [Opting out of flagspec](#opting-out-of-flagspec)
@@ -179,12 +180,14 @@ type Provider struct {
 }
 
 // New validates auth and returns the provider. Called once per invocation
-// from the Bundle factory in register.go.
+// from the Bundle factory in register.go. Auth is a flat map[string]string
+// exposing every key under providers.<name> in config.yaml.
 func New(auth providers.Auth) (providers.Provider, error) {
-    if auth.APIKey == "" {
+    key := auth.Get("api_key")
+    if key == "" {
         return nil, errors.New("myprovider requires providers.myprovider.api_key in config")
     }
-    return &Provider{apiKey: auth.APIKey}, nil
+    return &Provider{apiKey: key}, nil
 }
 
 // Info returns static metadata. Read once at registration and cached.
@@ -285,7 +288,74 @@ type apiResponse struct {
 
 ---
 
-## Step 4 — Register the Bundle
+## Step 4 — Declare ConfigSchema (onboarding)
+
+`imagine providers add <name>` is the entry point for users configuring your provider — interactive form in a TTY, flags in a script. Both modes read from the same per-provider **ConfigSchema**.
+
+Write a `ConfigSchema()` method on your `*Provider` type that returns the fields to collect. Each field becomes a form input AND a `--<key-with-dashes>` flag on the sub-command.
+
+```go
+// ConfigSchema declares the fields `imagine providers add myprovider`
+// collects. The framework uses this for both the interactive huh form
+// and the non-interactive flag set — one declaration, both UIs.
+func (p *Provider) ConfigSchema() []providers.ConfigField {
+    return []providers.ConfigField{
+        {
+            Key:         "api_key",
+            Title:       "API Key",
+            Description: "API key from example.ai dashboard",
+            Secret:      true,   // masked in the form (EchoModePassword)
+            Required:    true,
+        },
+    }
+}
+```
+
+### `ConfigField` reference
+
+| Field | Purpose |
+|---|---|
+| `Key` | Storage key under `providers.<name>.<Key>` in config.yaml; `--<Key-with-dashes>` on the CLI (e.g. `api_key` → `--api-key`) |
+| `Title` | Form label and human-readable name |
+| `Description` | One-line help shown in the form and in `--help` |
+| `Secret` | `true` masks input (password field) |
+| `Required` | `true` means missing flag + non-TTY → error; TTY → form asks for it |
+| `Default` | Default used when optional field is unset; pre-fills form input |
+
+### Multi-field example (Vertex-style)
+
+```go
+func (p *Provider) ConfigSchema() []providers.ConfigField {
+    return []providers.ConfigField{
+        {Key: "gcp_project", Title: "GCP Project", Required: true,
+         Description: "GCP project ID with the Vertex AI API enabled"},
+        {Key: "location",    Title: "Location",    Default: "global",
+         Description: "Vertex AI region (default: global)"},
+    }
+}
+```
+
+`providers add vertex --gcp-project X` writes both fields flat under `providers.vertex` in config.yaml. The interactive form asks for `gcp_project` only (location has a default).
+
+### Reading the values back in `New()`
+
+The factory reads the same keys via `auth.Get(key)`:
+
+```go
+func New(auth providers.Auth) (providers.Provider, error) {
+    project := auth.Get("gcp_project")
+    if project == "" { return nil, errors.New("vertex requires gcp_project") }
+    location := auth.Get("location")
+    if location == "" { location = "global" }
+    return &Provider{project: project, location: location}, nil
+}
+```
+
+One schema drives four things: form, flags, storage keys, and the factory's read pattern. If you add a field, the onboarding form and flags update automatically — no edits to `commands/`.
+
+---
+
+## Step 5 — Register the Bundle
 
 ### `register.go`
 
@@ -302,26 +372,30 @@ import (
 // init self-registers the provider. Triggered by the blank import in
 // providers/all — never called explicitly.
 func init() {
-    info := (&Provider{}).Info()
+    p := &Provider{}
+    info := p.Info()
     providers.Register("myprovider", providers.Bundle{
         Factory: New,
         BindFlags: func(cmd *cobra.Command) {
-            _ = flagspec.Bind(cmd, Options{})
+            // flagspec.Bind panics on malformed tags — programmer errors
+            // discoverable at init time. No error handling needed.
+            flagspec.Bind(cmd, Options{})
         },
         ReadFlags: func(cmd *cobra.Command) (any, error) {
             return flagspec.Read(cmd, Options{}, info)
         },
         SupportedFlags: flagspec.FieldNames(Options{}),
         Info:           info,
+        ConfigSchema:   p.ConfigSchema(), // drives `providers add`
     })
 }
 ```
 
-That's the whole file. `flagspec.Bind`, `Read`, and `FieldNames` all derive from your `Options` struct via reflection — add a field, and Cobra binding, validation, and the ownership-gate declaration update automatically.
+That's the whole file. `flagspec.Bind`, `Read`, and `FieldNames` all derive from your `Options` struct via reflection. `ConfigSchema` is cached on the Bundle (not called via interface) so onboarding works before any auth exists — instantiating the provider would fail with empty credentials.
 
 ---
 
-## Step 5 — Add the contract test
+## Step 6 — Add the contract test
 
 ### `contract_test.go`
 
@@ -360,7 +434,7 @@ When the framework adds a new invariant, the harness updates it — every provid
 
 ---
 
-## Step 6 — Wire into providers/all
+## Step 7 — Wire into providers/all
 
 Add one blank import to `providers/all/all.go`:
 
@@ -381,29 +455,33 @@ Done. `cmd/imagine/main.go` is never touched.
 
 ## Worked example
 
-Put it all together and a user can run:
+Put it all together and a user's full flow looks like this:
 
 ```bash
-# config.yaml
-providers:
-  myprovider:
-    api_key: sk-example-xxx
+# One-time onboarding — interactive form in a terminal, deterministic flags in a script.
+imagine providers add myprovider                      # opens huh form asking for api_key
+imagine providers add myprovider --api-key sk-xxx     # non-interactive / CI-friendly
+
+# Make it the default (or pass --provider per invocation)
+imagine providers use myprovider
+
+# Generate
+imagine -p "sunset over kyoto" -m pro --fast --steps 40
 ```
 
-```bash
-imagine --provider myprovider -p "sunset over kyoto" -m pro --fast --steps 40
-```
+What happens under the hood:
 
-Flow:
 1. `cmd/imagine/main.go` imports `providers/all` → triggers your `init()` → registers the Bundle
-2. Fang renders provider-aware `--help` showing your `Options` tags
-3. `--provider myprovider` resolves the active provider
-4. `enforceFlagSupport` confirms `--fast` and `--steps` are in your `SupportedFlags`
-5. `flagspec.Read` populates `*Options`; `Normalize()` runs; `Validate(Info)` runs
-6. `enforceModelSupport` confirms the resolved model (`example-v2-pro`) supports `--fast`
-7. Orchestrator calls `Generate(ctx, req)` with `req.N` split into batches
-8. Each image is written to disk by the shared orchestrator
-9. Ctrl+C during the call propagates via ctx and aborts in-flight requests
+2. `providers add myprovider` reads `Bundle.ConfigSchema`, prompts for missing required fields (or errors listing them under non-TTY), writes flat to `providers.myprovider.*` in `config.yaml`
+3. Fang renders provider-aware `--help` showing your `Options` tags
+4. `--provider myprovider` resolves the active provider
+5. `enforceFlagSupport` confirms `--fast` and `--steps` are in your `SupportedFlags`
+6. `flagspec.Read` populates `*Options`; `Normalize()` runs; `Validate(Info)` runs
+7. `enforceModelSupport` confirms the resolved model (`example-v2-pro`) supports `--fast`
+8. `New(auth)` reads credentials via `auth.Get("api_key")`
+9. Orchestrator calls `Generate(ctx, req)` with `req.N` split into batches
+10. Each image is written to disk by the shared orchestrator
+11. Ctrl+C during the call propagates via ctx and aborts in-flight requests
 
 ---
 
@@ -411,9 +489,24 @@ Flow:
 
 Not every provider is HTTP. **Vertex** uses Google's `genai` SDK with Application Default Credentials. It never touches the transport package.
 
-A non-HTTP provider implements `Generate` directly against its SDK:
+A non-HTTP provider implements `Generate` directly against its SDK, and uses `ConfigSchema` to declare whatever credentials the SDK needs:
 
 ```go
+func (p *Provider) ConfigSchema() []providers.ConfigField {
+    return []providers.ConfigField{
+        {Key: "gcp_project", Title: "GCP Project", Required: true},
+        {Key: "location",    Title: "Location",    Default: "global"},
+    }
+}
+
+func New(auth providers.Auth) (providers.Provider, error) {
+    project := auth.Get("gcp_project")
+    if project == "" { return nil, errors.New("vertex requires gcp_project") }
+    location := auth.Get("location")
+    if location == "" { location = "global" }
+    return &Provider{project: project, location: location}, nil
+}
+
 func (p *Provider) Generate(ctx context.Context, req providers.Request) (*providers.Response, error) {
     opts, _ := req.Options.(*Options)
     client, err := genai.NewClient(ctx, &genai.ClientConfig{
@@ -511,11 +604,15 @@ The framework pattern is extensible: new capabilities are added as optional inte
 
 - [ ] `go build ./...` clean
 - [ ] `go test ./providers/myprovider/...` passes (runs the contract)
-- [ ] `imagine --provider myprovider --help` shows your flags, hides others
+- [ ] `imagine providers add myprovider --help` shows your `ConfigSchema` fields as flags
+- [ ] `imagine providers add myprovider --<key> <value>` writes flat to `config.yaml`
+- [ ] `imagine providers add myprovider` with no flags (in a terminal) opens the interactive form
+- [ ] `imagine providers add myprovider < /dev/null` (non-TTY, missing required) errors with the exact missing flags
+- [ ] `imagine --provider myprovider --help` shows your `Options` flags, hides others
 - [ ] `imagine --provider myprovider -p "test"` succeeds against the real API (or errors with a useful message)
 - [ ] Setting a flag from another provider errors with `--<flag> is not supported by provider "myprovider"`
 - [ ] If you implemented `ResolvedModeler`: setting a model-restricted flag on a non-supporting model errors
-- [ ] `imagine providers show` lists your provider
+- [ ] `imagine providers` lists your provider (and marks it `[active, default]` after `providers use`)
 
 ---
 
@@ -532,10 +629,12 @@ The framework pattern is extensible: new capabilities are added as optional inte
 
 | Package | API | Purpose |
 |---|---|---|
-| `providers/flagspec` | `Bind`, `Read`, `FieldNames` | Reflection-based flag DSL |
+| `providers/flagspec` | `Bind`, `Read`, `FieldNames` | Reflection-based flag DSL (panics on malformed tags) |
 | `internal/transport` | `Client`, `PostJSON[R]`, `PostMultipart[R]`, `Bearer`, `QueryKey`, `NoAuth`, `APIError`, `DecodeB64` | Shared HTTP primitives |
 | `providers/providertest` | `Contract(t, name)` | Standard contract test battery |
-| `providers` | `RequestLabeler`, `ResolvedModeler` | Optional capability interfaces |
+| `providers` | `RequestLabeler`, `ResolvedModeler` | Optional capability interfaces on `*Options` |
+| `providers` | `Bundle.ConfigSchema []ConfigField` | Drives `providers add` form + flags |
+| `providers` | `Auth.Get(key) string` | Flat credential bag read inside `New(auth)` |
 
 ### Never touched
 

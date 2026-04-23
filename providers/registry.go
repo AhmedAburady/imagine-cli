@@ -44,6 +44,13 @@ type Bundle struct {
 	// adding a new provider requires no edits to commands/. Empty → no
 	// EXAMPLES section.
 	Examples func() string
+
+	// ConfigSchema describes the fields `imagine providers add` needs to
+	// collect for this provider. Populated at registration time so the
+	// command can read it without instantiating the provider (instantiation
+	// requires valid auth — a chicken-and-egg for onboarding). A nil slice
+	// falls back to a single required api_key field.
+	ConfigSchema []ConfigField
 }
 
 var registry = map[string]Bundle{}

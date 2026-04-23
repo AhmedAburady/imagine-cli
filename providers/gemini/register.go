@@ -28,5 +28,6 @@ func init() {
 		SupportedFlags: flagspec.FieldNames(Options{}),
 		Examples:       Examples,
 		Info:           info,
+		ConfigSchema:   (&Provider{}).ConfigSchema(),
 	})
 }

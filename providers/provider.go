@@ -116,3 +116,23 @@ type RequestLabeler interface {
 type ResolvedModeler interface {
 	ResolvedModel() string
 }
+
+// ConfigField describes one configurable field for a provider — used by
+// `imagine providers add` to render dynamic forms and synthesise the
+// per-invocation flag set. The Key is the on-disk storage key
+// (providers.<name>.<Key> in config.yaml) and — dashed — the CLI flag
+// name (api_key → --api-key).
+//
+// Providers ship their schema as a slice attached to Bundle.ConfigSchema
+// at registration time (see providers/registry.go). Doing it via the
+// Bundle avoids instantiating the provider — the Factory legitimately
+// rejects empty auth, which would prevent schema introspection during
+// onboarding when no auth exists yet.
+type ConfigField struct {
+	Key         string // storage key; flag becomes --<Key-with-dashes>
+	Title       string // e.g. "API Key", "GCP Project"
+	Description string // one-line help shown in the form and in --help
+	Secret      bool   // mask input (EchoModePassword) in interactive mode
+	Required    bool
+	Default     string // used as form default and for flag default
+}

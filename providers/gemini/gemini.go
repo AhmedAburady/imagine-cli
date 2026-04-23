@@ -35,12 +35,26 @@ type Provider struct {
 	apiKey string
 }
 
-// New builds a Gemini provider from auth. Errors when APIKey is empty.
+// New builds a Gemini provider from auth. Errors when api_key is empty.
 func New(auth providers.Auth) (providers.Provider, error) {
-	if auth.APIKey == "" {
+	key := auth.Get("api_key")
+	if key == "" {
 		return nil, errors.New("gemini provider requires providers.gemini.api_key in ~/.config/imagine/config.yaml")
 	}
-	return &Provider{apiKey: auth.APIKey}, nil
+	return &Provider{apiKey: key}, nil
+}
+
+// ConfigSchema declares the fields `imagine providers add gemini` collects.
+func (p *Provider) ConfigSchema() []providers.ConfigField {
+	return []providers.ConfigField{
+		{
+			Key:         "api_key",
+			Title:       "API Key",
+			Description: "Gemini API key from Google AI Studio (aistudio.google.com/app/apikey)",
+			Secret:      true,
+			Required:    true,
+		},
+	}
 }
 
 // Info returns Gemini's static metadata.

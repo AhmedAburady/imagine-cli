@@ -24,5 +24,6 @@ func init() {
 		SupportedFlags: flagspec.FieldNames(Options{}),
 		Examples:       gemini.Examples, // Vertex reuses Gemini's examples
 		Info:           info,
+		ConfigSchema:   (&Provider{}).ConfigSchema(),
 	})
 }

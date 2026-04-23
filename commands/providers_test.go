@@ -12,9 +12,10 @@ import (
 	_ "github.com/AhmedAburady/imagine-cli/providers/all" // register gemini/openai/vertex for tests
 )
 
-// seedConfigFile redirects HOME/APPDATA to a tmp dir and writes contents
-// as config.yaml there. Returns the file path.
-func seedConfigFile(t *testing.T, contents string) string {
+// tempConfigDir redirects HOME/APPDATA to a tmp dir and ensures the
+// imagine config directory exists. Returns the config.yaml path.
+// Caller decides whether to seed a file there.
+func tempConfigDir(t *testing.T) string {
 	t.Helper()
 	tmp := t.TempDir()
 	if runtime.GOOS == "windows" {
@@ -26,7 +27,14 @@ func seedConfigFile(t *testing.T, contents string) string {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	path := filepath.Join(dir, "config.yaml")
+	return filepath.Join(dir, "config.yaml")
+}
+
+// seedConfigFile writes contents into the test config.yaml and returns
+// its path. Shorthand for tempConfigDir + os.WriteFile.
+func seedConfigFile(t *testing.T, contents string) string {
+	t.Helper()
+	path := tempConfigDir(t)
 	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -38,10 +46,10 @@ func seedConfigFile(t *testing.T, contents string) string {
 func TestConfiguredAndRegistered_IntersectionSorted(t *testing.T) {
 	cfg := &config.Config{
 		Providers: map[string]config.ProviderConfig{
-			"openai":    {APIKey: "k"},
-			"gemini":    {APIKey: "k"},
-			"ghost":     {APIKey: "k"}, // not registered in this binary
-			"phantom":   {APIKey: "k"}, // not registered
+			"openai":  {"api_key": "k"},
+			"gemini":  {"api_key": "k"},
+			"ghost":   {"api_key": "k"}, // not registered in this binary
+			"phantom": {"api_key": "k"}, // not registered
 		},
 	}
 	got := configuredAndRegistered(cfg)

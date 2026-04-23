@@ -15,5 +15,6 @@ func init() {
 		SupportedFlags: OwnedFlags(),
 		Examples:       Examples,
 		Info:           info,
+		ConfigSchema:   (&Provider{}).ConfigSchema(),
 	})
 }
