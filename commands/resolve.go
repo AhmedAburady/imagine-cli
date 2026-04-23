@@ -50,8 +50,8 @@ func ProviderHintFromArgs(args []string) string {
 			if _, ok := providers.Get(name); ok {
 				return name
 			}
-		} else if strings.HasPrefix(a, "--provider=") {
-			name := strings.TrimPrefix(a, "--provider=")
+		} else if after, ok := strings.CutPrefix(a, "--provider="); ok {
+			name := after
 			if _, ok := providers.Get(name); ok {
 				return name
 			}

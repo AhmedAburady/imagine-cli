@@ -6,6 +6,7 @@ package providers
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/AhmedAburady/imagine-cli/internal/images"
@@ -24,10 +25,8 @@ func (i Info) ResolveModel(raw string) (string, error) {
 		if m.ID == raw {
 			return m.ID, nil
 		}
-		for _, a := range m.Aliases {
-			if a == raw {
-				return m.ID, nil
-			}
+		if slices.Contains(m.Aliases, raw) {
+			return m.ID, nil
 		}
 		accepted = append(accepted, m.ID)
 		accepted = append(accepted, m.Aliases...)
@@ -115,4 +114,24 @@ type RequestLabeler interface {
 // the bare canonical ID that matches Info.Models[*].ID.
 type ResolvedModeler interface {
 	ResolvedModel() string
+}
+
+// ConfigField describes one configurable field for a provider — used by
+// `imagine providers add` to render dynamic forms and synthesise the
+// per-invocation flag set. The Key is the on-disk storage key
+// (providers.<name>.<Key> in config.yaml) and — dashed — the CLI flag
+// name (api_key → --api-key).
+//
+// Providers ship their schema as a slice attached to Bundle.ConfigSchema
+// at registration time (see providers/registry.go). Doing it via the
+// Bundle avoids instantiating the provider — the Factory legitimately
+// rejects empty auth, which would prevent schema introspection during
+// onboarding when no auth exists yet.
+type ConfigField struct {
+	Key         string // storage key; flag becomes --<Key-with-dashes>
+	Title       string // e.g. "API Key", "GCP Project"
+	Description string // one-line help shown in the form and in --help
+	Secret      bool   // mask input (EchoModePassword) in interactive mode
+	Required    bool
+	Default     string // used as form default and for flag default
 }

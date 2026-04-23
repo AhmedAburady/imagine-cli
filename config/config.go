@@ -1,7 +1,10 @@
 // Package config loads imagine's YAML configuration.
 //
 // Location: ~/.config/imagine/config.yaml (or config.yml — both are tried).
-// Users edit this file directly; imagine does not write to it.
+// Users edit this file directly for credentials. imagine mutates it only
+// via explicit commands — `providers use / select / add` — and preserves
+// comments, key order, and quoting when it does. See Save() and
+// SaveProvider() for the narrow write paths.
 //
 // Schema:
 //
@@ -12,12 +15,15 @@
 //	  openai:
 //	    api_key: sk-...
 //	  vertex:
-//	    provider_options:
-//	      gcp_project: my-project
-//	      location: us-central1
+//	    gcp_project: my-project
+//	    location: us-central1
+//
+// Older configs used `provider_options:` as a sub-map under Vertex — that
+// shape is silently flattened on read, so existing users keep working.
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,23 +37,52 @@ type Config struct {
 	Providers       map[string]ProviderConfig `yaml:"providers,omitempty"`
 }
 
-// ProviderConfig is per-provider config. APIKey is the common case; extras
-// live under ProviderOptions as a free-form string map (e.g. Vertex's
-// gcp_project and location).
-type ProviderConfig struct {
-	APIKey          string            `yaml:"api_key,omitempty"`
-	ProviderOptions map[string]string `yaml:"provider_options,omitempty"`
+// ProviderConfig is the flat per-provider config — any key/value pair the
+// provider's ConfigSchema declares. Common example: {"api_key": "..."}.
+// Vertex: {"gcp_project": "...", "location": "..."}.
+//
+// UnmarshalYAML also accepts the legacy shape where extras lived under a
+// `provider_options:` sub-map; those entries are flattened into the parent
+// on load, so an old config keeps working verbatim until the next Save.
+type ProviderConfig map[string]string
+
+// UnmarshalYAML flattens the legacy `provider_options:` sub-map into the
+// parent on read. Scalar fields pass through as-is.
+func (pc *ProviderConfig) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("provider config must be a mapping, got kind %d", node.Kind)
+	}
+	out := map[string]string{}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key := node.Content[i].Value
+		val := node.Content[i+1]
+
+		// Legacy shape: flatten provider_options.* into the parent.
+		if key == "provider_options" && val.Kind == yaml.MappingNode {
+			for j := 0; j+1 < len(val.Content); j += 2 {
+				k := val.Content[j].Value
+				v := val.Content[j+1]
+				if v.Kind != yaml.ScalarNode {
+					return fmt.Errorf("provider_options.%s: expected scalar value", k)
+				}
+				out[k] = v.Value
+			}
+			continue
+		}
+
+		if val.Kind != yaml.ScalarNode {
+			return fmt.Errorf("%s: expected scalar value", key)
+		}
+		out[key] = val.Value
+	}
+	*pc = out
+	return nil
 }
 
 // DefaultConfigDir returns the imagine config directory for the current OS.
 //
 // Unix (Linux, macOS, *BSD): ~/.config/imagine/
-//   Uses the XDG convention most developer CLIs follow. macOS users get
-//   ~/.config rather than ~/Library/Application Support/ because the latter
-//   has a space in the path, is awkward to browse, and breaks dotfiles repos.
-//
 // Windows: %AppData%/imagine/
-//   Via os.UserConfigDir(). Typical location: C:\Users\<name>\AppData\Roaming\imagine\
 //
 // Returns "" if the underlying home / config dir cannot be resolved.
 func DefaultConfigDir() string {
@@ -108,15 +143,17 @@ func (c *Config) ProviderAPIKey(name string) string {
 	if c == nil {
 		return ""
 	}
-	return c.Providers[name].APIKey
+	return c.Providers[name]["api_key"]
 }
 
-// ProviderOption returns providers.<name>.provider_options.<key>.
+// ProviderOption returns providers.<name>.<key>. Named "option" for
+// backwards compatibility with the legacy provider_options.<key> access
+// pattern — the storage is now flat but the getter interface is unchanged.
 func (c *Config) ProviderOption(name, key string) string {
 	if c == nil {
 		return ""
 	}
-	return c.Providers[name].ProviderOptions[key]
+	return c.Providers[name][key]
 }
 
 // -- Back-compat getters for describe (out of scope for the refactor) --------
@@ -130,7 +167,8 @@ func GetGeminiAPIKey() string {
 	return cfg.ProviderAPIKey("gemini")
 }
 
-// GetGCPProject reads providers.vertex.provider_options.gcp_project.
+// GetGCPProject reads providers.vertex.gcp_project (or legacy
+// provider_options.gcp_project, flattened on load).
 func GetGCPProject() string {
 	cfg, err := Load()
 	if err != nil {
@@ -139,7 +177,7 @@ func GetGCPProject() string {
 	return cfg.ProviderOption("vertex", "gcp_project")
 }
 
-// GetGCPLocation reads providers.vertex.provider_options.location (default "global").
+// GetGCPLocation reads providers.vertex.location (default "global").
 func GetGCPLocation() string {
 	cfg, err := Load()
 	if err == nil {

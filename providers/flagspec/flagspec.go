@@ -54,8 +54,8 @@ func Bind(cmd *cobra.Command, prototype any) {
 	t := structType(prototype)
 	flags := cmd.Flags()
 
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
+	for f := range t.Fields() {
+		f := f
 		name, short, skip := parseFlagTag(f)
 		if skip {
 			continue
@@ -191,8 +191,8 @@ func Read(cmd *cobra.Command, prototype any, info providers.Info) (any, error) {
 	if m := outPtr.MethodByName("Validate"); m.IsValid() {
 		mt := m.Type()
 		if mt.NumIn() == 1 && mt.NumOut() == 1 &&
-			mt.In(0) == reflect.TypeOf(providers.Info{}) &&
-			mt.Out(0) == reflect.TypeOf((*error)(nil)).Elem() {
+			mt.In(0) == reflect.TypeFor[providers.Info]() &&
+			mt.Out(0) == reflect.TypeFor[error]() {
 			results := m.Call([]reflect.Value{reflect.ValueOf(info)})
 			if !results[0].IsNil() {
 				return nil, results[0].Interface().(error)
@@ -208,8 +208,8 @@ func Read(cmd *cobra.Command, prototype any, info providers.Info) (any, error) {
 func FieldNames(prototype any) []string {
 	t := structType(prototype)
 	var names []string
-	for i := 0; i < t.NumField(); i++ {
-		name, _, skip := parseFlagTag(t.Field(i))
+	for field := range t.Fields() {
+		name, _, skip := parseFlagTag(field)
 		if skip {
 			continue
 		}
@@ -225,7 +225,7 @@ func structType(prototype any) reflect.Type {
 	if t == nil {
 		panic("flagspec: nil prototype")
 	}
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {
@@ -250,7 +250,7 @@ func parseFlagTag(f reflect.StructField) (name, short string, skip bool) {
 }
 
 func matchEnum(input, enumTag string) (string, bool) {
-	for _, raw := range strings.Split(enumTag, ",") {
+	for raw := range strings.SplitSeq(enumTag, ",") {
 		v := strings.TrimSpace(raw)
 		if strings.EqualFold(v, input) {
 			return v, true

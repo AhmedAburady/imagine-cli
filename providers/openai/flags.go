@@ -9,12 +9,12 @@ import (
 )
 
 const (
-	flagModel        = "model"
-	flagSize         = "size"
-	flagQuality      = "quality"
-	flagCompression  = "compression"
-	flagModeration   = "moderation"
-	flagBackground   = "background"
+	flagModel       = "model"
+	flagSize        = "size"
+	flagQuality     = "quality"
+	flagCompression = "compression"
+	flagModeration  = "moderation"
+	flagBackground  = "background"
 	// OpenAI reads -f (common flag) to auto-infer output_format.
 	flagFilename = "filename"
 )

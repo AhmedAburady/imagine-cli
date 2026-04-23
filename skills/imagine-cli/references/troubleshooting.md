@@ -4,12 +4,17 @@ Most errors point at the exact fix. Here's what they mean and how to resolve.
 
 ## `no provider configured. Create <path> with a providers: entry (see README for schema)`
 
-The config file is missing or has no providers configured. Walk the user through creating one — see `references/config.md`.
+The config file is missing or has no providers configured. Easiest fix:
 
-Quick check:
 ```bash
-cat ~/.config/imagine/config.yaml 2>/dev/null || cat ~/.config/imagine/config.yml 2>/dev/null || echo missing
+imagine providers add gemini    # interactive form
+# or
+imagine providers add gemini --api-key AIza-xxx    # non-interactive
 ```
+
+`providers add` creates `~/.config/imagine/config.yaml` on first run. For other providers: `imagine providers add openai --api-key sk-xxx` or `imagine providers add vertex --gcp-project <proj>`.
+
+If the user prefers to hand-edit the YAML, see [config.md](config.md).
 
 ## `unknown provider "xyz" (available: [gemini openai vertex])`
 
@@ -108,12 +113,17 @@ gcloud auth application-default login
 gcloud services enable aiplatform.googleapis.com --project=<project-id>
 ```
 
-Then verify the project id in `~/.config/imagine/config.yaml`:
+Then verify the project id. Re-run `providers add` with the correct value:
+
+```bash
+imagine providers add vertex --gcp-project your-actual-project-id
+```
+
+Or check the file directly:
 ```yaml
 providers:
   vertex:
-    provider_options:
-      gcp_project: your-actual-project-id
+    gcp_project: your-actual-project-id
 ```
 
 ## OpenAI: 403 / "Organization verification required"
@@ -135,6 +145,33 @@ It shouldn't. imagine uses context cancellation; in-flight HTTP requests abort w
 ## `imagine --version` prints "dev" on a built release
 
 The release-workflow ldflags injection was broken at some point — `main.version` must be the target. If the binary came from `go install` rather than a tagged release, it prints the commit info from `debug.ReadBuildInfo` or falls back to "dev".
+
+## `providers add`: `missing required flags for "X": --Y`
+
+Non-TTY invocation (piped, CI, `--json`) without all required flags. Either:
+
+- Run in a real terminal to use the interactive form, OR
+- Supply every `--flag` the message lists.
+
+Each provider's required flags come from its `ConfigSchema`. See them with:
+```bash
+imagine providers add <name> --help
+```
+
+## `providers add bogus`: `unknown command "bogus"`
+
+Each built-in provider is a sub-sub-command of `add`. If `bogus` isn't in the list, it's not registered in this binary. Valid names are printed by:
+```bash
+imagine providers add --help
+```
+
+## `providers use bogus`: `Unknown provider "bogus". Configured and built-in: ...`
+
+`use` requires the target to be both configured (present under `providers:` in config.yaml) AND built into the binary. Configure it first with `providers add <name>`, then `providers use <name>`.
+
+## `providers select`: exits silently after pressing `q` / `esc`
+
+That's the intended behaviour — the picker treats `q`, `esc`, `ctrl+c` as graceful cancel. Exit code 0, no error message, config untouched. To actually change the default either run `providers select` again and press enter, or use `providers use <name>`.
 
 ## Help output looks wrong for a provider
 

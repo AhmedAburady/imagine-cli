@@ -21,18 +21,37 @@ type Provider struct {
 	location string
 }
 
-// New builds a Vertex provider. Reads provider_options.gcp_project and
-// provider_options.location from the auth envelope.
+// New builds a Vertex provider. Reads gcp_project and location from the
+// flat auth map.
 func New(auth providers.Auth) (providers.Provider, error) {
-	project := auth.Options["gcp_project"]
+	project := auth.Get("gcp_project")
 	if project == "" {
-		return nil, errors.New("vertex provider requires providers.vertex.provider_options.gcp_project in ~/.config/imagine/config.yaml")
+		return nil, errors.New("vertex provider requires providers.vertex.gcp_project in ~/.config/imagine/config.yaml")
 	}
-	location := auth.Options["location"]
+	location := auth.Get("location")
 	if location == "" {
 		location = "global"
 	}
 	return &Provider{project: project, location: location}, nil
+}
+
+// ConfigSchema declares the fields `imagine providers add vertex` collects.
+// Vertex uses Application Default Credentials — no API key in config.
+func (p *Provider) ConfigSchema() []providers.ConfigField {
+	return []providers.ConfigField{
+		{
+			Key:         "gcp_project",
+			Title:       "GCP Project",
+			Description: "GCP project ID with the Vertex AI API enabled",
+			Required:    true,
+		},
+		{
+			Key:         "location",
+			Title:       "Location",
+			Description: "Vertex AI region (default: global)",
+			Default:     "global",
+		},
+	}
 }
 
 // Info mirrors Gemini's models (Vertex is Gemini under a different transport),

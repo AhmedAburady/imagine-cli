@@ -57,9 +57,11 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 			// Positional args carry shell-glob residuals for -i *.png.
 			opts.RefInputs = append(opts.RefInputs, args...)
 
-			// Bare invocation with no prompt → help, not error.
+			// Bare invocation → defer to RunE, which prints help and
+			// exits 0. Short-circuit here to skip provider resolution
+			// and flag reads that would otherwise populate nil options.
 			if opts.Prompt == "" {
-				return cmd.Help()
+				return nil
 			}
 
 			active, err := resolveProvider(providerName)
@@ -84,6 +86,11 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 			return opts.Validate()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Bare invocation (no -p) → print help and exit cleanly.
+			if opts.Prompt == "" {
+				return cmd.Help()
+			}
+
 			active, _ := resolveProvider(providerName)
 			bundle, _ := providers.Get(active)
 
@@ -91,10 +98,9 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}
-			auth := providers.Auth{
-				APIKey:  cfg.ProviderAPIKey(active),
-				Options: cfg.Providers[active].ProviderOptions,
-			}
+			// Flat auth: every field under providers.<active> in the config
+			// is surfaced to the factory. Providers read via auth.Get(key).
+			auth := providers.Auth(cfg.Providers[active])
 
 			provider, err := bundle.Factory(auth)
 			if err != nil {

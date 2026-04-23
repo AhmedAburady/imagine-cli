@@ -1,6 +1,8 @@
 # imagine config file reference
 
-imagine reads one YAML file. No environment variables, no `config set-*` commands. Users edit this file with any editor.
+imagine reads one YAML file. No environment variables. The file is written by `imagine providers add <name> --flags` / `imagine providers use <name>`, or edited by hand — both paths preserve comments, blank lines, and unrelated keys.
+
+This doc covers the file schema. Commands are documented inline in SKILL.md.
 
 ## Location
 
@@ -28,10 +30,11 @@ providers:
     api_key: sk-your-openai-key-here
 
   vertex:
-    provider_options:
-      gcp_project: your-gcp-project-id
-      location: us-central1       # optional, defaults to "global"
+    gcp_project: your-gcp-project-id
+    location: us-central1         # optional, defaults to "global"
 ```
+
+Per-provider config is **flat**: every key/value under `providers.<name>` is a direct field (no nested `provider_options:` sub-map). Each provider declares its fields via a `ConfigSchema` in the code, and `imagine providers add` surfaces them as flags + form inputs.
 
 ### Fields
 
@@ -39,8 +42,25 @@ providers:
 |---|---|---|
 | `default_provider` | No | Which provider to use when `--provider` is omitted. If empty, imagine picks the first provider under `providers:` alphabetically. |
 | `providers.<name>` | Yes (at least one) | Per-provider block. The `<name>` must be one of the providers compiled into this binary (currently `gemini`, `vertex`, `openai`). |
-| `providers.<name>.api_key` | For Gemini/OpenAI | Required by providers that authenticate with an API key. Vertex does not use this field. |
-| `providers.<name>.provider_options` | Provider-specific | Free-form string map for extras. Vertex uses `gcp_project` (required) and `location` (optional, default `global`). |
+| `providers.gemini.api_key` | Yes | Google AI Studio API key. |
+| `providers.openai.api_key` | Yes | OpenAI platform API key. |
+| `providers.vertex.gcp_project` | Yes | GCP project id with Vertex AI API enabled. |
+| `providers.vertex.location` | No | Vertex region. Defaults to `global`. |
+
+### Legacy `provider_options:` shape (still supported on read)
+
+Earlier versions nested Vertex's fields under a `provider_options:` sub-map. imagine's loader reads both shapes transparently:
+
+```yaml
+# Legacy — loads correctly, migrates to flat on next write
+providers:
+  vertex:
+    provider_options:
+      gcp_project: X
+      location: Y
+```
+
+Running any `providers add` / `use` / `select` command rewrites the file in the flat shape. The user's comments and blank lines are preserved through the migration.
 
 ## Provider resolution precedence
 
@@ -91,14 +111,19 @@ Two setup steps on the machine:
 1. A GCP project with the Vertex AI API enabled.
 2. `gcloud auth application-default login` — imagine uses Application Default Credentials. No key to paste in the config.
 
-Then add the project id (and optional location) to the config:
+Then register the project with imagine:
+
+```bash
+imagine providers add vertex --gcp-project my-project-id --location us-central1
+```
+
+Or edit the YAML directly (flat shape):
 
 ```yaml
 providers:
   vertex:
-    provider_options:
-      gcp_project: my-project-id
-      location: us-central1     # optional — "global" when omitted
+    gcp_project: my-project-id
+    location: us-central1     # optional — "global" when omitted
 ```
 
 If running in a CI environment or on a server, use a service account:
@@ -144,9 +169,8 @@ providers:
   openai:
     api_key: sk-your-key-here
   vertex:
-    provider_options:
-      gcp_project: my-project
-      location: global
+    gcp_project: my-project
+    location: global
 ```
 
 ## Anti-patterns
