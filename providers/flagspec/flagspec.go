@@ -47,9 +47,10 @@ import (
 // Vertex) can both call Bind against their own tagged structs safely.
 //
 // Bind panics on malformed tags (unsupported field kind, non-numeric range
-// for int, range on a non-int field, etc.) because these are programmer
-// errors discoverable at init() time.
-func Bind(cmd *cobra.Command, prototype any) error {
+// for int, range on a non-int field, etc.). These are programmer errors
+// discoverable at init() time — a panic is louder than an error the caller
+// can accidentally swallow, and nothing useful is recoverable from them.
+func Bind(cmd *cobra.Command, prototype any) {
 	t := structType(prototype)
 	flags := cmd.Flags()
 
@@ -66,6 +67,17 @@ func Bind(cmd *cobra.Command, prototype any) error {
 		defTag := f.Tag.Get("default")
 		rangeTag := f.Tag.Get("range")
 
+		// Validate tag combinations before registering anything — a
+		// malformed field must not leave a half-configured flag behind.
+		if rangeTag != "" && f.Type.Kind() != reflect.Int {
+			panic(fmt.Sprintf("flagspec: field %s: range tag only valid on int fields", f.Name))
+		}
+		if rangeTag != "" {
+			if _, _, err := parseRange(rangeTag); err != nil {
+				panic(fmt.Sprintf("flagspec: field %s: %v", f.Name, err))
+			}
+		}
+
 		switch f.Type.Kind() {
 		case reflect.String:
 			if short != "" {
@@ -79,7 +91,7 @@ func Bind(cmd *cobra.Command, prototype any) error {
 			if defTag != "" {
 				parsed, err := strconv.ParseBool(defTag)
 				if err != nil {
-					return fmt.Errorf("flagspec: field %s: invalid bool default %q: %w", f.Name, defTag, err)
+					panic(fmt.Sprintf("flagspec: field %s: invalid bool default %q: %v", f.Name, defTag, err))
 				}
 				def = parsed
 			}
@@ -94,14 +106,9 @@ func Bind(cmd *cobra.Command, prototype any) error {
 			if defTag != "" {
 				parsed, err := strconv.Atoi(defTag)
 				if err != nil {
-					return fmt.Errorf("flagspec: field %s: invalid int default %q: %w", f.Name, defTag, err)
+					panic(fmt.Sprintf("flagspec: field %s: invalid int default %q: %v", f.Name, defTag, err))
 				}
 				def = parsed
-			}
-			if rangeTag != "" {
-				if _, _, err := parseRange(rangeTag); err != nil {
-					return fmt.Errorf("flagspec: field %s: %w", f.Name, err)
-				}
 			}
 			if short != "" {
 				flags.IntP(name, short, def, desc)
@@ -110,14 +117,9 @@ func Bind(cmd *cobra.Command, prototype any) error {
 			}
 
 		default:
-			return fmt.Errorf("flagspec: field %s: unsupported kind %s (want string, bool, int)", f.Name, f.Type.Kind())
-		}
-
-		if rangeTag != "" && f.Type.Kind() != reflect.Int {
-			return fmt.Errorf("flagspec: field %s: range tag only valid on int fields", f.Name)
+			panic(fmt.Sprintf("flagspec: field %s: unsupported kind %s (want string, bool, int)", f.Name, f.Type.Kind()))
 		}
 	}
-	return nil
 }
 
 // Read allocates a new *T (where T is prototype's struct type), populates

@@ -16,7 +16,7 @@ func init() {
 	providers.Register("vertex", providers.Bundle{
 		Factory: New,
 		BindFlags: func(cmd *cobra.Command) {
-			_ = flagspec.Bind(cmd, Options{})
+			flagspec.Bind(cmd, Options{})
 		},
 		ReadFlags: func(cmd *cobra.Command) (any, error) {
 			return flagspec.Read(cmd, Options{}, info)

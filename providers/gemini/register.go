@@ -19,7 +19,8 @@ func init() {
 		Factory: New,
 		BindFlags: func(cmd *cobra.Command) {
 			// flagspec.Bind is idempotent by flag name — safe alongside Vertex.
-			_ = flagspec.Bind(cmd, Options{})
+			// Panics on malformed tags (programmer error at init time).
+			flagspec.Bind(cmd, Options{})
 		},
 		ReadFlags: func(cmd *cobra.Command) (any, error) {
 			return flagspec.Read(cmd, Options{}, info)

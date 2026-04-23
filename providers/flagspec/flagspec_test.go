@@ -2,6 +2,7 @@ package flagspec_test
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -40,13 +41,29 @@ func newCmd() *cobra.Command {
 	return &cobra.Command{Use: "test", Run: func(*cobra.Command, []string) {}}
 }
 
+// expectPanic runs fn and asserts it panics with a message containing
+// needle. Used for negative Bind tests — malformed tags are programmer
+// errors, not runtime errors.
+func expectPanic(t *testing.T, needle string, fn func()) {
+	t.Helper()
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Errorf("expected panic containing %q, got no panic", needle)
+			return
+		}
+		if !strings.Contains(fmt.Sprint(r), needle) {
+			t.Errorf("expected panic containing %q, got %v", needle, r)
+		}
+	}()
+	fn()
+}
+
 // --- Bind -------------------------------------------------------------------
 
 func TestBind_RegistersAllFlagsWithShorthandsAndDefaults(t *testing.T) {
 	cmd := newCmd()
-	if err := flagspec.Bind(cmd, synthOptions{}); err != nil {
-		t.Fatalf("Bind error: %v", err)
-	}
+	flagspec.Bind(cmd, synthOptions{})
 	cases := []struct {
 		name  string
 		short string
@@ -76,9 +93,7 @@ func TestBind_RegistersAllFlagsWithShorthandsAndDefaults(t *testing.T) {
 
 func TestBind_IgnoresDashAndUntaggedFields(t *testing.T) {
 	cmd := newCmd()
-	if err := flagspec.Bind(cmd, synthOptions{}); err != nil {
-		t.Fatalf("Bind error: %v", err)
-	}
+	flagspec.Bind(cmd, synthOptions{})
 	if cmd.Flags().Lookup("hidden") != nil {
 		t.Error("flag:\"-\" field should not register")
 	}
@@ -90,18 +105,14 @@ func TestBind_IgnoresDashAndUntaggedFields(t *testing.T) {
 func TestBind_Idempotent(t *testing.T) {
 	cmd := newCmd()
 	// First bind — canonical source of desc.
-	if err := flagspec.Bind(cmd, synthOptions{}); err != nil {
-		t.Fatalf("first Bind: %v", err)
-	}
+	flagspec.Bind(cmd, synthOptions{})
 	origDesc := cmd.Flags().Lookup("model").Usage
 
 	// Second bind against a struct with a different desc — must no-op on name collision.
 	type second struct {
 		Model string `flag:"model,m" desc:"Overridden desc" default:"flash" enum:"@models"`
 	}
-	if err := flagspec.Bind(cmd, second{}); err != nil {
-		t.Fatalf("second Bind: %v", err)
-	}
+	flagspec.Bind(cmd, second{})
 	if cmd.Flags().Lookup("model").Usage != origDesc {
 		t.Errorf("second Bind overwrote desc: got %q, want %q", cmd.Flags().Lookup("model").Usage, origDesc)
 	}
@@ -111,32 +122,41 @@ func TestBind_RejectsUnsupportedKind(t *testing.T) {
 	type bad struct {
 		Ratios []string `flag:"ratios"`
 	}
-	cmd := newCmd()
-	err := flagspec.Bind(cmd, bad{})
-	if err == nil || !strings.Contains(err.Error(), "unsupported kind") {
-		t.Errorf("expected unsupported-kind error, got %v", err)
-	}
+	expectPanic(t, "unsupported kind", func() {
+		flagspec.Bind(newCmd(), bad{})
+	})
 }
 
 func TestBind_RejectsBadDefaults(t *testing.T) {
 	type bad struct {
 		On bool `flag:"on" default:"maybe"`
 	}
-	cmd := newCmd()
-	err := flagspec.Bind(cmd, bad{})
-	if err == nil || !strings.Contains(err.Error(), "invalid bool default") {
-		t.Errorf("expected bool default error, got %v", err)
-	}
+	expectPanic(t, "invalid bool default", func() {
+		flagspec.Bind(newCmd(), bad{})
+	})
 }
 
 func TestBind_RejectsRangeOnNonInt(t *testing.T) {
 	type bad struct {
 		S string `flag:"s" range:"0:10"`
 	}
+	expectPanic(t, "range tag only valid on int", func() {
+		flagspec.Bind(newCmd(), bad{})
+	})
+}
+
+// Confirms the fix for the old partial-registration bug: a malformed tag
+// must not leave a half-configured flag behind on the cobra command.
+func TestBind_RejectsRangeOnNonInt_NoPartialRegistration(t *testing.T) {
+	type bad struct {
+		S string `flag:"s" range:"0:10"`
+	}
 	cmd := newCmd()
-	err := flagspec.Bind(cmd, bad{})
-	if err == nil || !strings.Contains(err.Error(), "range tag only valid on int") {
-		t.Errorf("expected range-on-non-int error, got %v", err)
+	defer func() { _ = recover() }()
+	flagspec.Bind(cmd, bad{})
+	// unreachable, but if it were: the flag must not exist.
+	if cmd.Flags().Lookup("s") != nil {
+		t.Error("malformed field must not register a flag before panicking")
 	}
 }
 
@@ -144,11 +164,9 @@ func TestBind_RejectsBadRange(t *testing.T) {
 	type bad struct {
 		N int `flag:"n" range:"10:5"`
 	}
-	cmd := newCmd()
-	err := flagspec.Bind(cmd, bad{})
-	if err == nil || !strings.Contains(err.Error(), "min > max") {
-		t.Errorf("expected range min>max error, got %v", err)
-	}
+	expectPanic(t, "min > max", func() {
+		flagspec.Bind(newCmd(), bad{})
+	})
 }
 
 // --- Read -------------------------------------------------------------------
@@ -157,9 +175,7 @@ func TestBind_RejectsBadRange(t *testing.T) {
 func bindAndSet(t *testing.T, args ...string) *cobra.Command {
 	t.Helper()
 	cmd := newCmd()
-	if err := flagspec.Bind(cmd, synthOptions{}); err != nil {
-		t.Fatalf("Bind: %v", err)
-	}
+	flagspec.Bind(cmd, synthOptions{})
 	cmd.SetArgs(args)
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -294,9 +310,7 @@ func (o *validatedOptions) Validate(_ providers.Info) error {
 
 func TestRead_ValidateHookCalled(t *testing.T) {
 	cmd := newCmd()
-	if err := flagspec.Bind(cmd, validatedOptions{}); err != nil {
-		t.Fatalf("Bind: %v", err)
-	}
+	flagspec.Bind(cmd, validatedOptions{})
 	cmd.SetArgs([]string{"--a", "x"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
