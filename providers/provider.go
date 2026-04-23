@@ -106,3 +106,13 @@ type Provider interface {
 type RequestLabeler interface {
 	RequestLabel() string
 }
+
+// ResolvedModeler is an optional interface a provider's Options type may
+// implement so the framework can read the canonical model ID after flag
+// parsing — used by the model-level flag-support gate. Kept separate from
+// RequestLabeler because that method is for display and could legitimately
+// return a decorated string ("flash+grounding"); ResolvedModel must return
+// the bare canonical ID that matches Info.Models[*].ID.
+type ResolvedModeler interface {
+	ResolvedModel() string
+}

@@ -77,6 +77,10 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 				return err
 			}
 
+			if err := enforceModelSupport(cmd, bundle, providerOptions); err != nil {
+				return err
+			}
+
 			return opts.Validate()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {

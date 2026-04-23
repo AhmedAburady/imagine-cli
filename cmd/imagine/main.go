@@ -11,12 +11,10 @@ import (
 	"charm.land/fang/v2"
 
 	"github.com/AhmedAburady/imagine-cli/commands"
-	// Blank-import every provider. Each one's init() self-registers with the
-	// providers registry; the CLI then discovers them by name. Adding a
-	// provider means one new directory under providers/ and one line here.
-	_ "github.com/AhmedAburady/imagine-cli/providers/gemini"
-	_ "github.com/AhmedAburady/imagine-cli/providers/openai"
-	_ "github.com/AhmedAburady/imagine-cli/providers/vertex"
+	// providers/all blank-imports every built-in provider, triggering each
+	// one's init() to self-register. Adding a provider = edit providers/all,
+	// never this file.
+	_ "github.com/AhmedAburady/imagine-cli/providers/all"
 )
 
 // version is set at build time via: -ldflags "-X main.version=v0.1.0"

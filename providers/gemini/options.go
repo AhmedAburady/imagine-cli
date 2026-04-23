@@ -26,6 +26,12 @@ func (o *Options) RequestLabel() string {
 	return o.Model
 }
 
+// ResolvedModel implements providers.ResolvedModeler so the model-level
+// flag-support gate can look up the model's per-model SupportedFlags.
+func (o *Options) ResolvedModel() string {
+	return o.Model
+}
+
 // Normalize runs after flagspec's reflection-based population. Kept as a
 // defensive hook; strings are already trimmed by flagspec, and enum fields
 // (Thinking) are canonicalised to uppercase by the enum tag itself.

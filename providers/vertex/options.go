@@ -26,6 +26,12 @@ func (o *Options) RequestLabel() string {
 	return o.Model
 }
 
+// ResolvedModel implements providers.ResolvedModeler so the model-level
+// flag-support gate can look up per-model SupportedFlags.
+func (o *Options) ResolvedModel() string {
+	return o.Model
+}
+
 // Normalize runs after flagspec's reflection-based population.
 func (o *Options) Normalize() {
 	o.AspectRatio = strings.TrimSpace(o.AspectRatio)
