@@ -143,7 +143,7 @@ providers:
 | `providers.openai.api_key` | Yes | OpenAI platform API key. |
 | `providers.vertex.gcp_project` | Yes | GCP project id with the Vertex AI API enabled. |
 | `providers.vertex.location` | No | Vertex region. Defaults to `global`. |
-| `providers.<name>.vision_model` | No | Model `imagine describe` uses for that provider. Defaults are `gemini-pro-latest` (gemini/vertex) and `gpt-5.4-mini` (openai). |
+| `providers.<name>.vision_model` | No | Model `imagine describe` uses for that provider. Defaults are `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), and `gpt-5.4-mini` (openai). |
 
 Older configs that nested Vertex credentials under `provider_options:` still load — they're auto-migrated to flat on the next `imagine providers` write.
 
@@ -218,7 +218,7 @@ panorama:
   provider: gemini
   model: pro
   size: 4K
-  aspect-ratio: 32:9
+  aspect-ratio: 21:9
 
 product_iterations:
   prompt: "Minimalist coffee shop logo"
@@ -376,6 +376,12 @@ imagine -p "make it winter" --provider openai -i photo.png
 
 # Transparent sticker (1.5 only)
 imagine -p "sticker" --provider openai -m 1.5 --background transparent -f sticker.png
+
+# JPEG with reduced file size
+imagine -p "thumbnail" --provider openai -f thumb.jpg --compression 70
+
+# Less restrictive moderation for legitimate prompts
+imagine -p "medical illustration of a heart" --provider openai --moderation low
 ```
 
 ### Describe
@@ -433,6 +439,12 @@ imagine describe -i photo.jpg --provider openai -m gpt-5.4
 
 # See what instruction the active describer sends
 imagine describe --show-instructions
+
+# Custom instruction (replaces the built-in prompt entirely)
+imagine describe -i photo.jpg -p "Rate this composition 1-10 and explain why"
+
+# Extra context prepended to the built-in prompt
+imagine describe -i photo.jpg -a "Focus on the lighting and color grading"
 ```
 
 **Set a persistent describe default** different from the image-gen default:
@@ -447,8 +459,9 @@ imagine providers select --vision          # interactive picker
 Four subcommands cover inspection and configuration. Every write is atomic and preserves your file's comments.
 
 | Command | Purpose |
-|---|---|
+|---|---|---|
 | `imagine providers` | List configured providers with status pills and capability badges |
+| `imagine providers show` | Same as bare `imagine providers` — explicit alias |
 | `imagine providers add <name>` | Register credentials (interactive form in a TTY, flags otherwise) |
 | `imagine providers use <name>` | Set `default_provider` |
 | `imagine providers use <name> --vision` | Set `vision_default_provider` |

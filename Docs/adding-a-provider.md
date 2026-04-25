@@ -14,6 +14,7 @@ This guide walks you through adding a new image-generation provider to imagine. 
 - [Step 3 — Implement Provider](#step-3--implement-provider)
 - [Step 4 — Declare ConfigSchema (onboarding)](#step-4--declare-configschema-onboarding)
 - [Step 5 — Register the Bundle](#step-5--register-the-bundle)
+- [Step 5b — Enable `imagine describe` (optional)](#step-5b--enable-imagine-describe-optional)
 - [Step 6 — Add the contract test](#step-6--add-the-contract-test)
 - [Step 7 — Wire into providers/all](#step-7--wire-into-providersall)
 - [Worked example](#worked-example)
@@ -379,6 +380,7 @@ func init() {
     info := p.Info()
     providers.Register("myprovider", providers.Bundle{
         Factory: New,
+        Vision:  &providers.Vision{}, // omit if your provider doesn't support describe
         BindFlags: func(cmd *cobra.Command) {
             // flagspec.Bind panics on malformed tags — programmer errors
             // discoverable at init time. No error handling needed.
@@ -485,6 +487,73 @@ type Common struct {
 ```
 
 Add fields here only when a real provider needs them — the field set is intentionally minimal so the seam stays narrow.
+
+---
+
+## Step 5b — Enable `imagine describe` (optional)
+
+If your provider can also analyse images and return style descriptions, implement the `Describer` interface and set `Bundle.Vision` at registration. The CLI will then surface `imagine describe --provider myprovider` and mark the provider as `describe`-capable in `imagine providers` listings.
+
+### 1. Add a `DefaultVisionModel` constant and read `vision_model` in `New()`
+
+```go
+const DefaultVisionModel = "my-vision-model-v1" // or whatever your API uses
+
+func New(auth providers.Auth) (providers.Provider, error) {
+    key := auth.Get("api_key")
+    if key == "" {
+        return nil, errors.New("myprovider requires api_key")
+    }
+    return &Provider{
+        apiKey:      key,
+        visionModel: auth.Get("vision_model"),
+    }, nil
+}
+```
+
+### 2. Implement `Describer` on `*Provider`
+
+```go
+func (p *Provider) Describe(ctx context.Context, req providers.DescribeRequest) (*providers.ImageDescription, error) {
+    model := req.Model
+    if model == "" {
+        model = p.visionModel
+    }
+    if model == "" {
+        model = DefaultVisionModel
+    }
+    // ... call your vision API, returning either Text or Structured ...
+    return &providers.ImageDescription{Text: "A vivid description..."}, nil
+}
+```
+
+### 3. Expose `DefaultInstructions()`
+
+This powers `imagine describe --show-instructions`.
+
+```go
+const textInstruction = `You are an expert image style analyst. ...`
+const jsonInstruction = `Analyze the image style. Respond with JSON...`
+
+func (p *Provider) DefaultInstructions() (text, json string) {
+    return textInstruction, jsonInstruction
+}
+```
+
+### 4. Set `Bundle.Vision` in `register.go`
+
+```go
+providers.Register("myprovider", providers.Bundle{
+    Factory:      New,
+    Vision:       &providers.Vision{}, // non-nil = supports describe
+    // ... BindFlags, ReadFlags, ParseOptions, etc. unchanged ...
+})
+```
+
+That’s it. The CLI automatically:
+- Shows `describe` in the capability badges for `imagine providers`
+- Routes `imagine describe --provider myprovider` to your `Describe()`
+- Prints your built-in prompts when `--show-instructions` is passed
 
 ---
 

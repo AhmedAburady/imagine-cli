@@ -79,7 +79,7 @@ Each provider also accepts an optional `--vision-model` flag to override the def
 
 ```bash
 imagine providers add openai --api-key sk-XXX --vision-model gpt-5.4
-imagine providers add gemini --api-key AIza-XXX --vision-model gemini-3.1-pro-preview
+imagine providers add gemini --api-key AIza-XXX --vision-model gemini-pro-latest
 ```
 
 Defaults (used when `vision_model` is unset): `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), `gpt-5.4-mini` (openai).
@@ -258,7 +258,7 @@ panorama:
   provider: gemini
   model: pro
   size: 4K
-  aspect-ratio: 32:9
+  aspect-ratio: 21:9
 ```
 
 ```bash
@@ -275,8 +275,10 @@ Analyse an image and produce a style description. Works with **all three provide
 imagine describe -i photo.jpg                                  # plain text, active describer
 imagine describe -i ./styles/ --json -o style.json             # structured JSON from a folder
 imagine describe -i photo.jpg --provider openai                # per-invocation override
-imagine describe -i photo.jpg --provider vertex -m gemini-3.1-pro-preview   # model override
+imagine describe -i photo.jpg --provider vertex -m gemini-pro-latest   # model override
 imagine describe --show-instructions                            # print built-in prompts, exit
+imagine describe -i photo.jpg -p "Rate composition 1-10"       # custom instruction (replaces default)
+imagine describe -i photo.jpg -a "Focus on lighting"           # extra context prepended to default
 ```
 
 | Flag | Purpose |

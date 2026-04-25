@@ -138,9 +138,9 @@ Happens at high `-n` values or short loops. imagine doesn't auto-retry. Options:
 - Reduce `-n`.
 - Upgrade the OpenAI tier.
 
-## Ctrl+C hangs
+## Ctrl+C doesn't abort
 
-It shouldn't. imagine uses context cancellation; in-flight HTTP requests abort when you press Ctrl+C. If a command is stuck after SIGINT, it's a bug — report it.
+imagine uses context cancellation; in-flight HTTP requests should abort when you press Ctrl+C. If a command is stuck after SIGINT, that's a bug — report it.
 
 ## `imagine --version` prints "dev" on a built release
 

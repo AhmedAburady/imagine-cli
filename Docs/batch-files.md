@@ -461,7 +461,7 @@ hero_banner:
   provider: gemini
   model: pro
   size: 4K
-  aspect-ratio: 32:9
+  aspect-ratio: 21:9
 
 with_search:
   prompt: "Latest model of the Tesla Cybertruck, factory white"
