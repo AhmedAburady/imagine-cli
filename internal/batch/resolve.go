@@ -2,6 +2,7 @@ package batch
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -231,9 +232,7 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 			pvtMap[name] = val
 		}
 	}
-	for k, v := range providerKeys {
-		pvtMap[k] = v
-	}
+	maps.Copy(pvtMap, providerKeys)
 
 	providerOpts, err := bundle.ParseOptions(pvtMap, providers.Common{Filename: effFilename})
 	if err != nil {

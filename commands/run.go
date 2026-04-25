@@ -69,7 +69,7 @@ func runBatch(cmd *cobra.Command, opts *cli.Options, providerName string) error 
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-	defaultProv, err := resolveDefaultProviderForBatch(providerName)
+	defaultProv, err := resolveDefaultProviderForBatch(providerName, cfg)
 	if err != nil {
 		return err
 	}

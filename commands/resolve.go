@@ -13,8 +13,10 @@ import (
 // Same precedence chain, but a missing provider is not an error —
 // batch entries can set provider: themselves, so the per-entry resolver
 // catches the truly missing case with better context. Returns an error
-// only when --provider names something unknown.
-func resolveDefaultProviderForBatch(flagValue string) (string, error) {
+// only when --provider names something unknown. The caller should pass
+// the already-loaded config (or nil if unavailable) to avoid a redundant
+// file read.
+func resolveDefaultProviderForBatch(flagValue string, cfg *config.Config) (string, error) {
 	if flagValue != "" {
 		if _, ok := providers.Get(flagValue); !ok {
 			return "", fmt.Errorf("unknown provider %q (available: %v)", flagValue, providers.List())
@@ -26,7 +28,7 @@ func resolveDefaultProviderForBatch(flagValue string) (string, error) {
 			return name, nil
 		}
 	}
-	if cfg, err := config.Load(); err == nil {
+	if cfg != nil {
 		for _, candidate := range sortedProviderKeys(cfg.Providers) {
 			if _, ok := providers.Get(candidate); ok {
 				return candidate, nil

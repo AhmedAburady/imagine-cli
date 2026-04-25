@@ -55,7 +55,6 @@ func Bind(cmd *cobra.Command, prototype any) {
 	flags := cmd.Flags()
 
 	for f := range t.Fields() {
-		f := f
 		name, short, skip := parseFlagTag(f)
 		if skip {
 			continue

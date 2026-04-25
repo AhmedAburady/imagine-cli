@@ -35,13 +35,10 @@ func Run(ctx context.Context, resolved []Resolved) error {
 	results := make([]EntryResult, len(resolved))
 	startTime := time.Now()
 	for i, r := range resolved {
-		i, r := i, r
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			out := api.RunGeneration(ctx, r.Provider, r.Request, r.Params)
 			results[i] = EntryResult{Resolved: r, Output: out}
-		}()
+		})
 	}
 	wg.Wait()
 	s.Stop()
@@ -76,11 +73,11 @@ func Run(ctx context.Context, resolved []Resolved) error {
 // switching between tools see status the same way.
 
 var (
-	tblHeaderStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
-	tblBorderStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	tblCellStyle      = lipgloss.NewStyle().PaddingLeft(1).PaddingRight(1)
-	tblFailedStyle    = lipgloss.NewStyle().PaddingLeft(1).PaddingRight(1).Foreground(lipgloss.Color("183"))
-	tblPartialStyle   = lipgloss.NewStyle().PaddingLeft(1).PaddingRight(1).Foreground(lipgloss.Color("214"))
+	tblHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
+	tblBorderStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	tblCellStyle    = lipgloss.NewStyle().PaddingLeft(1).PaddingRight(1)
+	tblFailedStyle  = lipgloss.NewStyle().PaddingLeft(1).PaddingRight(1).Foreground(lipgloss.Color("183"))
+	tblPartialStyle = lipgloss.NewStyle().PaddingLeft(1).PaddingRight(1).Foreground(lipgloss.Color("214"))
 )
 
 // summaryRow holds the data for one table row plus its rendering state.
