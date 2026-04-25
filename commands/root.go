@@ -64,6 +64,16 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 				return nil
 			}
 
+			// Validate first so batch detection can short-circuit the
+			// active-provider gate (per-entry filtering replaces it).
+			if err := opts.Validate(); err != nil {
+				return err
+			}
+
+			if opts.IsBatch {
+				return nil
+			}
+
 			active, err := resolveProvider(providerName)
 			if err != nil {
 				return err
@@ -79,16 +89,16 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 				return err
 			}
 
-			if err := enforceModelSupport(cmd, bundle, providerOptions); err != nil {
-				return err
-			}
-
-			return opts.Validate()
+			return enforceModelSupport(cmd, bundle, providerOptions)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Bare invocation (no -p) → print help and exit cleanly.
 			if opts.Prompt == "" {
 				return cmd.Help()
+			}
+
+			if opts.IsBatch {
+				return runBatch(cmd, opts, providerName)
 			}
 
 			active, _ := resolveProvider(providerName)

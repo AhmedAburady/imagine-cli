@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/AhmedAburady/imagine-cli/cli"
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
 
@@ -26,7 +27,7 @@ func applyProviderFlagVisibility(cmd *cobra.Command, active string) {
 		supported[f] = true
 	}
 	cmd.Flags().VisitAll(func(fl *pflag.Flag) {
-		if commonFlags[fl.Name] {
+		if cli.IsCommonFlag(fl.Name) {
 			fl.Hidden = false
 			return
 		}
