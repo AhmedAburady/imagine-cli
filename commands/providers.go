@@ -129,10 +129,7 @@ func runProvidersShow(cmd *cobra.Command, _ []string) error {
 		}
 
 		pills := pillStrs[i]
-		pad := maxPillWidth - lipgloss.Width(pills)
-		if pad < 0 {
-			pad = 0
-		}
+		pad := max(maxPillWidth-lipgloss.Width(pills), 0)
 
 		caps := dimStyle.Render(capabilityBadges(b, registered))
 

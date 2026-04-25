@@ -89,43 +89,36 @@ func (p *Provider) Info() providers.Info {
 // Generate calls /v1/images/generations (pure generate) or /v1/images/edits
 // (when References are present).
 func (p *Provider) Generate(ctx context.Context, req providers.Request) (*providers.Response, error) {
-	opts, ok := req.Options.(map[string]any)
+	opts, ok := req.Options.(*Options)
 	if !ok {
-		return nil, fmt.Errorf("openai: internal: expected map[string]any options, got %T", req.Options)
+		return nil, fmt.Errorf("openai: internal: expected *Options, got %T", req.Options)
 	}
-	model, _ := opts["model"].(string)
-	size, _ := opts["size"].(string)
-	quality, _ := opts["quality"].(string)
-	outputFormat, _ := opts["output_format"].(string)
-	moderation, _ := opts["moderation"].(string)
-	background, _ := opts["background"].(string)
-	compression, _ := opts["compression"].(int)
 
 	// Edit mode when references are present.
 	if len(req.References) > 0 {
 		return p.edit(ctx, editRequest{
-			Model:        model,
+			Model:        opts.Model,
 			Prompt:       req.Prompt,
 			N:            req.N,
-			Size:         size,
-			Quality:      quality,
-			OutputFormat: outputFormat,
-			Compression:  compression,
-			Background:   background,
+			Size:         opts.Size,
+			Quality:      opts.Quality,
+			OutputFormat: opts.OutputFormat,
+			Compression:  opts.Compression,
+			Background:   opts.Background,
 			References:   req.References,
 		})
 	}
 
 	return p.generate(ctx, generateRequest{
-		Model:        model,
+		Model:        opts.Model,
 		Prompt:       req.Prompt,
 		N:            req.N,
-		Size:         size,
-		Quality:      quality,
-		OutputFormat: outputFormat,
-		Compression:  compression,
-		Moderation:   moderation,
-		Background:   background,
+		Size:         opts.Size,
+		Quality:      opts.Quality,
+		OutputFormat: opts.OutputFormat,
+		Compression:  opts.Compression,
+		Moderation:   opts.Moderation,
+		Background:   opts.Background,
 	})
 }
 

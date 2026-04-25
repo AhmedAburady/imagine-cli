@@ -9,6 +9,35 @@ import (
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
 
+// resolveDefaultProviderForBatch is resolveProvider's batch-mode twin.
+// Same precedence chain, but a missing provider is not an error —
+// batch entries can set provider: themselves, so the per-entry resolver
+// catches the truly missing case with better context. Returns an error
+// only when --provider names something unknown. The caller should pass
+// the already-loaded config (or nil if unavailable) to avoid a redundant
+// file read.
+func resolveDefaultProviderForBatch(flagValue string, cfg *config.Config) (string, error) {
+	if flagValue != "" {
+		if _, ok := providers.Get(flagValue); !ok {
+			return "", fmt.Errorf("unknown provider %q (available: %v)", flagValue, providers.List())
+		}
+		return flagValue, nil
+	}
+	if name := config.GetDefaultProvider(); name != "" {
+		if _, ok := providers.Get(name); ok {
+			return name, nil
+		}
+	}
+	if cfg != nil {
+		for _, candidate := range sortedProviderKeys(cfg.Providers) {
+			if _, ok := providers.Get(candidate); ok {
+				return candidate, nil
+			}
+		}
+	}
+	return "", nil
+}
+
 // resolveProvider returns the active provider name with precedence:
 //
 //	--provider flag → config.default_provider → first under providers: → error

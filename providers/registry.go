@@ -36,6 +36,22 @@ type Bundle struct {
 	// is invalid (unknown model, out-of-range size, …).
 	ReadFlags func(cmd *cobra.Command) (any, error)
 
+	// ParseOptions populates the provider's Options value from a generic
+	// key/value map (e.g. parsed YAML or JSON for one batch entry). The
+	// returned value has the same shape ReadFlags would produce — Generate
+	// type-asserts both paths identically. Keys are the same long flag
+	// names declared in SupportedFlags; missing keys fall back to the
+	// provider's defaults; unknown keys return an error.
+	//
+	// Common carries per-entry hints from common flags (filename, etc.)
+	// that some providers fold into their private options (OpenAI's
+	// output_format depends on the filename's extension).
+	//
+	// Optional: if nil, the provider does not yet support batch-file
+	// invocation. Wiring it costs one line per provider when Options uses
+	// flagspec — call flagspec.Parse(prototype, values, info).
+	ParseOptions func(values map[string]any, common Common) (any, error)
+
 	// Info mirrors Provider.Info so the registry can answer queries without
 	// constructing the provider.
 	Info Info
@@ -51,6 +67,18 @@ type Bundle struct {
 
 	// Vision is non-nil iff the provider implements Describer.
 	Vision *Vision
+}
+
+// Common carries per-entry runtime hints to ParseOptions when a batch
+// file invokes the CLI. Fields here are common-flag values resolved per
+// entry — providers that fold them into their private options (e.g.
+// OpenAI's output_format from the filename extension) read them through
+// this struct rather than reaching into the cobra command.
+type Common struct {
+	// Filename is the entry's effective output filename (after CLI defaults
+	// and entry overrides have been merged). Empty when neither the entry
+	// nor the CLI specified one.
+	Filename string
 }
 
 // ProvidersSupportingDescribe returns describe-capable provider names, sorted.

@@ -23,7 +23,38 @@ type Options struct {
 	NumImages        int
 	RefInputs        []string
 	PreserveFilename bool
+
+	// IsBatch is set by Validate when -p resolves to a batch file
+	// (.yaml/.yml/.json). Callers branch on this to call internal/batch
+	// instead of building a single-shot Request.
+	IsBatch bool
 }
+
+// IsBatchPath returns true if path's extension marks it as a batch
+// file. Delegates to paths.IsBatchFile so cli and batch always agree.
+func IsBatchPath(path string) bool {
+	return paths.IsBatchFile(path)
+}
+
+// CommonFlagNames lists the truly provider-agnostic flag names — the
+// long forms of the flags bound on the root command in commands/root.go.
+// Single source of truth: both the single-shot validation gate and the
+// batch path read from this map. Any flag not listed here must be
+// claimed by at least one provider's Bundle.SupportedFlags.
+var CommonFlagNames = map[string]bool{
+	"prompt":   true,
+	"output":   true,
+	"filename": true,
+	"count":    true,
+	"input":    true,
+	"replace":  true,
+	"provider": true,
+	"help":     true,
+	"version":  true,
+}
+
+// IsCommonFlag reports whether name is a common (provider-agnostic) flag.
+func IsCommonFlag(name string) bool { return CommonFlagNames[name] }
 
 // Validate runs provider-agnostic checks:
 //   - -p is required (reading from a file if the value points at a path)
@@ -39,13 +70,20 @@ func (opts *Options) Validate() error {
 
 	promptPath := paths.ExpandTilde(opts.Prompt)
 	if info, err := os.Stat(promptPath); err == nil && !info.IsDir() {
-		data, err := os.ReadFile(promptPath)
-		if err != nil {
-			return fmt.Errorf("failed to read prompt file: %v", err)
-		}
-		opts.Prompt = strings.TrimSpace(string(data))
-		if opts.Prompt == "" {
-			return fmt.Errorf("prompt file is empty: %s", promptPath)
+		if IsBatchPath(promptPath) {
+			// Batch file — defer reading to the batch loader. Keep
+			// Prompt as the canonical path so commands can dispatch.
+			opts.Prompt = promptPath
+			opts.IsBatch = true
+		} else {
+			data, err := os.ReadFile(promptPath)
+			if err != nil {
+				return fmt.Errorf("failed to read prompt file: %v", err)
+			}
+			opts.Prompt = strings.TrimSpace(string(data))
+			if opts.Prompt == "" {
+				return fmt.Errorf("prompt file is empty: %s", promptPath)
+			}
 		}
 	}
 
@@ -56,6 +94,16 @@ func (opts *Options) Validate() error {
 
 	if opts.NumImages < 1 || opts.NumImages > 20 {
 		return fmt.Errorf("number of images must be between 1 and 20")
+	}
+
+	if opts.IsBatch {
+		// Batch mode: -r is per-entry only; the rest of the common-flag
+		// validation (-i existence, -f vs -r, single-input rule) runs
+		// inside batch.Resolve so per-entry overrides win.
+		if opts.PreserveFilename {
+			return fmt.Errorf("--replace is not allowed in batch mode (set replace: true per entry instead)")
+		}
+		return nil
 	}
 
 	for _, ref := range opts.RefInputs {

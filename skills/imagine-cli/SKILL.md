@@ -1,6 +1,6 @@
 ---
 name: imagine-cli
-description: imagine is a multi-provider command-line tool for generating and editing images via Google Gemini, Google Vertex AI, and OpenAI (gpt-image-2). Use this skill whenever the user mentions imagine, wants to generate or edit images from the terminal, needs to set up an API key for Gemini / OpenAI / Vertex, switches default providers, or runs any `imagine providers` / `imagine describe` subcommand — even if they don't say the word "imagine" explicitly.
+description: imagine is a multi-provider command-line tool for generating and editing images via Google Gemini, Google Vertex AI, and OpenAI (gpt-image-2). Use this skill whenever the user mentions imagine, wants to generate or edit images from the terminal, needs to set up an API key for Gemini / OpenAI / Vertex, switches default providers, runs any `imagine providers` / `imagine describe` subcommand, or wants to run multiple image-generation jobs from a YAML/JSON batch file (single command, many prompts, parallel) — even if they don't say the word "imagine" explicitly.
 ---
 
 # imagine CLI
@@ -18,6 +18,7 @@ Use this skill whenever the user:
 - Hits an error — fixes live in [references/troubleshooting.md](references/troubleshooting.md)
 - Asks which provider to pick for a task
 - References sizes (`1K`, `2K`, `4K`, `1024x1024`, `3840x2160`, etc.)
+- Wants to run multiple jobs in one invocation, mix providers in a single run, or hands you a `.yaml` / `.yml` / `.json` file describing image-generation jobs — that's batch mode (`imagine -p batch.yaml`)
 
 ## Workflow
 
@@ -78,7 +79,7 @@ Each provider also accepts an optional `--vision-model` flag to override the def
 
 ```bash
 imagine providers add openai --api-key sk-XXX --vision-model gpt-5.4
-imagine providers add gemini --api-key AIza-XXX --vision-model gemini-3.1-pro-preview
+imagine providers add gemini --api-key AIza-XXX --vision-model gemini-pro-latest
 ```
 
 Defaults (used when `vision_model` is unset): `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), `gpt-5.4-mini` (openai).
@@ -144,6 +145,128 @@ Provider pick heuristic:
 - Fast iteration, Google ecosystem, live-search grounding → **Gemini**
 - GCP-native auth / enterprise quotas → **Vertex**
 
+## Batch mode
+
+`-p` accepts a YAML / `.yml` / JSON file describing multiple jobs. File-vs-text decided by extension. Other extensions (`.txt`, none) read as plain prompt-file text.
+
+### Schema rule
+
+Every key inside an entry is the long name of a CLI flag — same set as `imagine --help`. Unknown keys error before any HTTP call.
+
+### Top-level shape
+
+Map form (recommended) — entries keyed by name; YAML preserves order, JSON sorts alphabetically; **map keys must be bare stems** (no `.png` / no dots):
+
+```yaml
+hero_shot:
+  prompt: "..."
+  provider: openai
+castle:
+  prompt: "..."
+  provider: gemini
+```
+
+List form — entries are anonymous; the summary table identifies them by 1-based index. Without an explicit `filename:`, list-form entries fall back to the same `generated_{n}_{timestamp}.png` default that single-shot mode uses.
+
+```yaml
+- prompt: "first"
+- prompt: "second"
+```
+
+### Common keys (every entry)
+
+| Key | Type | Notes |
+|---|---|---|
+| `prompt` | string | **Required**. Use YAML `\|` for multi-line prompts. |
+| `provider` | string | `gemini` / `vertex` / `openai`. Falls back to `--provider` then config default. |
+| `output` | string | Output folder. `~` expanded. Default = CLI `-o` (or `.`). |
+| `filename` | string | Full filename with extension. Mutually exclusive with `replace`. |
+| `count` | int | 1–20. With `count > 1`, names get `_1`, `_2`, … suffix. |
+| `input` | string OR list | Reference file/folder, or list of them. Flips entry into edit mode. `~` expanded. |
+| `replace` | bool | Use input filename as output. Requires exactly one input pointing at a file. Mutually exclusive with `filename`. |
+
+### Provider-private keys
+
+Setting a key for the wrong provider errors. Defaults are applied per provider; omit to use them.
+
+**Gemini:** `model` (`pro`/`flash`/full ID, default `pro`), `size` (`1K`/`2K`/`4K`, default `1K`), `aspect-ratio` (string, e.g. `16:9`), `grounding` (bool), `thinking` (`minimal`/`high`, **flash only**), `image-search` (bool, **flash only**).
+
+**Vertex:** same as Gemini but **no `image-search`** (not exposed via Vertex AI).
+
+**OpenAI:** `model` (`gpt-image-2` (default) / `1.5` / `1` / `mini` / `1-mini` / `latest`), `size` (`1K`/`2K`/`4K` shorthand, `auto`, or raw `WxH` like `1024x1024`, default `auto`), `quality` (`auto`/`low`/`medium`/`high`, default `auto`), `compression` (0–100 int, default `100`, jpeg/webp only), `moderation` (`auto`/`low`), `background` (`auto`/`opaque`/`transparent`; `transparent` requires PNG/WebP output AND a non-`gpt-image-2` model).
+
+OpenAI edit mode (entry has `input:`) restricts `size:` to `1024x1024` / `1536x1024` / `1024x1536` / `auto`.
+
+### CLI flag interaction
+
+CLI flags = defaults; entry values override.
+
+```bash
+imagine -p batch.yaml -n 3 -s 1024x1024 -o ./out
+```
+
+Per-entry filtering: a CLI flag flows to an entry only if the entry's provider claims it. So `--thinking high` against a mixed batch applies to gemini/vertex entries and silently skips openai entries. If **no** entry's provider claims the flag, validation errors before any HTTP call.
+
+Top-level `--replace` is rejected in batch mode — set `replace: true` per-entry instead.
+
+### Filename behavior
+
+Resolution order: entry's `filename:` → CLI `-f` → entry name as stem (sanitized) → fallback. Sanitization replaces `/ \ : * ? " < > |` and whitespace with `_`. Entry-name stem with no extension defaults to `.png`. Cross-entry filename collisions error before HTTP.
+
+### Validation
+
+Up-front and exhaustive. Schema errors, missing prompts, bad enum values, model-level rule violations, missing reference paths, and filename collisions all surface together in one report. No HTTP fires until validation passes.
+
+### Parallelism
+
+Outer: one goroutine per entry. Inner: orchestrator splits each entry's `count:` by `MaxBatchN` (Gemini/Vertex = 1, OpenAI = 10). Two Gemini entries × `count: 5` → 10 parallel HTTP calls. **No global cap** — watch rate limits on large batches.
+
+### Output
+
+Summary table at the end with columns `ENTRY` / `PROVIDER` / `MODEL` / `IMAGES` (succeeded/total) / `TIME` / `STATUS` (`ok` / `partial` / `failed`). Per-entry failure detail prints below the table. Exit code non-zero if any image failed.
+
+### Common errors and fixes
+
+| Error | Fix |
+|---|---|
+| `entry "foo.png": key must be a bare stem` | Drop the extension from the key; use `filename: foo.png` for the file extension. |
+| `entry hero: prompt is required` | Add `prompt:`. |
+| `entry hero: unknown key(s) [...]` | Key not in that provider's schema; cross-check the tables above. |
+| `entry hero: --thinking is not supported by model "pro"` | Set `model: flash` on the entry, or drop `thinking:`. |
+| `--X is not supported by any provider used in this batch` | Drop the CLI flag, or add an entry whose provider claims it. |
+| `filename collision: entry a and entry b both produce ...` | Set distinct `filename:` per entry. |
+| `--replace is not allowed in batch mode` | Use per-entry `replace: true`. |
+| `provider "X" does not support batch invocation` | Use one of the shipped providers (gemini, vertex, openai). |
+
+### Example — mixed providers
+
+```yaml
+hero_shot:
+  prompt: "A samurai at dusk, cinematic"
+  provider: openai
+  size: 1024x1024
+  quality: high
+  filename: hero.jpg
+
+logo_iterations:
+  prompt: "Minimalist coffee shop logo"
+  provider: openai
+  count: 3
+
+panorama:
+  prompt: "Mountain panorama at sunset"
+  provider: gemini
+  model: pro
+  size: 4K
+  aspect-ratio: 21:9
+```
+
+```bash
+imagine -p mixed.yaml -o ./out
+```
+
+Full schema, more examples (edit mode, JSON, multi-line prompts), and an extended error/fix table: [`Docs/batch-files.md`](../../Docs/batch-files.md) in the imagine-cli repo.
+
 ## Describe subcommand
 
 Analyse an image and produce a style description. Works with **all three providers** — each picks its own vision model.
@@ -152,8 +275,10 @@ Analyse an image and produce a style description. Works with **all three provide
 imagine describe -i photo.jpg                                  # plain text, active describer
 imagine describe -i ./styles/ --json -o style.json             # structured JSON from a folder
 imagine describe -i photo.jpg --provider openai                # per-invocation override
-imagine describe -i photo.jpg --provider vertex -m gemini-3.1-pro-preview   # model override
+imagine describe -i photo.jpg --provider vertex -m gemini-pro-latest   # model override
 imagine describe --show-instructions                            # print built-in prompts, exit
+imagine describe -i photo.jpg -p "Rate composition 1-10"       # custom instruction (replaces default)
+imagine describe -i photo.jpg -a "Focus on lighting"           # extra context prepended to default
 ```
 
 | Flag | Purpose |

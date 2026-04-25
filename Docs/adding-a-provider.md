@@ -14,12 +14,14 @@ This guide walks you through adding a new image-generation provider to imagine. 
 - [Step 3 — Implement Provider](#step-3--implement-provider)
 - [Step 4 — Declare ConfigSchema (onboarding)](#step-4--declare-configschema-onboarding)
 - [Step 5 — Register the Bundle](#step-5--register-the-bundle)
+- [Step 5b — Enable `imagine describe` (optional)](#step-5b--enable-imagine-describe-optional)
 - [Step 6 — Add the contract test](#step-6--add-the-contract-test)
 - [Step 7 — Wire into providers/all](#step-7--wire-into-providersall)
 - [Worked example](#worked-example)
 - [Non-HTTP providers](#non-http-providers)
 - [Opting out of flagspec](#opting-out-of-flagspec)
 - [Optional capability interfaces](#optional-capability-interfaces)
+- [Validation gate](#validation-gate)
 - [Testing checklist](#testing-checklist)
 - [Reference — framework APIs](#reference--framework-apis)
 
@@ -39,7 +41,7 @@ providers/myprovider/
 
 Plus one line in `providers/all/all.go` to blank-import the package. That's it.
 
-Expect ~120–150 lines total. The boilerplate that used to dominate provider code — HTTP plumbing, flag registration, enum validation — is handled by the framework.
+Expect ~120–150 lines total. The boilerplate that would otherwise dominate — HTTP plumbing, flag registration, enum validation, batch-file parsing — is handled by the framework. Providers whose private options need to peek at a common-flag value (such as deriving an output format from `-f`'s extension) write a slightly larger `register.go`; see [Step 5](#step-5--register-the-bundle).
 
 ---
 
@@ -61,7 +63,7 @@ Your provider's private flags live as struct tags on an `Options` struct. The fr
 - Validate enum/range values
 - Apply defaults
 - Resolve model aliases
-- Populate the struct at parse time
+- Populate the struct at parse time (CLI flags or batch-file entries)
 
 ### `options.go`
 
@@ -357,7 +359,9 @@ One schema drives four things: form, flags, storage keys, and the factory's read
 
 ## Step 5 — Register the Bundle
 
-### `register.go`
+Registration wires four jobs to your `Options` struct: bind CLI flags, read CLI flags, parse a batch-file entry's key/value map, and list which flag names the provider claims. For pure-flagspec providers each is a one-liner.
+
+### `register.go` — the simple case
 
 ```go
 package myprovider
@@ -376,6 +380,7 @@ func init() {
     info := p.Info()
     providers.Register("myprovider", providers.Bundle{
         Factory: New,
+        Vision:  &providers.Vision{}, // omit if your provider doesn't support describe
         BindFlags: func(cmd *cobra.Command) {
             // flagspec.Bind panics on malformed tags — programmer errors
             // discoverable at init time. No error handling needed.
@@ -384,6 +389,9 @@ func init() {
         ReadFlags: func(cmd *cobra.Command) (any, error) {
             return flagspec.Read(cmd, Options{}, info)
         },
+        ParseOptions: func(values map[string]any, _ providers.Common) (any, error) {
+            return flagspec.Parse(Options{}, values, info)
+        },
         SupportedFlags: flagspec.FieldNames(Options{}),
         Info:           info,
         ConfigSchema:   p.ConfigSchema(), // drives `providers add`
@@ -391,7 +399,161 @@ func init() {
 }
 ```
 
-That's the whole file. `flagspec.Bind`, `Read`, and `FieldNames` all derive from your `Options` struct via reflection. `ConfigSchema` is cached on the Bundle (not called via interface) so onboarding works before any auth exists — instantiating the provider would fail with empty credentials.
+That's the whole file. `flagspec.Bind`, `Read`, `Parse`, and `FieldNames` all derive from your `Options` struct via reflection. `ConfigSchema` is cached on the Bundle (not called via interface) so onboarding works before any auth exists — instantiating the provider would fail with empty credentials.
+
+### What `ParseOptions` does
+
+`ParseOptions` is the batch-file face of your schema. When a user runs `imagine -p batch.yaml` with multiple entries, the runner loads the file, resolves per-entry overrides against CLI defaults, then calls each entry's provider's `ParseOptions(values, common)` to populate a typed `Options`. The returned shape matches what `ReadFlags` produces — `Generate` type-asserts both paths identically.
+
+| Argument | Meaning |
+|---|---|
+| `values map[string]any` | YAML/JSON keys for one entry. Keys are the long flag names from `SupportedFlags`; missing keys fall back to your tag defaults; unknown keys return an error |
+| `common providers.Common` | Per-entry common-flag context (currently `Filename`); read it only when a private option depends on a common flag |
+
+`ParseOptions` is **optional**. If `nil`, the provider does not support batch-file invocation — users attempting it get a clear `provider %q does not support batch invocation` error. Single-shot CLI behaviour is unaffected.
+
+### `register.go` — when a private option depends on a common flag
+
+If one of your private options needs to read a common-flag value, your `ReadFlags` and `ParseOptions` closures do a little more than the one-liner. The OpenAI provider is the canonical example: its `output_format` private field is derived from the extension of `-f` (a common flag), and its `--background transparent` rule has cross-field dependencies on both `Model` and `OutputFormat`.
+
+The pattern: declare the dependent field as `flag:"-"` on `Options` so flagspec ignores it, then set it inside `ReadFlags` and `ParseOptions` before any cross-field validation that needs it.
+
+```go
+type Options struct {
+    Model      string `flag:"model,m" enum:"@models"`
+    Background string `flag:"background" enum:"auto,opaque,transparent"`
+    // ... other tagged fields ...
+
+    // Derived from the common -f filename's extension by the caller
+    // (CLI ReadFlags closure or batch ParseOptions closure) before
+    // Generate. Not a CLI flag.
+    OutputFormat string `flag:"-"`
+}
+
+// finalizeOptions runs cross-field rules that depend on OutputFormat —
+// those can't live in Validate(Info) because OutputFormat is set
+// after flagspec.Read / flagspec.Parse return.
+func finalizeOptions(o *Options) error {
+    if o.Background == "transparent" && o.OutputFormat == "jpeg" {
+        return fmt.Errorf("--background transparent requires PNG or WebP output")
+    }
+    return nil
+}
+```
+
+```go
+// register.go
+ReadFlags: func(cmd *cobra.Command) (any, error) {
+    optsAny, err := flagspec.Read(cmd, Options{}, info)
+    if err != nil {
+        return nil, err
+    }
+    o := optsAny.(*Options)
+    // OutputFormat is derived from the common -f filename's extension.
+    // ReadFlags reaches into the cobra FlagSet rather than introducing
+    // a new abstraction for one shared field.
+    filename, _ := cmd.Flags().GetString("filename")
+    o.OutputFormat = outputFormatFromFilename(filename)
+    if err := finalizeOptions(o); err != nil {
+        return nil, err
+    }
+    return o, nil
+},
+ParseOptions: func(values map[string]any, common providers.Common) (any, error) {
+    optsAny, err := flagspec.Parse(Options{}, values, info)
+    if err != nil {
+        return nil, err
+    }
+    o := optsAny.(*Options)
+    o.OutputFormat = outputFormatFromFilename(common.Filename)
+    if err := finalizeOptions(o); err != nil {
+        return nil, err
+    }
+    return o, nil
+},
+```
+
+The seam is `providers.Common`. `ReadFlags` reads the common flag from cobra; `ParseOptions` reads the same value from `Common.Filename`. Both produce the same `*Options`, both run the same `finalizeOptions`. `Generate` is unaware of which path populated it.
+
+### `providers.Common` reference
+
+```go
+type Common struct {
+    // Filename is the entry's effective output filename (after CLI
+    // defaults and entry overrides have been merged). Empty when
+    // neither the entry nor the CLI specified one.
+    Filename string
+}
+```
+
+Add fields here only when a real provider needs them — the field set is intentionally minimal so the seam stays narrow.
+
+---
+
+## Step 5b — Enable `imagine describe` (optional)
+
+If your provider can also analyse images and return style descriptions, implement the `Describer` interface and set `Bundle.Vision` at registration. The CLI will then surface `imagine describe --provider myprovider` and mark the provider as `describe`-capable in `imagine providers` listings.
+
+### 1. Add a `DefaultVisionModel` constant and read `vision_model` in `New()`
+
+```go
+const DefaultVisionModel = "my-vision-model-v1" // or whatever your API uses
+
+func New(auth providers.Auth) (providers.Provider, error) {
+    key := auth.Get("api_key")
+    if key == "" {
+        return nil, errors.New("myprovider requires api_key")
+    }
+    return &Provider{
+        apiKey:      key,
+        visionModel: auth.Get("vision_model"),
+    }, nil
+}
+```
+
+### 2. Implement `Describer` on `*Provider`
+
+```go
+func (p *Provider) Describe(ctx context.Context, req providers.DescribeRequest) (*providers.ImageDescription, error) {
+    model := req.Model
+    if model == "" {
+        model = p.visionModel
+    }
+    if model == "" {
+        model = DefaultVisionModel
+    }
+    // ... call your vision API, returning either Text or Structured ...
+    return &providers.ImageDescription{Text: "A vivid description..."}, nil
+}
+```
+
+### 3. Expose `DefaultInstructions()`
+
+This powers `imagine describe --show-instructions`.
+
+```go
+const textInstruction = `You are an expert image style analyst. ...`
+const jsonInstruction = `Analyze the image style. Respond with JSON...`
+
+func (p *Provider) DefaultInstructions() (text, json string) {
+    return textInstruction, jsonInstruction
+}
+```
+
+### 4. Set `Bundle.Vision` in `register.go`
+
+```go
+providers.Register("myprovider", providers.Bundle{
+    Factory:      New,
+    Vision:       &providers.Vision{}, // non-nil = supports describe
+    // ... BindFlags, ReadFlags, ParseOptions, etc. unchanged ...
+})
+```
+
+That’s it. The CLI automatically:
+- Shows `describe` in the capability badges for `imagine providers`
+- Routes `imagine describe --provider myprovider` to your `Describe()`
+- Prints your built-in prompts when `--show-instructions` is passed
 
 ---
 
@@ -475,9 +637,9 @@ What happens under the hood:
 2. `providers add myprovider` reads `Bundle.ConfigSchema`, prompts for missing required fields (or errors listing them under non-TTY), writes flat to `providers.myprovider.*` in `config.yaml`
 3. Fang renders provider-aware `--help` showing your `Options` tags
 4. `--provider myprovider` resolves the active provider
-5. `enforceFlagSupport` confirms `--fast` and `--steps` are in your `SupportedFlags`
+5. The validation gate confirms `--fast` and `--steps` are in your `SupportedFlags`
 6. `flagspec.Read` populates `*Options`; `Normalize()` runs; `Validate(Info)` runs
-7. `enforceModelSupport` confirms the resolved model (`example-v2-pro`) supports `--fast`
+7. The validation gate confirms the resolved model (`example-v2-pro`) supports `--fast`
 8. `New(auth)` reads credentials via `auth.Get("api_key")`
 9. Orchestrator calls `Generate(ctx, req)` with `req.N` split into batches
 10. Each image is written to disk by the shared orchestrator
@@ -523,7 +685,7 @@ Everything else — `Options`, flagspec, register, contract test — works ident
 
 ## Opting out of flagspec
 
-Flagspec covers the 80% case. For the 20% that doesn't fit, you can write `BindFlags` and `ReadFlags` by hand:
+Flagspec covers the 80% case. For the 20% that doesn't fit, the Bundle's flag-handling fields are plain function values — you can replace them with anything that satisfies the signatures.
 
 ```go
 providers.Register("myprovider", providers.Bundle{
@@ -538,22 +700,30 @@ providers.Register("myprovider", providers.Bundle{
         // custom parsing: accept "auto", "1024x1024", or regexed WxH
         if err := validateSize(size); err != nil { return nil, err }
         // return any shape you like — could be map[string]any or a typed struct
-        return &Options{Size: size}, nil
+        return map[string]any{"size": size}, nil
+    },
+    ParseOptions: func(values map[string]any, common providers.Common) (any, error) {
+        // mirror your ReadFlags output shape; map[string]any works
+        if size, ok := values["size"].(string); ok {
+            if err := validateSize(size); err != nil { return nil, err }
+            return map[string]any{"size": size}, nil
+        }
+        return map[string]any{"size": "auto"}, nil
     },
     SupportedFlags: []string{"size", /* ... */},
     Info:           info,
 })
 ```
 
+Convention if you go this route: keep a `flags.go` in your package next to `register.go` and put the hand-rolled `BindFlags` / `ReadFlags` / `ParseOptions` bodies there.
+
 **When to opt out:**
 
-- Your flag's valid values can't be expressed as a closed enum (OpenAI's `-s` accepts raw `WxH` alongside shorthand)
-- You need cross-field validation that's hard to express in `Validate(Info) error`
-- You need to read a common flag (like `-f` / `--filename`) to infer a private flag's value (OpenAI reads the filename extension to pick `output_format`)
+- Your flag's valid values can't be expressed as a closed enum
+- You need cross-field validation that's awkward to express in `Validate(Info) error`
+- You return a different shape from `Generate`'s expectation than a typed struct allows
 
-The framework doesn't care which approach you take. `Request.Options any` means your `Generate` type-asserts to whatever shape you returned.
-
-OpenAI is the canonical example of an opt-out provider in this codebase — look at `providers/openai/flags.go` for the pattern.
+The framework doesn't care which approach you take. `Request.Options any` means your `Generate` type-asserts to whatever shape you returned. The validation gate, batch loader, and orchestrator all stay shape-agnostic — they read declared metadata (`SupportedFlags`, `Info.Models[*].SupportedFlags`) and use the optional `ResolvedModeler` interface, neither of which cares whether your options are a map or a struct.
 
 ---
 
@@ -586,7 +756,7 @@ type ResolvedModeler interface {
 }
 ```
 
-Enables the **model-level flag-support gate**. Once implemented, `Info.Models[*].SupportedFlags` becomes enforced — users attempting to use flags the resolved model doesn't accept get a helpful error:
+Enables the **model-level flag-support gate** in [the validation gate](#validation-gate). Once implemented, `Info.Models[*].SupportedFlags` becomes enforced — users attempting to use flags the resolved model doesn't accept get a helpful error:
 
 ```
 --fast is not supported by model "example-v2" (supported by: [pro])
@@ -597,6 +767,20 @@ Strongly recommended if your provider has multiple models with different capabil
 ### Future interfaces
 
 The framework pattern is extensible: new capabilities are added as optional interfaces. Implementers opt in; non-implementers degrade gracefully. Check `providers/provider.go` for the current list.
+
+---
+
+## Validation gate
+
+Single-shot CLI invocations and batch-file invocations route flag validation through one module: `providers/gate.go`. The exported helpers are:
+
+| Function | Rule |
+|---|---|
+| `providers.CheckBundle(setNames, active)` | Every set flag must be in `active.SupportedFlags` |
+| `providers.CheckModel(setNames, active, providerOpts)` | Every set flag that's gated by *some* model in `active.Info.Models[*].SupportedFlags` must be allowed by the *resolved* model. Reads the resolved model via `ResolvedModeler` |
+| `providers.CheckClaimedSomewhere(setNames, bundles)` | Used by batch mode: every set flag must be claimed by at least one entry's provider |
+
+You don't write code in `gate.go` when adding a provider. Both validation paths read from declarations you already wrote: `Bundle.SupportedFlags` for the bundle-level gate, `Info.Models[*].SupportedFlags` for the model-level gate. New flags or new models become enforced everywhere automatically — single-shot CLI, batch entries, mixed-provider batch runs.
 
 ---
 
@@ -612,6 +796,7 @@ The framework pattern is extensible: new capabilities are added as optional inte
 - [ ] `imagine --provider myprovider -p "test"` succeeds against the real API (or errors with a useful message)
 - [ ] Setting a flag from another provider errors with `--<flag> is not supported by provider "myprovider"`
 - [ ] If you implemented `ResolvedModeler`: setting a model-restricted flag on a non-supporting model errors
+- [ ] `imagine -p batch.yaml` with an entry using your provider runs end-to-end (or, if you didn't wire `ParseOptions`, errors with `provider "myprovider" does not support batch invocation`)
 - [ ] `imagine providers` lists your provider (and marks it `[active, default]` after `providers use`)
 
 ---
@@ -629,12 +814,15 @@ The framework pattern is extensible: new capabilities are added as optional inte
 
 | Package | API | Purpose |
 |---|---|---|
-| `providers/flagspec` | `Bind`, `Read`, `FieldNames` | Reflection-based flag DSL (panics on malformed tags) |
+| `providers/flagspec` | `Bind`, `Read`, `Parse`, `FieldNames` | Reflection-based flag DSL (panics on malformed tags) |
 | `internal/transport` | `Client`, `PostJSON[R]`, `PostMultipart[R]`, `Bearer`, `QueryKey`, `NoAuth`, `APIError`, `DecodeB64` | Shared HTTP primitives |
 | `providers/providertest` | `Contract(t, name)` | Standard contract test battery |
 | `providers` | `RequestLabeler`, `ResolvedModeler` | Optional capability interfaces on `*Options` |
+| `providers` | `Bundle.ParseOptions` | Batch-file invocation hook; one-liner with `flagspec.Parse` |
+| `providers` | `Common` | Per-entry common-flag context passed to `ParseOptions` (currently `Filename`) |
 | `providers` | `Bundle.ConfigSchema []ConfigField` | Drives `providers add` form + flags |
 | `providers` | `Auth.Get(key) string` | Flat credential bag read inside `New(auth)` |
+| `providers` | `CheckBundle`, `CheckModel`, `CheckClaimedSomewhere` | Validation gate (provider authors don't call these directly; they're documented for completeness) |
 
 ### Never touched
 
@@ -648,6 +836,6 @@ Existing providers are the best reference:
 
 - **`providers/gemini/`** — HTTP + flagspec + transport (the canonical pattern)
 - **`providers/vertex/`** — non-HTTP (SDK) + flagspec
-- **`providers/openai/`** — opt-out of flagspec, keeps map-based options for flexibility
+- **`providers/openai/`** — flagspec with a wrapped `ReadFlags` / `ParseOptions` that derive a private field from a common flag
 
 If something feels awkward, read all three before deciding which pattern fits your target API.

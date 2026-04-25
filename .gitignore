@@ -45,3 +45,4 @@ context/
 .agents/
 .firecrawl/
 
+!.claude/CLAUDE.md

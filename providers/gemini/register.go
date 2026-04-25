@@ -25,6 +25,9 @@ func init() {
 		ReadFlags: func(cmd *cobra.Command) (any, error) {
 			return flagspec.Read(cmd, Options{}, info)
 		},
+		ParseOptions: func(values map[string]any, _ providers.Common) (any, error) {
+			return flagspec.Parse(Options{}, values, info)
+		},
 		SupportedFlags: flagspec.FieldNames(Options{}),
 		Examples:       Examples,
 		Info:           info,

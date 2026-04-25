@@ -8,9 +8,12 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
+	"github.com/spf13/cobra"
 
 	"github.com/AhmedAburady/imagine-cli/api"
 	"github.com/AhmedAburady/imagine-cli/cli"
+	"github.com/AhmedAburady/imagine-cli/config"
+	"github.com/AhmedAburady/imagine-cli/internal/batch"
 	"github.com/AhmedAburady/imagine-cli/internal/images"
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
@@ -52,6 +55,35 @@ func requestLabel(opts any) string {
 		}
 	}
 	return ""
+}
+
+// runBatch loads a batch file, resolves every entry against CLI defaults,
+// and dispatches them in parallel. Validation is exhaustive — all errors
+// across all entries surface in one error before any HTTP call.
+func runBatch(cmd *cobra.Command, opts *cli.Options, providerName string) error {
+	spec, err := batch.LoadFile(opts.Prompt)
+	if err != nil {
+		return err
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+	defaultProv, err := resolveDefaultProviderForBatch(providerName, cfg)
+	if err != nil {
+		return err
+	}
+	resolved, err := batch.Resolve(batch.ResolveContext{
+		Spec:            spec,
+		CLIOptions:      opts,
+		Cmd:             cmd,
+		Config:          cfg,
+		DefaultProvider: defaultProv,
+	})
+	if err != nil {
+		return err
+	}
+	return batch.Run(cmd.Context(), resolved)
 }
 
 // runGeneration wraps the orchestrator in a spinner and prints per-image results.
