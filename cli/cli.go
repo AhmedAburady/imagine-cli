@@ -7,7 +7,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/AhmedAburady/imagine-cli/internal/images"
@@ -32,14 +31,9 @@ type Options struct {
 }
 
 // IsBatchPath returns true if path's extension marks it as a batch
-// file. Mirrors internal/batch.IsBatchFile; duplicated here to keep
-// cli free of a batch-package import (batch already imports cli).
+// file. Delegates to paths.IsBatchFile so cli and batch always agree.
 func IsBatchPath(path string) bool {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".yaml", ".yml", ".json":
-		return true
-	}
-	return false
+	return paths.IsBatchFile(path)
 }
 
 // CommonFlagNames lists the truly provider-agnostic flag names — the

@@ -23,3 +23,13 @@ func ExpandTilde(path string) string {
 	}
 	return path
 }
+
+// IsBatchFile reports whether path's extension marks it as a batch file
+// (.yaml/.yml/.json).
+func IsBatchFile(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".yaml", ".yml", ".json":
+		return true
+	}
+	return false
+}

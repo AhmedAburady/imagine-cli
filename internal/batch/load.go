@@ -21,6 +21,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/AhmedAburady/imagine-cli/internal/paths"
 )
 
 // Entry is one job's raw values from the batch file. Common-flag and
@@ -48,14 +50,10 @@ type Spec struct {
 }
 
 // IsBatchFile reports whether path's extension marks it as a batch file
-// (.yaml/.yml/.json). The CLI uses this to choose between today's
-// plain-prompt-file path and the new batch path.
+// (.yaml/.yml/.json). Delegates to paths.IsBatchFile so cli and batch
+// always agree.
 func IsBatchFile(path string) bool {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".yaml", ".yml", ".json":
-		return true
-	}
-	return false
+	return paths.IsBatchFile(path)
 }
 
 // LoadFile reads path and parses it. Caller has already verified the

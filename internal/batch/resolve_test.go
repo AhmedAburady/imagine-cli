@@ -275,3 +275,36 @@ func TestResolve_RejectsUnknownProvider(t *testing.T) {
 	}
 }
 
+// --- input: [] explicitly clears a global -i default ----------------------------
+
+func TestResolve_InputEmptyListClearsCLIDefault(t *testing.T) {
+	cli := defaultCLI()
+	cli.RefInputs = []string{"/tmp/global_ref.png"}
+
+	spec := &batch.Spec{Entries: []batch.Entry{
+		{Key: "hero", Index: 0, Raw: map[string]any{
+			"prompt": "x",
+			"input":  []any{},
+		}},
+	}}
+	resolved, err := batch.Resolve(batch.ResolveContext{
+		Spec:            spec,
+		CLIOptions:      cli,
+		Cmd:             stubCmd(t),
+		Config:          stubConfig(),
+		DefaultProvider: "openai",
+	})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if len(resolved) != 1 {
+		t.Fatalf("got %d resolved, want 1", len(resolved))
+	}
+	r := resolved[0]
+	if len(r.Request.References) != 0 {
+		t.Errorf("References: got %d, want 0 (input: [] should override global -i)", len(r.Request.References))
+	}
+	if r.Params.RefInputPath != "" {
+		t.Errorf("RefInputPath: got %q, want empty (input: [] should override global -i)", r.Params.RefInputPath)
+	}
+}

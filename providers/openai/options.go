@@ -20,7 +20,7 @@ import (
 type Options struct {
 	Model       string `flag:"model,m"     desc:"Model: gpt-image-2, 1.5, 1, mini, latest (default: gpt-image-2)" enum:"@models"`
 	Size        string `flag:"size,s"      desc:"Image size: 1K, 2K, 4K, auto, or WxH (default: auto)"`
-	Quality     string `flag:"quality,q"   desc:"Rendering quality: low, medium, high, auto (default: auto)" enum:"auto,low,medium,high"`
+	Quality     string `flag:"quality,q"   desc:"Rendering quality: low, medium, high, auto (default: auto)" enum:"auto,low,medium,high" default:"auto"`
 	Compression int    `flag:"compression" desc:"Compression 0-100 (jpeg/webp only; 100=best quality)" default:"100" range:"0:100"`
 	Moderation  string `flag:"moderation"  desc:"Content moderation: auto, low (default: auto)" enum:"auto,low"`
 	Background  string `flag:"background"  desc:"Background: auto, opaque, transparent (default: auto)" enum:"auto,opaque,transparent"`

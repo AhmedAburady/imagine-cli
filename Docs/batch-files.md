@@ -126,7 +126,7 @@ These work for any provider.
 | `output` | string | no | Output folder. `~` expanded. Defaults to CLI `-o` (or `.`). |
 | `filename` | string | no | Output filename. Extension picks format (`.png`, `.jpg`, `.webp`). Mutually exclusive with `replace`. |
 | `count` | int | no | 1–20. Defaults to CLI `-n` (or 1). With `count > 1`, filenames get `_1`, `_2`, … suffixes. |
-| `input` | string OR list of strings | no | Reference image file or folder, or list of them. Flips the entry into edit mode. `~` expanded. |
+| `input` | string OR list of strings | no | Reference image file or folder, or list of them. Flips the entry into edit mode. `~` expanded. Set `input: []` to explicitly clear a global `-i` default for this entry. |
 | `replace` | bool | no | Use input filename as output filename. Requires exactly one `input:` pointing at a single file. **Mutually exclusive with `filename`**. |
 
 `input` accepts a single string for one file/folder, or a YAML/JSON list for multiple:
