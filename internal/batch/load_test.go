@@ -80,7 +80,7 @@ func TestLoadFile_YAMLMapForm_RejectsDottedKey(t *testing.T) {
 
 // --- YAML list-form ---------------------------------------------------------
 
-func TestLoadFile_YAMLListForm_AutoNamesAsStepN(t *testing.T) {
+func TestLoadFile_YAMLListForm_LeavesKeyEmpty(t *testing.T) {
 	path := writeTempFile(t, "b.yaml", `
 - prompt: "first"
 - prompt: "second"
@@ -89,10 +89,15 @@ func TestLoadFile_YAMLListForm_AutoNamesAsStepN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFile: %v", err)
 	}
-	want := []string{"step-1", "step-2"}
-	for i, w := range want {
-		if spec.Entries[i].Key != w {
-			t.Errorf("entry[%d].Key = %q, want %q (auto-named)", i, spec.Entries[i].Key, w)
+	if len(spec.Entries) != 2 {
+		t.Fatalf("got %d entries, want 2", len(spec.Entries))
+	}
+	for i, e := range spec.Entries {
+		if e.Key != "" {
+			t.Errorf("entry[%d].Key = %q, want empty (list-form)", i, e.Key)
+		}
+		if e.Index != i {
+			t.Errorf("entry[%d].Index = %d, want %d", i, e.Index, i)
 		}
 	}
 }
@@ -127,7 +132,7 @@ func TestLoadFile_JSONMapForm_RejectsDottedKey(t *testing.T) {
 
 // --- JSON list-form ---------------------------------------------------------
 
-func TestLoadFile_JSONListForm_AutoNamesAsStepN(t *testing.T) {
+func TestLoadFile_JSONListForm_LeavesKeyEmpty(t *testing.T) {
 	path := writeTempFile(t, "b.json", `[
   {"prompt": "first"},
   {"prompt": "second"}
@@ -136,10 +141,12 @@ func TestLoadFile_JSONListForm_AutoNamesAsStepN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFile: %v", err)
 	}
-	want := []string{"step-1", "step-2"}
-	for i, w := range want {
-		if spec.Entries[i].Key != w {
-			t.Errorf("entry[%d].Key = %q, want %q", i, spec.Entries[i].Key, w)
+	if len(spec.Entries) != 2 {
+		t.Fatalf("got %d entries, want 2", len(spec.Entries))
+	}
+	for i, e := range spec.Entries {
+		if e.Key != "" {
+			t.Errorf("entry[%d].Key = %q, want empty", i, e.Key)
 		}
 	}
 }

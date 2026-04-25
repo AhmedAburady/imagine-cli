@@ -85,7 +85,7 @@ var (
 
 // summaryRow holds the data for one table row plus its rendering state.
 type summaryRow struct {
-	step     string
+	entry    string
 	provider string
 	model    string
 	images   string // "5/5" or "3/5"
@@ -136,7 +136,7 @@ func printSummary(results []EntryResult, elapsed time.Duration) int {
 		}
 
 		rows = append(rows, summaryRow{
-			step:     er.Resolved.DisplayName,
+			entry:    er.Resolved.DisplayName,
 			provider: er.Resolved.Provider.Info().Name,
 			model:    requestLabel(er.Resolved.ProviderOpts),
 			images:   fmt.Sprintf("%d/%d", ok, ok+bad),
@@ -164,10 +164,10 @@ func printSummary(results []EntryResult, elapsed time.Duration) int {
 			}
 			return tblCellStyle
 		}).
-		Headers("STEP", "PROVIDER", "MODEL", "IMAGES", "TIME", "STATUS")
+		Headers("ENTRY", "PROVIDER", "MODEL", "IMAGES", "TIME", "STATUS")
 
 	for _, r := range rows {
-		t.Row(r.step, r.provider, r.model, r.images, r.elapsed, r.status)
+		t.Row(r.entry, r.provider, r.model, r.images, r.elapsed, r.status)
 	}
 
 	fmt.Println(t.String())

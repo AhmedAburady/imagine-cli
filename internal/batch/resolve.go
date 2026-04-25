@@ -426,11 +426,15 @@ func detectCollisions(resolved []Resolved) []string {
 	return collisions
 }
 
+// displayName is the entry's identifier in error messages and the
+// summary table. Map-form entries use their key; list-form entries have
+// no name, so we render the 1-based index. Error messages prepend "entry"
+// already, so this returns just the index ("entry 1: ..." not "entry [0]: ...").
 func displayName(e Entry) string {
 	if e.Key != "" {
 		return e.Key
 	}
-	return fmt.Sprintf("[%d]", e.Index)
+	return fmt.Sprintf("%d", e.Index+1)
 }
 
 func loadReferences(inputs []string) ([]images.Reference, error) {

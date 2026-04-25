@@ -147,20 +147,16 @@ func yamlSeqEntries(n *yaml.Node) ([]Entry, error) {
 		if err := item.Decode(&raw); err != nil {
 			return nil, fmt.Errorf("entry [%d]: %w", i, err)
 		}
+		// List-form entries have no name. Filename falls through to
+		// the existing timestamp default in internal/images/naming.go,
+		// matching single-shot behaviour.
 		entries = append(entries, Entry{
-			Key:   listEntryKey(i),
+			Key:   "",
 			Index: i,
 			Raw:   raw,
 		})
 	}
 	return entries, nil
-}
-
-// listEntryKey is the synthetic name list-form entries get. Reads better
-// than [0]/[1] in summaries and gives ResolveFilename a usable stem
-// when no explicit filename: is set.
-func listEntryKey(i int) string {
-	return fmt.Sprintf("step-%d", i+1)
 }
 
 // --- JSON -------------------------------------------------------------------
@@ -182,7 +178,7 @@ func parseJSON(data []byte) ([]Entry, error) {
 		}
 		entries := make([]Entry, 0, len(arr))
 		for i, raw := range arr {
-			entries = append(entries, Entry{Key: listEntryKey(i), Index: i, Raw: raw})
+			entries = append(entries, Entry{Key: "", Index: i, Raw: raw})
 		}
 		return entries, nil
 	}

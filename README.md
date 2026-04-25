@@ -22,6 +22,7 @@
   - [Provider resolution](#provider-resolution)
   - [Credentials](#credentials)
 - [Quick start](#quick-start)
+- [Batch runs and automation](#batch-runs-and-automation)
 - [Usage](#usage)
   - [Common flags](#common-flags)
   - [Gemini and Vertex](#gemini-and-vertex)
@@ -46,6 +47,7 @@ I built [banana-cli](https://github.com/AhmedAburady/banana-cli) first — a foc
 - **The models that matter** — Nano Banana (`gemini-3-pro-image-preview`), Nano Banana 2 (`gemini-3.1-flash-image-preview`), and gpt-image-2. Direct API access, no middlemen.
 - **Built for workflows** — pipe into scripts, run inside loops, chain with other CLI tools. Anywhere a command runs, imagine runs.
 - **Concurrent generation** — `-n 10` fires off 10 images in one invocation. No clicking, no waiting for one to finish before starting the next.
+- **Batch runs from a file** — `imagine -p batch.yaml` describes many jobs in one file: different prompts, different providers, different sizes. Every entry runs in parallel; validation is exhaustive before any HTTP fires; results land in a styled summary table. Built for scripts and CI.
 - **Iterate fast** — tweak the prompt, rerun, compare. Generate multiple variations in one shot with `-n` and keep what works. The terminal loop is the creative loop.
 - **Generate and edit in one command** — `-p "..."` generates; add `-i reference.png` and the same command switches to edit mode.
 - **One config file, no env vars** — set your keys once in `~/.config/imagine/config.yaml` and forget about it.
@@ -199,6 +201,62 @@ Switches to OpenAI for this invocation and uses `/v1/images/edits` because `-i` 
 
 ---
 
+## Batch runs and automation
+
+Hand `-p` a YAML, YML, or JSON file and imagine runs every entry in parallel — different prompts, different providers, different sizes — in one command. Built for scripts, CI, and reproducible image sets.
+
+```yaml
+# scenes.yaml
+hero:
+  prompt: "A samurai at dusk, cinematic"
+  provider: openai
+  size: 1024x1024
+  quality: high
+
+panorama:
+  prompt: "Mountain panorama at sunset"
+  provider: gemini
+  model: pro
+  size: 4K
+  aspect-ratio: 32:9
+
+product_iterations:
+  prompt: "Minimalist coffee shop logo"
+  provider: openai
+  count: 3
+```
+
+```bash
+imagine -p scenes.yaml -o ./out
+```
+
+Output:
+
+```
+╭───────────────────┬──────────┬────────────────────────────┬────────┬───────┬────────╮
+│ ENTRY             │ PROVIDER │ MODEL                      │ IMAGES │ TIME  │ STATUS │
+├───────────────────┼──────────┼────────────────────────────┼────────┼───────┼────────┤
+│ hero              │ openai   │ gpt-image-2                │ 1/1    │ 14.2s │ ok     │
+│ panorama          │ gemini   │ gemini-3-pro-image-preview │ 1/1    │ 18.7s │ ok     │
+│ product_iterations│ openai   │ gpt-image-2                │ 3/3    │ 12.1s │ ok     │
+╰───────────────────┴──────────┴────────────────────────────┴────────┴───────┴────────╯
+
+Done: 5 success, 0 failed across 3 entries (18.7s)
+Output: /abs/path/out
+```
+
+- **One file, many jobs** — every entry runs in its own goroutine, in parallel; each has its own prompt, provider, model, count.
+- **Mix providers in one run** — different entries can target different providers in the same file. CLI flags act as defaults; entry values override.
+- **Schema is just CLI flag names** — every key inside an entry is the long name of an `imagine` flag (`prompt`, `provider`, `model`, `size`, `quality`, `count`, `filename`, `input`, `replace`, …). Nothing new to learn.
+- **Up-front, exhaustive validation** — schema errors, model-level rule violations (`thinking` against gemini's `pro` model), missing references, and filename collisions all surface in one report before any HTTP call. No half-run batches.
+- **JSON works too** — same shape, swap `.yaml` for `.json`. List form (`- prompt: "..."`) supported alongside map form.
+
+Full schema, every parameter, error/fix table, and worked examples (mixed providers, edit mode, JSON form, multi-line prompts): **[Docs/batch-files.md](Docs/batch-files.md)**.
+
+[↑ Back to top](#table-of-contents)
+
+---
+
 ## Usage
 
 ### Common flags
@@ -207,7 +265,7 @@ These flags work with any provider:
 
 | Flag | Long | Description | Default |
 |---|---|---|---|
-| `-p` | `--prompt` | Prompt text or path to a prompt file | *required* |
+| `-p` | `--prompt` | Prompt text, plain prompt-file path, or YAML/JSON [batch-file](#batch-runs-and-automation) path | *required* |
 | `-o` | `--output` | Output directory | `.` |
 | `-f` | `--filename` | Output filename. Extension (`.png`/`.jpg`/`.webp`) drives the image format. With `-n >1`, filenames get `_N` suffixes. | auto |
 | `-n` | `--count` | Number of images (1–20) | `1` |
