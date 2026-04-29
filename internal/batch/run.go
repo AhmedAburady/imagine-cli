@@ -24,19 +24,32 @@ type EntryResult struct {
 
 // Run fans every resolved entry out to api.RunGeneration in parallel,
 // reports per-entry success/failure as a styled summary table, and
-// returns a non-nil error if any image failed.
-func Run(ctx context.Context, resolved []Resolved) error {
+// returns a non-nil error if any image failed. maxParallel caps the
+// total number of in-flight provider calls — across both the
+// per-entry axis here and the per-image axis inside each orchestrator
+// — by sharing a single semaphore through api.Params.Sem. 0 means
+// unlimited (the original behaviour). The cap is a sliding window:
+// the next queued goroutine starts the instant any in-flight one
+// finishes, not in fixed waves.
+func Run(ctx context.Context, resolved []Resolved, maxParallel int) error {
 	s := spinner.New(spinner.CharSets[14], 80*time.Millisecond)
 	s.Suffix = fmt.Sprintf(" Running %d batch entries...", len(resolved))
 	_ = s.Color("magenta")
 	s.Start()
 
+	var sem chan struct{}
+	if maxParallel > 0 {
+		sem = make(chan struct{}, maxParallel)
+	}
+
 	var wg sync.WaitGroup
 	results := make([]EntryResult, len(resolved))
 	startTime := time.Now()
 	for i, r := range resolved {
+		params := r.Params
+		params.Sem = sem
 		wg.Go(func() {
-			out := api.RunGeneration(ctx, r.Provider, r.Request, r.Params)
+			out := api.RunGeneration(ctx, r.Provider, r.Request, params)
 			results[i] = EntryResult{Resolved: r, Output: out}
 		})
 	}

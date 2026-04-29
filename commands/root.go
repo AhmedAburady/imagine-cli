@@ -134,6 +134,7 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 				NumImages:        opts.NumImages,
 				PreserveFilename: opts.PreserveFilename,
 				RefInputPath:     refInputPathFor(opts),
+				MaxParallel:      opts.MaxParallel,
 			}
 
 			return runGeneration(cmd.Context(), provider, req, params, opts, providerOptions)
@@ -149,6 +150,7 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 	f.StringSliceVarP(&opts.RefInputs, "input", "i", nil, "Reference image/folder, repeatable (enables edit mode)")
 	f.BoolVarP(&opts.PreserveFilename, "replace", "r", false, "Replace: use input filename for output (single file only)")
 	f.StringVar(&providerName, "provider", "", "Override the active provider (else: config default, else: first under providers:)")
+	f.IntVar(&opts.MaxParallel, "max-parallel", 0, "Cap concurrent provider HTTP requests (0 = unlimited)")
 
 	// Attach each registered provider's private flags. BindFlags is idempotent,
 	// so whichever provider registers a shared flag name (-m, -s) first wins
