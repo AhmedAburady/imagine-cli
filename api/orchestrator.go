@@ -89,7 +89,7 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 	// mode shares one across all entries); else build a private one
 	// from MaxParallel. nil = unlimited, the original behaviour.
 	sem := params.Sem
-	if sem == nil && params.MaxParallel > 0 && params.MaxParallel < len(batchSizes) {
+	if sem == nil && params.MaxParallel > 0 {
 		sem = make(chan struct{}, params.MaxParallel)
 	}
 
@@ -105,8 +105,15 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 		go func(startIndex, batchSize int, req providers.Request) {
 			defer wg.Done()
 			if sem != nil {
-				sem <- struct{}{}
-				defer func() { <-sem }()
+				select {
+				case sem <- struct{}{}:
+					defer func() { <-sem }()
+				case <-ctx.Done():
+					for i := range batchSize {
+						resultsChan <- GenerationResult{Index: startIndex + i, Error: ctx.Err()}
+					}
+					return
+				}
 			}
 
 			resp, err := provider.Generate(ctx, req)
