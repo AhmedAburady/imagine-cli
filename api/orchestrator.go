@@ -23,6 +23,18 @@ type Params struct {
 	NumImages        int    // total, across all batches
 	PreserveFilename bool   // -r
 	RefInputPath     string // original -i path, used by -r
+
+	// MaxParallel caps in-flight provider calls within this run. 0
+	// (default) means unlimited — every batch fires immediately, the
+	// pre-existing behaviour. Ignored when Sem is non-nil.
+	MaxParallel int
+
+	// Sem, when non-nil, is a shared concurrency semaphore — the batch
+	// runner creates one and passes the same channel into every entry's
+	// orchestrator call so a single --max-parallel cap covers both the
+	// per-entry and per-image axes. Single-shot leaves this nil and the
+	// orchestrator builds a private sem from MaxParallel.
+	Sem chan struct{}
 }
 
 // GenerationResult is the outcome of a single image request/save.
@@ -73,6 +85,14 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 	var wg sync.WaitGroup
 	resultsChan := make(chan GenerationResult, params.NumImages)
 
+	// Sliding-window concurrency cap. Caller-supplied sem wins (batch
+	// mode shares one across all entries); else build a private one
+	// from MaxParallel. nil = unlimited, the original behaviour.
+	sem := params.Sem
+	if sem == nil && params.MaxParallel > 0 && params.MaxParallel < len(batchSizes) {
+		sem = make(chan struct{}, params.MaxParallel)
+	}
+
 	globalIndex := 0
 	for _, size := range batchSizes {
 		startIndex := globalIndex
@@ -84,6 +104,10 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 		wg.Add(1)
 		go func(startIndex, batchSize int, req providers.Request) {
 			defer wg.Done()
+			if sem != nil {
+				sem <- struct{}{}
+				defer func() { <-sem }()
+			}
 
 			resp, err := provider.Generate(ctx, req)
 			if err != nil {

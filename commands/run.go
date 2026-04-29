@@ -83,7 +83,7 @@ func runBatch(cmd *cobra.Command, opts *cli.Options, providerName string) error 
 	if err != nil {
 		return err
 	}
-	return batch.Run(cmd.Context(), resolved)
+	return batch.Run(cmd.Context(), resolved, opts.MaxParallel)
 }
 
 // runGeneration wraps the orchestrator in a spinner and prints per-image results.

@@ -24,6 +24,12 @@ type Options struct {
 	RefInputs        []string
 	PreserveFilename bool
 
+	// MaxParallel caps concurrent provider HTTP requests — covers both
+	// single-shot per-count fan-out and batch per-entry fan-out via a
+	// shared semaphore threaded into api.Params. 0 (default) means
+	// unlimited, the pre-existing behaviour.
+	MaxParallel int
+
 	// IsBatch is set by Validate when -p resolves to a batch file
 	// (.yaml/.yml/.json). Callers branch on this to call internal/batch
 	// instead of building a single-shot Request.
@@ -42,15 +48,16 @@ func IsBatchPath(path string) bool {
 // batch path read from this map. Any flag not listed here must be
 // claimed by at least one provider's Bundle.SupportedFlags.
 var CommonFlagNames = map[string]bool{
-	"prompt":   true,
-	"output":   true,
-	"filename": true,
-	"count":    true,
-	"input":    true,
-	"replace":  true,
-	"provider": true,
-	"help":     true,
-	"version":  true,
+	"prompt":       true,
+	"output":       true,
+	"filename":     true,
+	"count":        true,
+	"input":        true,
+	"replace":      true,
+	"provider":     true,
+	"max-parallel": true,
+	"help":         true,
+	"version":      true,
 }
 
 // IsCommonFlag reports whether name is a common (provider-agnostic) flag.
