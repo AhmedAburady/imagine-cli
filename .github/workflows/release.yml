@@ -38,7 +38,7 @@ jobs:
           GOOS=windows GOARCH=arm64 go build -ldflags "$LDFLAGS" -o imagine-windows-arm64.exe ./cmd/imagine
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             imagine-linux-amd64
