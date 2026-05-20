@@ -7,12 +7,22 @@ import (
 	"testing"
 )
 
+// withOpRunner swaps the package-level opRunner for the duration of the
+// current (sub)test and restores it via t.Cleanup. Tests in this file must
+// not call t.Parallel() — opRunner is a package-global and concurrent swaps
+// would race.
+func withOpRunner(t *testing.T, fn opRunnerFunc) {
+	t.Helper()
+	prev := opRunner
+	opRunner = fn
+	t.Cleanup(func() { opRunner = prev })
+}
+
+type opRunnerFunc = func(context.Context, string) (string, error)
+
 func TestResolveValue(t *testing.T) {
 	t.Setenv("IMAGINE_TEST_KEY", "sk-from-env")
 	t.Setenv("IMAGINE_TEST_ITEM", "OpenAI")
-
-	prevRunner := opRunner
-	t.Cleanup(func() { opRunner = prevRunner })
 
 	tests := []struct {
 		name      string
@@ -27,6 +37,11 @@ func TestResolveValue(t *testing.T) {
 			name: "plain literal passthrough",
 			in:   "sk-literal",
 			want: "sk-literal",
+		},
+		{
+			name: "literal dollar signs pass through",
+			in:   "sk-$$special$bare",
+			want: "sk-$$special$bare",
 		},
 		{
 			name: "env expansion",
@@ -63,13 +78,13 @@ func TestResolveValue(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var gotRef string
-			opRunner = func(_ context.Context, ref string) (string, error) {
+			withOpRunner(t, func(_ context.Context, ref string) (string, error) {
 				gotRef = ref
 				if tc.opErr != nil {
 					return "", tc.opErr
 				}
 				return tc.opReturn, nil
-			}
+			})
 
 			got, err := resolveValue(tc.in)
 			if tc.wantErr != "" {
@@ -94,13 +109,11 @@ func TestResolveValue(t *testing.T) {
 func TestResolveProviderIsLazyAndIsolated(t *testing.T) {
 	t.Setenv("IMAGINE_TEST_GEMINI", "gemini-from-env")
 
-	prevRunner := opRunner
-	t.Cleanup(func() { opRunner = prevRunner })
 	var opCalls int
-	opRunner = func(_ context.Context, ref string) (string, error) {
+	withOpRunner(t, func(_ context.Context, ref string) (string, error) {
 		opCalls++
 		return "resolved:" + ref, nil
-	}
+	})
 
 	cfg := &Config{
 		Providers: map[string]ProviderConfig{

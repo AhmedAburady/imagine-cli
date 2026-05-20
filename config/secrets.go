@@ -68,26 +68,44 @@ func resolveValue(v string) (string, error) {
 	return expanded, nil
 }
 
-// expandEnv runs os.Expand and returns an error if any referenced variable is
-// unset. Treats `$$` as a literal `$` (standard os.Expand behaviour) and
-// leaves values without `$` untouched.
+// expandEnv replaces every ${NAME} occurrence with os.Getenv(NAME) and errors
+// if any referenced variable is unset. Only ${...} is special — bare `$`,
+// `$VAR` (no braces), and `$$` all pass through verbatim, so a literal API
+// token containing `$` characters survives unchanged. Missing-variable errors
+// are loud by design; a silent empty expansion would surface later as an
+// opaque 401.
 func expandEnv(s string) (string, error) {
-	if !strings.Contains(s, "$") {
+	if !strings.Contains(s, "${") {
 		return s, nil
 	}
 	var missing []string
-	expanded := os.Expand(s, func(name string) string {
-		v, ok := os.LookupEnv(name)
-		if !ok {
-			missing = append(missing, name)
-			return ""
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); {
+		if i+1 < len(s) && s[i] == '$' && s[i+1] == '{' {
+			end := strings.IndexByte(s[i+2:], '}')
+			if end < 0 {
+				// Unterminated ${ — leave the rest literal so the user sees
+				// their config value verbatim in any downstream error.
+				b.WriteString(s[i:])
+				break
+			}
+			name := s[i+2 : i+2+end]
+			if v, ok := os.LookupEnv(name); ok {
+				b.WriteString(v)
+			} else {
+				missing = append(missing, name)
+			}
+			i += 2 + end + 1
+			continue
 		}
-		return v
-	})
+		b.WriteByte(s[i])
+		i++
+	}
 	if len(missing) > 0 {
 		return "", fmt.Errorf("environment variable %s is not set", strings.Join(missing, ", "))
 	}
-	return expanded, nil
+	return b.String(), nil
 }
 
 // defaultOpRunner invokes the 1Password CLI to read a secret reference.
@@ -105,7 +123,7 @@ func defaultOpRunner(ctx context.Context, ref string) (string, error) {
 		if msg == "" {
 			msg = err.Error()
 		}
-		return "", fmt.Errorf("op read %s failed: %s", ref, msg)
+		return "", fmt.Errorf("op read failed: %s", msg)
 	}
 	return stdout.String(), nil
 }
