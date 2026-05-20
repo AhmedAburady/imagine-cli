@@ -24,7 +24,7 @@ const opTimeout = 5 * time.Second
 //
 // Two reference styles are supported:
 //
-//	${VAR}            — environment variable expansion (os.Expand semantics)
+//	${VAR}            — environment variable expansion (${...} only; bare $VAR and $$ pass through verbatim)
 //	op://vault/...    — 1Password CLI lookup via `op read`
 //
 // Env vars are expanded first so a reference like op://Vault/${ITEM}/field
