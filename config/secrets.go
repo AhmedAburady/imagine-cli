@@ -131,6 +131,16 @@ func defaultOpRunner(ctx context.Context, ref string) (string, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
+		// Distinguish ctx-driven termination from a genuine op failure.
+		// Without this, a Ctrl+C surfaces as "op read failed: signal: killed"
+		// (or "context canceled"), implying op misbehaved when the user
+		// simply aborted.
+		switch ctx.Err() {
+		case context.Canceled:
+			return "", context.Canceled
+		case context.DeadlineExceeded:
+			return "", fmt.Errorf("op read timed out after %s", opTimeout)
+		}
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			msg = err.Error()

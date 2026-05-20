@@ -3,8 +3,10 @@ package config
 import (
 	"context"
 	"errors"
+	"os/exec"
 	"strings"
 	"testing"
+	"time"
 )
 
 // withOpRunner swaps the package-level opRunner for the duration of the
@@ -191,6 +193,36 @@ func TestResolveProviderCancelsOpOnContextCancel(t *testing.T) {
 	if !strings.Contains(err.Error(), "context canceled") {
 		t.Errorf("want context-canceled error, got: %v", err)
 	}
+}
+
+func TestDefaultOpRunnerMapsContextErrors(t *testing.T) {
+	if _, err := exec.LookPath("op"); err != nil {
+		t.Skip("op CLI not installed; skipping defaultOpRunner cancellation test")
+	}
+
+	t.Run("user cancel returns context.Canceled unwrapped", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err := defaultOpRunner(ctx, "op://Fake/Item/field")
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("want context.Canceled, got %v", err)
+		}
+		if strings.Contains(err.Error(), "op read failed") {
+			t.Errorf("error should not be wrapped as op failure: %v", err)
+		}
+	})
+
+	t.Run("deadline produces timeout message", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		defer cancel()
+		_, err := defaultOpRunner(ctx, "op://Fake/Item/field")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), "timed out") {
+			t.Errorf("want timeout message, got %v", err)
+		}
+	})
 }
 
 func TestResolveProviderUnknownReturnsNil(t *testing.T) {
