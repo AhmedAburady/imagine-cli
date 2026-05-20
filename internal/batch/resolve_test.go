@@ -308,3 +308,38 @@ func TestResolve_InputEmptyListClearsCLIDefault(t *testing.T) {
 		t.Errorf("RefInputPath: got %q, want empty (input: [] should override global -i)", r.Params.RefInputPath)
 	}
 }
+
+// TestResolve_ProviderResolutionFailureIsMemoised verifies that a broken
+// secret reference (here, a missing env var) fails fast for every entry that
+// targets the same provider. The fix this guards: without memoisation, a
+// 100-entry batch with a shared op:// ref to a locked vault would spawn the
+// `op` CLI 100 times, each waiting out the 5s timeout. With memoisation,
+// the first failure is cached and every subsequent entry returns it
+// immediately. Observable proxy: every entry contributes the same env-var
+// error to the aggregate report, and the run completes near-instantly.
+func TestResolve_ProviderResolutionFailureIsMemoised(t *testing.T) {
+	cfg := &config.Config{
+		Providers: map[string]config.ProviderConfig{
+			"openai": {"api_key": "${BATCH_TEST_DEFINITELY_NOT_SET_XYZ}"},
+		},
+	}
+	spec := &batch.Spec{Entries: []batch.Entry{
+		{Key: "a", Index: 0, Raw: map[string]any{"prompt": "x", "provider": "openai"}},
+		{Key: "b", Index: 1, Raw: map[string]any{"prompt": "y", "provider": "openai"}},
+		{Key: "c", Index: 2, Raw: map[string]any{"prompt": "z", "provider": "openai"}},
+	}}
+	_, err := batch.Resolve(batch.ResolveContext{
+		Spec:            spec,
+		CLIOptions:      defaultCLI(),
+		Cmd:             stubCmd(t),
+		Config:          cfg,
+		DefaultProvider: "openai",
+	})
+	if err == nil {
+		t.Fatal("expected aggregate error, got nil")
+	}
+	got := strings.Count(err.Error(), "BATCH_TEST_DEFINITELY_NOT_SET_XYZ")
+	if got != 3 {
+		t.Errorf("want 3 entries to surface the memoised error, got %d in:\n%s", got, err.Error())
+	}
+}

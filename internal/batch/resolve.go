@@ -1,6 +1,7 @@
 package batch
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"os"
@@ -60,10 +61,16 @@ func Resolve(rc ResolveContext) ([]Resolved, error) {
 	// Cache Provider instances across entries that share a name. Vertex
 	// in particular pays for GCP client setup; a 50-entry batch sharing
 	// one provider builds the client once instead of fifty times.
+	//
+	// providerErrCache memoises construction *failures* too. Without it, a
+	// broken op:// reference (locked vault, timed-out `op` CLI) would
+	// re-spawn `op read` once per entry that targets the same provider —
+	// 100 entries × 5s timeout = 500s before all errors surface.
 	providerCache := map[string]providers.Provider{}
+	providerErrCache := map[string]error{}
 
 	for _, entry := range rc.Spec.Entries {
-		r, err := resolveOne(entry, rc, explicit, providerCache)
+		r, err := resolveOne(entry, rc, explicit, providerCache, providerErrCache)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("entry %s: %v", displayName(entry), err))
 			continue
@@ -123,7 +130,7 @@ func collectExplicitProviderFlags(cmd *cobra.Command) map[string]any {
 	return out
 }
 
-func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, providerCache map[string]providers.Provider) (Resolved, error) {
+func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, providerCache map[string]providers.Provider, providerErrCache map[string]error) (Resolved, error) {
 	common, providerKeys, err := splitEntryRaw(entry.Raw)
 	if err != nil {
 		return Resolved{}, err
@@ -248,15 +255,31 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 
 	// Auth + Provider construction. Cached by provider name — entries
 	// sharing a provider reuse one instance. Missing credentials still
-	// surface here on the first miss.
+	// surface here on the first miss, and the failure is memoised so
+	// subsequent entries don't re-trigger expensive secret lookups.
 	providerInst, ok := providerCache[provName]
 	if !ok {
+		if cachedErr, failed := providerErrCache[provName]; failed {
+			return Resolved{}, cachedErr
+		}
 		var auth providers.Auth
 		if rc.Config != nil {
-			auth = providers.Auth(rc.Config.Providers[provName])
+			var ctx context.Context
+			if rc.Cmd != nil {
+				ctx = rc.Cmd.Context()
+			} else {
+				ctx = context.Background()
+			}
+			resolved, rerr := rc.Config.ResolveProvider(ctx, provName)
+			if rerr != nil {
+				providerErrCache[provName] = rerr
+				return Resolved{}, rerr
+			}
+			auth = providers.Auth(resolved)
 		}
 		providerInst, err = bundle.Factory(auth)
 		if err != nil {
+			providerErrCache[provName] = err
 			return Resolved{}, err
 		}
 		providerCache[provName] = providerInst

@@ -1,0 +1,3 @@
+{
+  "ignorePatterns": "**/*.md\n**/go.sum\n**/vendor/**\n**/testdata/**\n**/*_generated.go\n**/*.gen.go\n**/*.pb.go\n**/mocks/**\nLICENSE\n.assets/**\n.claude/**\n.cursor/**\n.idea/**\n.vscode/**\n.github/**\nskills/**\nskills-lock.json\n**/dist/**\n**/build/**\nimagine\nimagine-*-*\nimagine-*-*.exe\n**/*.png\n**/*.jpg\n**/*.jpeg\n**/*.webp\n**/*.gif\n**/*.svg\n**/*.ico"
+}
