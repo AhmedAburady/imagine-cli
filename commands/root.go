@@ -110,7 +110,7 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 			}
 			// Flat auth: every field under providers.<active> in the config
 			// is surfaced to the factory. Providers read via auth.Get(key).
-			resolved, err := cfg.ResolveProvider(active)
+			resolved, err := cfg.ResolveProvider(cmd.Context(), active)
 			if err != nil {
 				return err
 			}

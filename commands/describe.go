@@ -60,7 +60,7 @@ func newDescribeCmd() *cobra.Command {
 				return err
 			}
 
-			resolved, err := cfg.ResolveProvider(active)
+			resolved, err := cfg.ResolveProvider(cmd.Context(), active)
 			if err != nil {
 				return err
 			}
@@ -129,7 +129,7 @@ func runShowInstructions(cmd *cobra.Command, providerName string) error {
 		return err
 	}
 	bundle, _ := providers.Get(active)
-	resolved, err := cfg.ResolveProvider(active)
+	resolved, err := cfg.ResolveProvider(cmd.Context(), active)
 	if err != nil {
 		return err
 	}

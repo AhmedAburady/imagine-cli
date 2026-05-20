@@ -1,6 +1,7 @@
 package batch
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"os"
@@ -253,7 +254,13 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 	if !ok {
 		var auth providers.Auth
 		if rc.Config != nil {
-			resolved, rerr := rc.Config.ResolveProvider(provName)
+			var ctx context.Context
+			if rc.Cmd != nil {
+				ctx = rc.Cmd.Context()
+			} else {
+				ctx = context.Background()
+			}
+			resolved, rerr := rc.Config.ResolveProvider(ctx, provName)
 			if rerr != nil {
 				return Resolved{}, rerr
 			}

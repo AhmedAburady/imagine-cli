@@ -49,9 +49,14 @@ func TestResolveValue(t *testing.T) {
 			want: "sk-from-env",
 		},
 		{
-			name:    "missing env errors",
+			name:    "missing env (single) uses singular wording",
 			in:      "${IMAGINE_TEST_MISSING}",
-			wantErr: "IMAGINE_TEST_MISSING",
+			wantErr: "environment variable IMAGINE_TEST_MISSING is not set",
+		},
+		{
+			name:    "missing env (multiple) uses plural wording",
+			in:      "${IMAGINE_TEST_MISSING_A}-${IMAGINE_TEST_MISSING_B}",
+			wantErr: "environment variables IMAGINE_TEST_MISSING_A, IMAGINE_TEST_MISSING_B are not set",
 		},
 		{
 			name:      "op ref resolved",
@@ -86,7 +91,7 @@ func TestResolveValue(t *testing.T) {
 				return tc.opReturn, nil
 			})
 
-			got, err := resolveValue(tc.in)
+			got, err := resolveValue(context.Background(), tc.in)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("want error containing %q, got %v", tc.wantErr, err)
@@ -123,7 +128,7 @@ func TestResolveProviderIsLazyAndIsolated(t *testing.T) {
 		},
 	}
 
-	gemini, err := cfg.ResolveProvider("gemini")
+	gemini, err := cfg.ResolveProvider(context.Background(), "gemini")
 	if err != nil {
 		t.Fatalf("ResolveProvider(gemini): %v", err)
 	}
@@ -138,7 +143,7 @@ func TestResolveProviderIsLazyAndIsolated(t *testing.T) {
 		t.Errorf("original config mutated: %q", got)
 	}
 
-	openai, err := cfg.ResolveProvider("openai")
+	openai, err := cfg.ResolveProvider(context.Background(), "openai")
 	if err != nil {
 		t.Fatalf("ResolveProvider(openai): %v", err)
 	}
@@ -156,7 +161,7 @@ func TestResolveProviderErrorContextNamesProvider(t *testing.T) {
 			"openai": {"api_key": "${IMAGINE_TEST_NOPE}"},
 		},
 	}
-	_, err := cfg.ResolveProvider("openai")
+	_, err := cfg.ResolveProvider(context.Background(), "openai")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -165,9 +170,32 @@ func TestResolveProviderErrorContextNamesProvider(t *testing.T) {
 	}
 }
 
+func TestResolveProviderCancelsOpOnContextCancel(t *testing.T) {
+	withOpRunner(t, func(ctx context.Context, _ string) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	cfg := &Config{
+		Providers: map[string]ProviderConfig{
+			"openai": {"api_key": "op://Personal/OpenAI/api_key"},
+		},
+	}
+	_, err := cfg.ResolveProvider(ctx, "openai")
+	if err == nil {
+		t.Fatal("expected error from cancelled context")
+	}
+	if !strings.Contains(err.Error(), "context canceled") {
+		t.Errorf("want context-canceled error, got: %v", err)
+	}
+}
+
 func TestResolveProviderUnknownReturnsNil(t *testing.T) {
 	cfg := &Config{Providers: map[string]ProviderConfig{}}
-	got, err := cfg.ResolveProvider("missing")
+	got, err := cfg.ResolveProvider(context.Background(), "missing")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

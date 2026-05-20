@@ -34,7 +34,11 @@ const opTimeout = 5 * time.Second
 // Resolution is lazy and per-provider: only the active provider pays the
 // `op` round-trip on any given invocation, so commands like `providers show`
 // or `--help` don't trigger a 1Password auth prompt.
-func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
+//
+// The ctx is passed through to the `op` subprocess so a user Ctrl+C at the
+// cobra layer cancels the in-flight 1Password read immediately. A child
+// context with opTimeout still bounds the call from above.
+func (c *Config) ResolveProvider(ctx context.Context, name string) (ProviderConfig, error) {
 	if c == nil {
 		return nil, nil
 	}
@@ -44,7 +48,7 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 	}
 	out := make(ProviderConfig, len(pc))
 	for key, val := range pc {
-		resolved, err := resolveValue(val)
+		resolved, err := resolveValue(ctx, val)
 		if err != nil {
 			return nil, fmt.Errorf("providers.%s.%s: %w", name, key, err)
 		}
@@ -54,16 +58,21 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 }
 
 // resolveValue applies env expansion then 1Password resolution to a single
-// scalar. Plain literals pass through untouched.
-func resolveValue(v string) (string, error) {
+// scalar. Plain literals pass through untouched. The caller's ctx is honoured
+// for 1Password lookups (Ctrl+C cancels `op read` immediately) with a 5s
+// upper bound applied as a child timeout.
+func resolveValue(ctx context.Context, v string) (string, error) {
 	expanded, err := expandEnv(v)
 	if err != nil {
 		return "", err
 	}
 	if strings.HasPrefix(expanded, "op://") {
-		ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		opCtx, cancel := context.WithTimeout(ctx, opTimeout)
 		defer cancel()
-		return opRunner(ctx, expanded)
+		return opRunner(opCtx, expanded)
 	}
 	return expanded, nil
 }
@@ -103,7 +112,10 @@ func expandEnv(s string) (string, error) {
 		i++
 	}
 	if len(missing) > 0 {
-		return "", fmt.Errorf("environment variable %s is not set", strings.Join(missing, ", "))
+		if len(missing) == 1 {
+			return "", fmt.Errorf("environment variable %s is not set", missing[0])
+		}
+		return "", fmt.Errorf("environment variables %s are not set", strings.Join(missing, ", "))
 	}
 	return b.String(), nil
 }
