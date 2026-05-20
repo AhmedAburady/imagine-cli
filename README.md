@@ -179,6 +179,22 @@ Or edit `config.yaml` by hand (shape above). Either way:
   1. A GCP project with the Vertex AI API enabled.
   2. `gcloud auth application-default login` — imagine uses Application Default Credentials.
 
+#### Secret references — keep plaintext out of `config.yaml`
+
+Any string value under `providers:` may be a reference instead of a literal. References resolve once when the config is loaded.
+
+```yaml
+providers:
+  gemini:
+    api_key: "${GEMINI_API_KEY}"               # environment variable
+  openai:
+    api_key: "op://Personal/OpenAI/api_key"    # 1Password CLI
+```
+
+- `${VAR}` uses standard `os.Expand` rules. Missing variables are a hard error — imagine will not silently fall back to an empty key.
+- `op://...` shells out to the [1Password CLI](https://developer.1password.com/docs/cli/) (`op read --no-newline`). Install `op` once, sign in, and references resolve transparently. Compose with env vars: `op://Personal/${ITEM}/api_key`.
+- Literal values keep working unchanged — no flag, no migration.
+
 [↑ Back to top](#table-of-contents)
 
 ---

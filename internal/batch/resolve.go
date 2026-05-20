@@ -253,7 +253,11 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 	if !ok {
 		var auth providers.Auth
 		if rc.Config != nil {
-			auth = providers.Auth(rc.Config.Providers[provName])
+			resolved, rerr := rc.Config.ResolveProvider(provName)
+			if rerr != nil {
+				return Resolved{}, rerr
+			}
+			auth = providers.Auth(resolved)
 		}
 		providerInst, err = bundle.Factory(auth)
 		if err != nil {
