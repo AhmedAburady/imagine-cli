@@ -177,7 +177,7 @@ List form — entries are anonymous; the summary table identifies them by 1-base
 
 | Key | Type | Notes |
 |---|---|---|
-| `prompt` | string | **Required**. Use YAML `\|` for multi-line prompts. |
+| `prompt` | string | **Required**. Inline text (use YAML `\|` for multi-line), or a path to a file whose contents become the prompt (`~` expanded; relative paths resolve against the batch file's directory; trimmed; must be non-empty). A value that doesn't name an existing file is used literally. |
 | `provider` | string | `gemini` / `vertex` / `openai`. Falls back to `--provider` then config default. |
 | `output` | string | Output folder. `~` expanded. Default = CLI `-o` (or `.`). |
 | `filename` | string | Full filename with extension. Mutually exclusive with `replace`. |

@@ -1,6 +1,8 @@
 package batch_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -182,6 +184,97 @@ func TestResolve_RejectsCLIFlagNoEntryProviderClaims(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "thinking") {
 		t.Errorf("error should mention --thinking, got %v", err)
+	}
+}
+
+// --- Per-entry prompt file resolution --------------------------------------
+
+func TestResolve_EntryPromptReadsFileContents(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hero.md")
+	if err := os.WriteFile(path, []byte("  a samurai at dusk, cinematic\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	spec := &batch.Spec{Entries: []batch.Entry{
+		{Key: "hero", Index: 0, Raw: map[string]any{"prompt": path, "provider": "openai"}},
+	}}
+	resolved, err := batch.Resolve(batch.ResolveContext{
+		Spec:            spec,
+		CLIOptions:      defaultCLI(),
+		Cmd:             stubCmd(t),
+		Config:          stubConfig(),
+		DefaultProvider: "openai",
+	})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got := resolved[0].Request.Prompt; got != "a samurai at dusk, cinematic" {
+		t.Errorf("Prompt: got %q, want trimmed file contents", got)
+	}
+}
+
+func TestResolve_EntryPromptLiteralWhenNotAFile(t *testing.T) {
+	spec := &batch.Spec{Entries: []batch.Entry{
+		{Key: "hero", Index: 0, Raw: map[string]any{"prompt": "a sunset over mountains", "provider": "openai"}},
+	}}
+	resolved, err := batch.Resolve(batch.ResolveContext{
+		Spec:            spec,
+		CLIOptions:      defaultCLI(),
+		Cmd:             stubCmd(t),
+		Config:          stubConfig(),
+		DefaultProvider: "openai",
+	})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got := resolved[0].Request.Prompt; got != "a sunset over mountains" {
+		t.Errorf("Prompt: got %q, want literal text unchanged", got)
+	}
+}
+
+func TestResolve_EntryPromptRejectsEmptyFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "empty.md")
+	if err := os.WriteFile(path, []byte("   \n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	spec := &batch.Spec{Entries: []batch.Entry{
+		{Key: "hero", Index: 0, Raw: map[string]any{"prompt": path, "provider": "openai"}},
+	}}
+	_, err := batch.Resolve(batch.ResolveContext{
+		Spec:            spec,
+		CLIOptions:      defaultCLI(),
+		Cmd:             stubCmd(t),
+		Config:          stubConfig(),
+		DefaultProvider: "openai",
+	})
+	if err == nil || !strings.Contains(err.Error(), "empty") {
+		t.Errorf("expected empty-file error, got %v", err)
+	}
+}
+
+func TestResolve_EntryPromptRelativeToBatchDir(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "hero.md"), []byte("a knight in the rain\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Spec.Path lives in dir, so the bare relative prompt path resolves
+	// next to the batch file — not against the process working directory.
+	spec := &batch.Spec{Path: filepath.Join(dir, "batch.yaml"), Entries: []batch.Entry{
+		{Key: "hero", Index: 0, Raw: map[string]any{"prompt": "hero.md", "provider": "openai"}},
+	}}
+	resolved, err := batch.Resolve(batch.ResolveContext{
+		Spec:            spec,
+		CLIOptions:      defaultCLI(),
+		Cmd:             stubCmd(t),
+		Config:          stubConfig(),
+		DefaultProvider: "openai",
+	})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got := resolved[0].Request.Prompt; got != "a knight in the rain" {
+		t.Errorf("Prompt: got %q, want file contents resolved against batch dir", got)
 	}
 }
 

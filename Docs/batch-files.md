@@ -121,7 +121,7 @@ These work for any provider.
 
 | Key | Type | Required | Notes |
 |---|---|---|---|
-| `prompt` | string | yes | The text prompt. Multi-line OK with YAML's `\|` block scalar. |
+| `prompt` | string | yes | The text prompt, **or a path to a file** whose contents become the prompt (`~` expanded; relative paths resolve against the batch file's directory; trimmed; must be non-empty). A value that doesn't name an existing file is used literally. Multi-line inline prompts OK with YAML's `\|` block scalar. |
 | `provider` | string | no | `openai`, `gemini`, or `vertex`. Falls back to `--provider` then config default. |
 | `output` | string | no | Output folder. `~` expanded. Defaults to CLI `-o` (or `.`). |
 | `filename` | string | no | Output filename. Extension picks format (`.png`, `.jpg`, `.webp`). Mutually exclusive with `replace`. |

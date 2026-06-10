@@ -140,6 +140,14 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 		return Resolved{}, fmt.Errorf("prompt is required")
 	}
 
+	// A prompt naming a file becomes its contents, resolved against the batch
+	// file's directory; a .yaml/.json path is read literally, never nested.
+	promptText, err := cli.ResolvePromptText(common.prompt, filepath.Dir(rc.Spec.Path))
+	if err != nil {
+		return Resolved{}, err
+	}
+	common.prompt = promptText
+
 	// Effective provider: entry override → CLI --provider/config default.
 	provName := common.provider
 	if provName == "" {

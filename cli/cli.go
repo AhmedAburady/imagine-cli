@@ -7,6 +7,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/AhmedAburady/imagine-cli/internal/images"
@@ -63,6 +64,28 @@ var CommonFlagNames = map[string]bool{
 // IsCommonFlag reports whether name is a common (provider-agnostic) flag.
 func IsCommonFlag(name string) bool { return CommonFlagNames[name] }
 
+// ResolvePromptText resolves a prompt value to literal text: a file path
+// (relative to baseDir, "" = CWD) becomes its trimmed contents, else verbatim.
+func ResolvePromptText(value, baseDir string) (string, error) {
+	path := paths.ExpandTilde(value)
+	if baseDir != "" && !filepath.IsAbs(path) {
+		path = filepath.Join(baseDir, path)
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return value, nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to read prompt file %q: %v", path, err)
+	}
+	text := strings.TrimSpace(string(data))
+	if text == "" {
+		return "", fmt.Errorf("prompt file is empty: %s", path)
+	}
+	return text, nil
+}
+
 // Validate runs provider-agnostic checks:
 //   - -p is required (reading from a file if the value points at a path)
 //   - tilde expansion in -o, -i
@@ -75,23 +98,18 @@ func (opts *Options) Validate() error {
 		return fmt.Errorf("prompt is required (-p flag)")
 	}
 
+	// An existing batch file (.yaml/.yml/.json) goes to the batch loader;
+	// anything else resolves to literal prompt text (a plain file's contents).
 	promptPath := paths.ExpandTilde(opts.Prompt)
-	if info, err := os.Stat(promptPath); err == nil && !info.IsDir() {
-		if IsBatchPath(promptPath) {
-			// Batch file — defer reading to the batch loader. Keep
-			// Prompt as the canonical path so commands can dispatch.
-			opts.Prompt = promptPath
-			opts.IsBatch = true
-		} else {
-			data, err := os.ReadFile(promptPath)
-			if err != nil {
-				return fmt.Errorf("failed to read prompt file: %v", err)
-			}
-			opts.Prompt = strings.TrimSpace(string(data))
-			if opts.Prompt == "" {
-				return fmt.Errorf("prompt file is empty: %s", promptPath)
-			}
+	if info, err := os.Stat(promptPath); err == nil && !info.IsDir() && IsBatchPath(promptPath) {
+		opts.Prompt = promptPath // canonical path for the batch loader
+		opts.IsBatch = true
+	} else {
+		text, err := ResolvePromptText(opts.Prompt, "")
+		if err != nil {
+			return err
 		}
+		opts.Prompt = text
 	}
 
 	opts.Output = paths.ExpandTilde(opts.Output)
