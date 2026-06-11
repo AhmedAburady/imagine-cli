@@ -2,6 +2,8 @@
 
 <img src=".assets/imagine.png" alt="imagine" width="180" />
 
+# Imagine-cli
+
 [![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/AhmedAburady/imagine-cli?include_prereleases)](https://github.com/AhmedAburady/imagine-cli/releases)
