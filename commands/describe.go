@@ -60,11 +60,10 @@ func newDescribeCmd() *cobra.Command {
 				return err
 			}
 
-			resolved, err := cfg.ResolveProvider(cmd.Context(), active)
+			auth, err := resolveAuth(cmd.Context(), cfg, active)
 			if err != nil {
 				return err
 			}
-			auth := providers.Auth(resolved)
 			bundle, _ := providers.Get(active)
 			p, err := bundle.Factory(auth)
 			if err != nil {
@@ -129,11 +128,11 @@ func runShowInstructions(cmd *cobra.Command, providerName string) error {
 		return err
 	}
 	bundle, _ := providers.Get(active)
-	resolved, err := cfg.ResolveProvider(cmd.Context(), active)
+	auth, err := resolveAuth(cmd.Context(), cfg, active)
 	if err != nil {
 		return err
 	}
-	p, err := bundle.Factory(providers.Auth(resolved))
+	p, err := bundle.Factory(auth)
 	if err != nil {
 		return err
 	}

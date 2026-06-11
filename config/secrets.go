@@ -9,13 +9,25 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/mattn/go-isatty"
 )
 
 // opRunner reads a 1Password secret reference and returns its plaintext value.
 // Overridable in tests; the default runner shells out to the `op` CLI.
 var opRunner = defaultOpRunner
 
-const opTimeout = 5 * time.Second
+// opTimeout bounds a single `op read`. Interactively it is generous: an unlock
+// against a locked vault (Touch ID / approval) easily exceeds a few seconds,
+// and a short cap killed op mid-prompt — failing the read and re-prompting on
+// every retry (op never cached its session). Non-interactively (CI) there is no
+// one to approve a prompt, so a short cap fails fast instead of stalling.
+func opTimeout() time.Duration {
+	if isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd()) {
+		return 120 * time.Second
+	}
+	return 15 * time.Second
+}
 
 // ResolveProvider returns a copy of providers.<name>'s config with every
 // value resolved through expandEnv + 1Password lookup. The original config
@@ -38,7 +50,10 @@ const opTimeout = 5 * time.Second
 // The ctx is passed through to the `op` subprocess so a user Ctrl+C at the
 // cobra layer cancels the in-flight 1Password read immediately. A child
 // context with opTimeout still bounds the call from above.
-func (c *Config) ResolveProvider(ctx context.Context, name string) (ProviderConfig, error) {
+// skipKeys lists fields whose values pass through verbatim instead of being
+// resolved — used to avoid fetching a secret reference (e.g. an op:// API key)
+// that the active auth method never reads.
+func (c *Config) ResolveProvider(ctx context.Context, name string, skipKeys ...string) (ProviderConfig, error) {
 	if c == nil {
 		return nil, nil
 	}
@@ -46,8 +61,16 @@ func (c *Config) ResolveProvider(ctx context.Context, name string) (ProviderConf
 	if !ok {
 		return nil, nil
 	}
+	skip := make(map[string]bool, len(skipKeys))
+	for _, k := range skipKeys {
+		skip[k] = true
+	}
 	out := make(ProviderConfig, len(pc))
 	for key, val := range pc {
+		if skip[key] {
+			out[key] = val
+			continue
+		}
 		resolved, err := resolveValue(ctx, val)
 		if err != nil {
 			return nil, fmt.Errorf("providers.%s.%s: %w", name, key, err)
@@ -59,8 +82,8 @@ func (c *Config) ResolveProvider(ctx context.Context, name string) (ProviderConf
 
 // resolveValue applies env expansion then 1Password resolution to a single
 // scalar. Plain literals pass through untouched. The caller's ctx is honoured
-// for 1Password lookups (Ctrl+C cancels `op read` immediately) with a 5s
-// upper bound applied as a child timeout.
+// for 1Password lookups (Ctrl+C cancels `op read` immediately) with opTimeout()
+// applied as a child timeout.
 func resolveValue(ctx context.Context, v string) (string, error) {
 	expanded, err := expandEnv(v)
 	if err != nil {
@@ -70,7 +93,7 @@ func resolveValue(ctx context.Context, v string) (string, error) {
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		opCtx, cancel := context.WithTimeout(ctx, opTimeout)
+		opCtx, cancel := context.WithTimeout(ctx, opTimeout())
 		defer cancel()
 		return opRunner(opCtx, expanded)
 	}
@@ -139,7 +162,7 @@ func defaultOpRunner(ctx context.Context, ref string) (string, error) {
 		case context.Canceled:
 			return "", context.Canceled
 		case context.DeadlineExceeded:
-			return "", fmt.Errorf("op read timed out after %s", opTimeout)
+			return "", errors.New("op read timed out — unlock 1Password (or sign in: `op signin`) and retry")
 		}
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {

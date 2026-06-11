@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -8,6 +9,17 @@ import (
 	"github.com/AhmedAburady/imagine-cli/config"
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
+
+// resolveAuth resolves the active provider's config into Auth, skipping secret
+// references that belong only to a non-active auth method.
+func resolveAuth(ctx context.Context, cfg *config.Config, name string) (providers.Auth, error) {
+	skip := providers.UnusedSecretKeys(name, cfg.Providers[name])
+	resolved, err := cfg.ResolveProvider(ctx, name, skip...)
+	if err != nil {
+		return nil, err
+	}
+	return providers.Auth(resolved), nil
+}
 
 // resolveDefaultProviderForBatch is resolveProvider's batch-mode twin.
 // Same precedence chain, but a missing provider is not an error —

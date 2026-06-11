@@ -12,11 +12,20 @@ import (
 )
 
 const (
-	DefaultVisionModel = "gpt-5.4-mini"
+	DefaultVisionModel  = "gpt-5.4-mini"
 	chatCompletionsPath = "/chat/completions"
 )
 
+// Describe dispatches to the active method's vision transport.
 func (p *Provider) Describe(ctx context.Context, req providers.DescribeRequest) (*providers.ImageDescription, error) {
+	if p.method == methodSubscription {
+		return p.describeSubscription(ctx, req)
+	}
+	return p.describeAPIKey(ctx, req)
+}
+
+// describeAPIKey analyses images via /v1/chat/completions.
+func (p *Provider) describeAPIKey(ctx context.Context, req providers.DescribeRequest) (*providers.ImageDescription, error) {
 	if len(req.Images) == 0 {
 		return nil, errors.New("no images provided")
 	}
@@ -94,7 +103,9 @@ When multiple images are provided, identify the UNIFIED style elements across al
 
 Focus on what you actually SEE: colors, shapes, patterns, textures, art style, mood, distinctive visual elements, composition. Output only the description, no preamble.`
 
-const JSONInstruction = `Analyze the image style. Respond with a JSON object matching the provided schema. Be concise and specific.`
+const JSONInstruction = `Analyze the image style and respond with ONLY a JSON object (no markdown fence, no preamble) with these keys:
+{"style_name": string, "description": string, "style_summary": string, "colors": [string], "medium": string, "composition": string, "key_elements": [string], "avoid": [string]}
+Be concise and specific. colors/key_elements/avoid are arrays of short strings.`
 
 // styleSchema mirrors the JSON shape returned by gvision so both providers
 // produce the same StyleAnalysis output. Optional fields stay optional —

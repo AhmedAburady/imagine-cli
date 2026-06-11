@@ -1,5 +1,9 @@
 // Package openai implements the Provider interface for OpenAI's GPT Image
-// models, using the /v1/images endpoints (API key auth).
+// models. It supports two mutually-exclusive auth methods, selected at
+// `providers add` time and recorded as auth_method: an API key billed via
+// platform.openai.com (the /v1/images endpoints), or a ChatGPT subscription
+// signed in via OAuth (the Codex Responses route). The route is chosen per
+// Provider instance; everything below dispatches on p.method.
 package openai
 
 import (
@@ -10,6 +14,7 @@ import (
 	"mime/multipart"
 	"net/textproto"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/AhmedAburady/imagine-cli/internal/images"
@@ -24,26 +29,68 @@ const (
 	editsPath       = "/images/edits"
 )
 
+// authMethod selects the credential type / transport for one Provider instance.
+type authMethod string
+
+const (
+	methodAPIKey       authMethod = "api_key"
+	methodSubscription authMethod = "subscription"
+)
+
 // httpClient uses a longer timeout than Gemini — OpenAI docs note that
 // complex prompts may take up to 2 minutes.
 var httpClient = transport.NewClient(180 * time.Second)
 
-// Provider is the OpenAI Images implementation of providers.Provider.
+// Provider is the OpenAI Images implementation of providers.Provider. It holds
+// the credentials for whichever auth method is active; mu/cached guard the
+// subscription token store.
 type Provider struct {
-	apiKey      string
+	method      authMethod
+	apiKey      string // api_key method
 	visionModel string
+	authFile    string // subscription token store path
+
+	mu     sync.Mutex
+	cached *storedAuth
 }
 
-// New builds an OpenAI provider from auth.
+// New builds a Provider for the configured auth method. Construction does not
+// require the subscription token (checked at call time so help/metadata work
+// pre-sign-in), but the API-key method still fails fast on a missing key.
 func New(auth providers.Auth) (providers.Provider, error) {
-	key := auth.Get("api_key")
-	if key == "" {
-		return nil, errors.New("openai provider requires providers.openai.api_key in ~/.config/imagine/config.yaml")
+	p := &Provider{
+		method:      resolveMethod(auth),
+		apiKey:      auth.Get("api_key"),
+		visionModel: auth.Get("vision_model"),
+		authFile:    subscriptionAuthFile(auth.Get("auth_file")),
 	}
-	return &Provider{apiKey: key, visionModel: auth.Get("vision_model")}, nil
+	if p.method == methodAPIKey && p.apiKey == "" {
+		return nil, errors.New("openai (api_key) requires an API key — run `imagine providers add openai`, or set providers.openai.api_key")
+	}
+	return p, nil
 }
 
-// ConfigSchema declares the fields `imagine providers add openai` collects.
+// resolveMethod reads auth_method, inferring it for configs written before that
+// key existed: an api_key present → api_key; else an existing token store →
+// subscription; else api_key (New then errors with guidance).
+func resolveMethod(auth providers.Auth) authMethod {
+	switch authMethod(auth.Get("auth_method")) {
+	case methodSubscription:
+		return methodSubscription
+	case methodAPIKey:
+		return methodAPIKey
+	}
+	if auth.Get("api_key") != "" {
+		return methodAPIKey
+	}
+	if subscriptionConfigured(auth.Get("auth_file")) {
+		return methodSubscription
+	}
+	return methodAPIKey
+}
+
+// ConfigSchema is the field set for the API-key method (reused as that method's
+// AuthMethod.Fields in register.go).
 func (p *Provider) ConfigSchema() []providers.ConfigField {
 	return []providers.ConfigField{
 		{
@@ -62,12 +109,18 @@ func (p *Provider) ConfigSchema() []providers.ConfigField {
 	}
 }
 
-// Info advertises OpenAI's models + capabilities.
+// Info advertises OpenAI's models. MaxBatchN depends on the active method: the
+// API-key /v1/images endpoint packs up to 10 images per call; the subscription
+// Responses tool yields one, so the orchestrator fans -n out as N calls.
 func (p *Provider) Info() providers.Info {
+	maxBatch := 10
+	if p.method == methodSubscription {
+		maxBatch = 1
+	}
 	return providers.Info{
 		Name:         "openai",
 		DisplayName:  "OpenAI",
-		Summary:      "OpenAI GPT Image models via api.openai.com",
+		Summary:      "OpenAI GPT Image models — API key or ChatGPT subscription",
 		DefaultModel: defaultModel,
 		Models: []providers.ModelInfo{
 			{ID: "gpt-image-2", Aliases: []string{"2"}, Description: "Flagship GPT Image model. Flexible sizes, high-fidelity inputs."},
@@ -77,24 +130,27 @@ func (p *Provider) Info() providers.Info {
 			{ID: "chatgpt-image-latest", Aliases: []string{"latest"}, Description: "ChatGPT-variant latest."},
 		},
 		Capabilities: providers.Capabilities{
-			Edit:        true,
-			Grounding:   false,
-			Thinking:    false,
-			ImageSearch: false,
-			MaxBatchN:   10, // /v1/images supports up to 10 per call
+			Edit:      true,
+			MaxBatchN: maxBatch,
 		},
 	}
 }
 
-// Generate calls /v1/images/generations (pure generate) or /v1/images/edits
-// (when References are present).
+// Generate dispatches to the active method's transport.
 func (p *Provider) Generate(ctx context.Context, req providers.Request) (*providers.Response, error) {
 	opts, ok := req.Options.(*Options)
 	if !ok {
 		return nil, fmt.Errorf("openai: internal: expected *Options, got %T", req.Options)
 	}
+	if p.method == methodSubscription {
+		return p.generateSubscription(ctx, opts, req)
+	}
+	return p.generateAPIKey(ctx, opts, req)
+}
 
-	// Edit mode when references are present.
+// generateAPIKey calls /v1/images/generations or /v1/images/edits (edit mode
+// when References are present).
+func (p *Provider) generateAPIKey(ctx context.Context, opts *Options, req providers.Request) (*providers.Response, error) {
 	if len(req.References) > 0 {
 		return p.edit(ctx, editRequest{
 			Model:        opts.Model,

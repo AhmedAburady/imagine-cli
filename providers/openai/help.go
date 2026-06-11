@@ -5,7 +5,8 @@ package openai
 // ACTIVE PROVIDER line and the MODELS list from Info, so this only
 // returns the bespoke examples + sizes.
 func Examples() string {
-	return `  imagine -p "a red apple" -q low
+	return `  imagine providers add openai     # choose: API key, or ChatGPT subscription (OAuth)
+  imagine -p "a red apple" -q low
   imagine -p "logo" -n 3 -s 1024x1024
   imagine -p "hero banner" -s 3840x2160 -q high -f hero.jpg
   imagine -p "sticker" -m 1.5 --background transparent -f sticker.png
