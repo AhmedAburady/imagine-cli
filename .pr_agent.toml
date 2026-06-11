@@ -1,0 +1,76 @@
+[config]
+allow_dynamic_context = true
+
+
+[pr_reviewer]
+num_max_findings = 5
+enable_review_labels_security = true
+enable_review_labels_effort = true
+
+
+
+[pr_code_suggestions]
+focus_only_on_problems = false
+suggestions_score_threshold = 5
+num_code_suggestions_per_chunk = 4
+max_number_of_calls = 4
+parallel_calls = true
+persistent_comment = false
+
+[pr_questions]
+use_conversation_history = true
+
+[ignore]
+glob = [
+  # Go dependencies and generated source
+  "**/vendor/**",
+  "**/*.pb.go",
+  "**/*_grpc.pb.go",
+  "**/*_generated.go",
+  "**/zz_generated*.go",
+  "**/mock_*.go",
+
+  # Build, coverage, profiling, and test artifacts
+  "**/bin/**",
+  "**/build/**",
+  "**/dist/**",
+  "**/out/**",
+  "**/tmp/**",
+  "**/coverage/**",
+  "coverage.out",
+  "**/*.out",
+  "**/*.test",
+  "**/*.prof",
+  "**/*.pprof",
+  "**/*.trace",
+
+  # Local binaries and image-generation output
+  "imagine",
+  "banana",
+  "nano_banana_pro",
+  "output/**",
+  "input/**",
+  "generations/**",
+  "*.png",
+  "*.jpg",
+  "*.jpeg",
+  "*.webp",
+
+  # Local workspace, environment, editor, and OS files
+  "go.work",
+  "go.work.sum",
+  ".env*",
+  "**/.DS_Store",
+  ".idea/**",
+  ".vscode/**",
+  "**/*.swp",
+  "**/*.swo",
+
+  # Agent scratch data, docs, research, and planning — not production code
+  ".agents/**",
+  ".claude/**",
+  ".firecrawl/**",
+  "context/**",
+  "Docs/**",
+  "**/*.md"
+]
