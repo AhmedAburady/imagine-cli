@@ -28,13 +28,14 @@ providers:
     api_key: AIza-paste-your-gemini-key-here
     # vision_model: gemini-pro-latest    # optional describe model override
 
-  # OpenAI (GPT Image + GPT-5.4 vision)
-  # Get a key at https://platform.openai.com
-  # Note: requires org verification for GPT Image access
-  # Or: imagine providers add openai --api-key sk-...
+  # OpenAI (GPT Image + GPT-5.4 vision) — two auth methods, pick one:
+  #   API key:       imagine providers add openai --api-key sk-...   (org verification req'd)
+  #   Subscription:  imagine providers add openai login   (browser sign-in, billed to your ChatGPT plan)
   openai:
-    api_key: sk-paste-your-openai-key-here
+    auth_method: api_key               # "api_key" or "subscription"
+    api_key: sk-paste-your-openai-key-here   # only for auth_method: api_key
     # vision_model: gpt-5.4-mini         # optional describe model override
+    # For subscription auth, just: { auth_method: subscription } — tokens are stored separately.
 
   # Vertex AI (Gemini via GCP, ADC auth)
   # Setup on this machine:

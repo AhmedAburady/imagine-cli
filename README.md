@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src=".assets/cover.jpg" alt="imagine" />
+<img src=".assets/imagine.png" alt="imagine" width="180" />
 
 [![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -50,6 +50,7 @@ I built [banana-cli](https://github.com/AhmedAburady/banana-cli) first — a foc
 - **Batch runs from a file** — `imagine -p batch.yaml` describes many jobs in one file: different prompts, different providers, different sizes. Every entry runs in parallel; validation is exhaustive before any HTTP fires; results land in a styled summary table. Built for scripts and CI.
 - **Iterate fast** — tweak the prompt, rerun, compare. Generate multiple variations in one shot with `-n` and keep what works. The terminal loop is the creative loop.
 - **Generate and edit in one command** — `-p "..."` generates; add `-i reference.png` and the same command switches to edit mode.
+- **Use your ChatGPT subscription — no API key** — sign in with ChatGPT once (`imagine providers add openai login`) and generate with gpt-image-2 billed to your Plus/Pro plan. Prefer pay-as-you-go? Use a platform API key instead. Same `openai` provider, your choice.
 - **One config file, no env vars** — set your keys once in `~/.config/imagine/config.yaml` and forget about it.
 - **Extensible by design** — adding a new provider is one directory under `providers/` and one import line. As new models ship, imagine can keep up.
 
@@ -125,8 +126,9 @@ providers:
     api_key: AIza-your-key-here
     vision_model: gemini-pro-latest   # optional — defaults to gemini-pro-latest
 
-  openai:
-    api_key: sk-your-openai-key-here
+  openai:                             # two auth methods — pick one (see Credentials)
+    auth_method: api_key              # "api_key" or "subscription" (ChatGPT sign-in)
+    api_key: sk-your-openai-key-here  # only for auth_method: api_key
     vision_model: gpt-5.4-mini        # optional — defaults to gpt-5.4-mini
 
   vertex:
@@ -140,7 +142,8 @@ providers:
 | `default_provider` | No | Provider used for image generation when `--provider` is omitted. Defaults to the first provider under `providers:` (alphabetical). |
 | `vision_default_provider` | No | Provider used for `imagine describe` when `--provider` is omitted. Falls back to `default_provider` when empty. |
 | `providers.gemini.api_key` | Yes | Google AI Studio API key. |
-| `providers.openai.api_key` | Yes | OpenAI platform API key. |
+| `providers.openai.auth_method` | No | `api_key` (default) or `subscription`. Picks how the `openai` provider authenticates — see [Credentials](#openai-api-key-or-chatgpt-subscription). Inferred from the presence of `api_key` when omitted. |
+| `providers.openai.api_key` | For `api_key` | OpenAI platform API key. Not needed (or read) when `auth_method: subscription`. |
 | `providers.vertex.gcp_project` | Yes | GCP project id with the Vertex AI API enabled. |
 | `providers.vertex.location` | No | Vertex region. Defaults to `global`. |
 | `providers.<name>.vision_model` | No | Model `imagine describe` uses for that provider. Defaults are `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), and `gpt-5.4-mini` (openai). |
@@ -174,10 +177,32 @@ imagine providers add vertex --gcp-project your-gcp-project-id
 Or edit `config.yaml` by hand (shape above). Either way:
 
 - **Gemini** — get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
-- **OpenAI** — get an API key from [platform.openai.com](https://platform.openai.com).
+- **OpenAI** — an API key, **or** your ChatGPT subscription — see [below](#openai-api-key-or-chatgpt-subscription).
 - **Vertex AI** — no key. Two steps on the machine first:
   1. A GCP project with the Vertex AI API enabled.
   2. `gcloud auth application-default login` — imagine uses Application Default Credentials.
+
+#### OpenAI: API key or ChatGPT subscription
+
+The `openai` provider supports two **mutually-exclusive** auth methods, chosen when you add it. Same models, same flags — only the billing and credential differ.
+
+| | API key | ChatGPT subscription |
+|---|---|---|
+| Billed to | OpenAI Platform (pay-as-you-go) | your ChatGPT **Plus / Pro / Team** plan |
+| Credential | `sk-…` key in `config.yaml` | OAuth token from "Sign in with ChatGPT" |
+| Setup | `imagine providers add openai --api-key sk-…` | `imagine providers add openai login` (opens your browser) |
+
+Run `imagine providers add openai` with no arguments for an interactive picker:
+
+```
+How do you want to authenticate?
+  › API key
+    ChatGPT Plus/Pro (Codex Subscription)
+```
+
+- **`login`** runs a one-time browser sign-in (OAuth/PKCE on a `localhost` callback). The tokens are cached in a separate `0600` file — `~/.config/imagine/openai-subscription-auth.json` — never in `config.yaml`, and refreshed silently. Your config stanza is just `auth_method: subscription`.
+- Switch methods anytime by re-running `imagine providers add openai` (or editing `auth_method:`). You can keep both credentials in the stanza; only the active method's is ever read.
+- The subscription route reaches gpt-image-2 through OpenAI's ChatGPT backend rather than the public `/v1/images` API. It rides an endpoint OpenAI hasn't published for third parties, so treat it as **best-effort** — if it ever stops working, the API-key method is the stable fallback.
 
 #### Secret references — keep plaintext out of `config.yaml`
 
@@ -192,7 +217,7 @@ providers:
 ```
 
 - `${VAR}` is the only env syntax recognised — `$$`, lone `$`, and `$VAR` (no braces) pass through verbatim, so an API token containing literal `$` characters survives unchanged. Missing variables are a hard error; imagine will not silently fall back to an empty key.
-- `op://...` shells out to the [1Password CLI](https://developer.1password.com/docs/cli/) (`op read --no-newline`, 5s upper bound). Install `op` once, sign in, and references resolve transparently. Compose with env vars: `op://Personal/${ITEM}/api_key`. Ctrl+C during a slow lookup cancels the subprocess immediately.
+- `op://...` shells out to the [1Password CLI](https://developer.1password.com/docs/cli/) (`op read --no-newline`). Install `op` once, sign in, and references resolve transparently. Compose with env vars: `op://Personal/${ITEM}/api_key`. The lookup waits up to 120s in a terminal (so a Touch ID / approval prompt has time to complete) and 15s in non-interactive / CI contexts (where no one can approve a prompt). Ctrl+C cancels it immediately. Only the active provider's secrets are resolved — and only the active OpenAI auth method's — so an unused reference is never fetched.
 - Literal values keep working unchanged — no flag, no migration.
 
 [↑ Back to top](#table-of-contents)
@@ -332,7 +357,7 @@ Vertex does not support `--image-search`.
 
 ### OpenAI
 
-Uses `gpt-image-2` by default.
+Uses `gpt-image-2` by default. The flags below are identical whether you authenticate with an API key or a [ChatGPT subscription](#openai-api-key-or-chatgpt-subscription) — only the billing and endpoint differ.
 
 | Flag | Long | Description | Default |
 |---|---|---|---|
@@ -366,7 +391,7 @@ Uses `gpt-image-2` by default.
 
 Any `WxH` is accepted if: edge ≤ 3840px, both multiples of 16, long:short ≤ 3:1, total pixels 655,360–8,294,400.
 
-**Edit-mode restriction** — OpenAI's `/v1/images/edits` only accepts `1024x1024`, `1536x1024`, `1024x1536`, `auto`. Using `-i` with `-s 2K` / `4K` / larger raw dimensions errors before the API call.
+**Edit-mode restriction (API-key route)** — OpenAI's `/v1/images/edits` only accepts `1024x1024`, `1536x1024`, `1024x1536`, `auto`. Using `-i` with `-s 2K` / `4K` / larger raw dimensions errors before the API call. The ChatGPT-subscription route has no such limit — any generation size works in edit mode.
 
 **Output format** — inferred from `-f` extension:
 - `-f cat.png` → API returns PNG
@@ -505,6 +530,8 @@ Pills + badges:
 - `generate` / `describe` — the capabilities this provider implements
 
 `providers add <name> --help` shows the exact fields for each provider (api_key, vision_model, gcp_project, location as applicable). Non-TTY invocation with missing required fields errors with the exact flag names — deterministic output for scripts and CI.
+
+OpenAI is multi-auth: `imagine providers add openai` opens an API-key / ChatGPT-subscription picker in a terminal. Headless, pick the method explicitly — `imagine providers add openai --api-key sk-…` or `imagine providers add openai login` (the latter still needs a browser for the OAuth round-trip). See [Credentials](#openai-api-key-or-chatgpt-subscription).
 
 [↑ Back to top](#table-of-contents)
 

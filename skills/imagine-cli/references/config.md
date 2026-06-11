@@ -29,7 +29,8 @@ providers:
     vision_model: gemini-pro-latest     # optional, defaults to gemini-pro-latest
 
   openai:
-    api_key: sk-your-openai-key-here
+    auth_method: api_key                # "api_key" (default) or "subscription"
+    api_key: sk-your-openai-key-here    # only for auth_method: api_key
     vision_model: gpt-5.4-mini          # optional, defaults to gpt-5.4-mini
 
   vertex:
@@ -48,7 +49,8 @@ Per-provider config is **flat**: every key/value under `providers.<name>` is a d
 | `vision_default_provider` | No | Provider for `imagine describe` when `--provider` is omitted. Falls back to `default_provider` when empty. Must name a describe-capable provider. |
 | `providers.<name>` | Yes (at least one) | Per-provider block. The `<name>` must be one of the providers compiled into this binary (currently `gemini`, `vertex`, `openai`). |
 | `providers.gemini.api_key` | Yes | Google AI Studio API key. |
-| `providers.openai.api_key` | Yes | OpenAI platform API key. |
+| `providers.openai.auth_method` | No | `api_key` (default) or `subscription` (ChatGPT sign-in). Inferred from the presence of `api_key` when omitted. See the OpenAI setup section below. |
+| `providers.openai.api_key` | For `api_key` | OpenAI platform API key. Not read when `auth_method: subscription`. |
 | `providers.vertex.gcp_project` | Yes | GCP project id with Vertex AI API enabled. |
 | `providers.vertex.location` | No | Vertex region. Defaults to `global`. |
 | `providers.<name>.vision_model` | No | Model `imagine describe` uses for this provider. Defaults: `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), `gpt-5.4-mini` (openai). |
@@ -97,18 +99,39 @@ providers:
 
 That's it.
 
-### OpenAI (API key)
+### OpenAI — two auth methods
 
-1. Get an API key at https://platform.openai.com.
-2. Paste into the config:
+The `openai` provider authenticates one of two mutually-exclusive ways (`auth_method`):
+
+**1. API key** (headless-friendly) — pay-as-you-go via the OpenAI Platform.
+
+```bash
+imagine providers add openai --api-key sk-your-openai-key-here
+```
 
 ```yaml
 providers:
   openai:
+    auth_method: api_key
     api_key: sk-your-openai-key-here
 ```
 
 Needs organization verification enabled on the account for GPT Image models — see OpenAI's docs.
+
+**2. ChatGPT subscription** — gpt-image-2 billed to the user's Plus/Pro/Team plan, no API key.
+
+```bash
+imagine providers add openai login    # opens the user's BROWSER for OAuth sign-in
+```
+
+```yaml
+providers:
+  openai:
+    auth_method: subscription
+    # no api_key — OAuth tokens live in ~/.config/imagine/openai-subscription-auth.json (0600)
+```
+
+The `login` command runs a one-time browser OAuth sign-in on a `localhost` callback, then caches refreshable tokens in a separate `0600` file. It reaches gpt-image-2 through OpenAI's ChatGPT backend (an unpublished endpoint — best-effort). **Agents: do not run `login` headless** — it blocks on the browser callback; have the user run it. Once signed in, generation works identically to the API-key method.
 
 ### Vertex AI (GCP project + ADC, no key in config)
 
@@ -149,11 +172,19 @@ providers:
     api_key: AIza-your-key-here
 ```
 
-**Just OpenAI:**
+**Just OpenAI (API key):**
 ```yaml
 providers:
   openai:
+    auth_method: api_key
     api_key: sk-your-key-here
+```
+
+**Just OpenAI (ChatGPT subscription):** run `imagine providers add openai login`, which writes:
+```yaml
+providers:
+  openai:
+    auth_method: subscription
 ```
 
 **Both, default to OpenAI:**

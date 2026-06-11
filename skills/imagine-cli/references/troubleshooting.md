@@ -130,6 +130,22 @@ providers:
 
 OpenAI requires organization verification for GPT Image models. Complete the verification at https://platform.openai.com/settings/organization/general.
 
+## OpenAI subscription: `no ChatGPT subscription session — run imagine providers add openai and choose Subscription`
+
+`auth_method: subscription` is set but there's no cached OAuth token (never signed in, or the token file was deleted). Fix: the user runs `imagine providers add openai login` in their own terminal (opens a browser). Agents can't do this headless — it blocks on the browser callback.
+
+## OpenAI subscription: `session expired and refresh failed — re-run imagine providers add openai`
+
+The refresh token was rejected (expired / revoked / rotated by another sign-in). The user must re-authenticate: `imagine providers add openai login`.
+
+## OpenAI subscription: `blocked by Cloudflare — your session may have expired`
+
+A 403 from the ChatGPT backend, usually a stale session. Re-run `imagine providers add openai login`. (The subscription route rides an unpublished endpoint; if re-login doesn't fix it, switch to the API-key method: `imagine providers add openai --api-key sk-…`.)
+
+## OpenAI: `specify how to authenticate: pass a credential flag (e.g. --api-key <key>), or run imagine providers add openai login`
+
+`imagine providers add openai` was run non-interactively with no method chosen. Pick one explicitly: `--api-key sk-…` (API key) or the `login` subcommand (subscription, browser). Never run the bare picker or `login` in a non-TTY context — they hang on a human.
+
 ## OpenAI: 429 rate limit
 
 Happens at high `-n` values or short loops. imagine doesn't auto-retry. Options:

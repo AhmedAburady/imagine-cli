@@ -58,15 +58,13 @@ func init() {
 		Vision:         &providers.Vision{DefaultModel: DefaultVisionModel},
 		AuthMethods: []providers.AuthMethod{
 			{
-				Key:         "api_key",
-				Title:       "API key",
-				Description: "Pay-as-you-go via platform.openai.com",
-				Fields:      (&Provider{}).ConfigSchema(),
+				Key:    "api_key",
+				Title:  "OpenAI API key",
+				Fields: (&Provider{}).ConfigSchema(),
 			},
 			{
-				Key:         "subscription",
-				Title:       "ChatGPT Plus/Pro (Codex Subscription)",
-				Description: "Sign in with ChatGPT in the browser (OAuth, no API key)",
+				Key:   "subscription",
+				Title: "ChatGPT Plus/Pro (Codex Subscription)",
 				// vision_model is declared here too (not just on api_key) because
 				// describe reads it on this route as well; declaring it keeps the
 				// resolver from skipping it as an "api_key-only" field.
