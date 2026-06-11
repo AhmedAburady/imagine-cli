@@ -1,7 +1,9 @@
 package providers
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"slices"
 	"sort"
 
@@ -67,6 +69,24 @@ type Bundle struct {
 
 	// Vision is non-nil iff the provider implements Describer.
 	Vision *Vision
+
+	// AuthMethods lets a provider offer more than one way to authenticate
+	// (e.g. an API key OR an interactive subscription sign-in). When set,
+	// `providers add` records the chosen method's Key under auth_method and
+	// the Factory branches on it. Empty → the provider uses ConfigSchema.
+	AuthMethods []AuthMethod
+}
+
+// AuthMethod is one credential strategy a provider supports. Exactly one of
+// Fields (a static form) or Login (an interactive flow, e.g. OAuth) is set;
+// the chosen method's Key is persisted as auth_method so the Factory can
+// route. Reusable across providers — any multi-auth provider declares these.
+type AuthMethod struct {
+	Key         string                                         // persisted as auth_method, e.g. "api_key"
+	Title       string                                         // chooser label
+	Description string                                         // one-line chooser help
+	Fields      []ConfigField                                  // form-based onboarding
+	Login       func(ctx context.Context, out io.Writer) error // interactive onboarding
 }
 
 // Common carries per-entry runtime hints to ParseOptions when a batch

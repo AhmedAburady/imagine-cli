@@ -1,6 +1,30 @@
 # OpenAI provider reference
 
-Uses OpenAI's `/v1/images` endpoints. Generate is JSON-bodied; edit is multipart/form-data. Both authenticate with `Authorization: Bearer <api_key>`.
+## Auth methods
+
+The `openai` provider authenticates one of two mutually-exclusive ways, set by `auth_method` in config and chosen at `providers add` time. Models, flags, sizes, and output formats below are **identical** for both — only billing, the endpoint, and onboarding differ.
+
+| | `api_key` (default) | `subscription` |
+|---|---|---|
+| Billed to | OpenAI Platform (pay-as-you-go) | the user's ChatGPT **Plus/Pro/Team** plan |
+| Credential | `sk-…` in `config.yaml` (or an `op://` / `${VAR}` ref) | OAuth token cached in `~/.config/imagine/openai-subscription-auth.json` (`0600`), refreshed silently |
+| Endpoint | `api.openai.com/v1/images` (generate = JSON, edit = multipart), `Authorization: Bearer <api_key>` | OpenAI's ChatGPT/Codex Responses backend (SSE) — an unpublished endpoint, treat as best-effort |
+| Set up | `imagine providers add openai --api-key sk-…` (headless-OK) | `imagine providers add openai login` (**opens a browser** — needs a human; do NOT run headless) |
+
+Config stanza for each:
+
+```yaml
+openai:
+  auth_method: api_key       # api_key route
+  api_key: sk-...
+# --- or ---
+openai:
+  auth_method: subscription  # subscription route; tokens live in the separate 0600 file, not here
+```
+
+`auth_method` is inferred from the presence of `api_key` when omitted, so older API-key configs keep working unchanged. Switching methods = re-run `imagine providers add openai` (or edit `auth_method:`). Only the active method's credential is read, so an unused `op://` key in the stanza is never fetched.
+
+**Agent note:** never run `imagine providers add openai login` or the bare `imagine providers add openai` picker in a non-interactive context — both block on a human (browser callback / TTY prompt). For subscription auth, instruct the user to run the `login` command themselves; then generate normally.
 
 ## Models
 
@@ -63,9 +87,9 @@ ANY `WxH` is accepted if it satisfies all of these:
 
 The API validates server-side; imagine pattern-checks the format client-side but lets the server enforce the constraints.
 
-### Edit-mode size restriction
+### Edit-mode size restriction (API-key route only)
 
-When `-i` is passed (edit mode), `/v1/images/edits` only accepts: `1024x1024`, `1536x1024`, `1024x1536`, `auto`. Using `-s 2K`/`4K`/larger `WxH` in edit mode errors **before** the API call — imagine checks this client-side.
+On the **API-key** route, edit mode (`-i`) goes through `/v1/images/edits`, which only accepts: `1024x1024`, `1536x1024`, `1024x1536`, `auto`. Using `-s 2K`/`4K`/larger `WxH` in edit mode errors **before** the API call — imagine checks this client-side. The **subscription** route has no such restriction — any generation size works in edit mode.
 
 ## Output format
 
@@ -100,12 +124,14 @@ Cost scales with quality + size. `low` quality on `1024x1024` is the cheapest po
 
 ## Batching
 
-`MaxBatchN = 10`. imagine's orchestrator batches `-n` into single API calls up to 10 images each:
+**API-key route:** `MaxBatchN = 10`. imagine's orchestrator batches `-n` into single API calls up to 10 images each:
 
 - `-n 3` → 1 API call returning 3 images
 - `-n 15` → 2 API calls (10 + 5) in parallel
 
 This is faster and cheaper than Gemini's 1-per-call pattern for multi-image runs.
+
+**Subscription route:** `MaxBatchN = 1` (the Responses image tool yields one image per call), so `-n N` issues N parallel calls — same result, more requests. Generation takes longer per image than the API-key route.
 
 ## Examples
 

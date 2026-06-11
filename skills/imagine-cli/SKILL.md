@@ -1,6 +1,6 @@
 ---
 name: imagine-cli
-description: imagine is a multi-provider command-line tool for generating and editing images via Google Gemini, Google Vertex AI, and OpenAI (gpt-image-2). Use this skill whenever the user mentions imagine, wants to generate or edit images from the terminal, needs to set up an API key for Gemini / OpenAI / Vertex, switches default providers, runs any `imagine providers` / `imagine describe` subcommand, or wants to run multiple image-generation jobs from a YAML/JSON batch file (single command, many prompts, parallel) — even if they don't say the word "imagine" explicitly.
+description: imagine is a multi-provider command-line tool for generating and editing images via Google Gemini, Google Vertex AI, and OpenAI (gpt-image-2). Use this skill whenever the user mentions imagine, wants to generate or edit images from the terminal, needs to set up an API key — or sign in with a ChatGPT Plus/Pro subscription — for Gemini / OpenAI / Vertex, switches default providers, runs any `imagine providers` / `imagine describe` subcommand, or wants to run multiple image-generation jobs from a YAML/JSON batch file (single command, many prompts, parallel) — even if they don't say the word "imagine" explicitly.
 ---
 
 # imagine CLI
@@ -68,12 +68,20 @@ Always pass the credentials as flags. Don't run `imagine providers add <name>` w
 # Gemini (free tier at https://aistudio.google.com/app/apikey)
 imagine providers add gemini --api-key AIza-XXX
 
-# OpenAI (requires org verification for GPT Image at platform.openai.com)
+# OpenAI — API key (org verification required for GPT Image at platform.openai.com)
 imagine providers add openai --api-key sk-XXX
 
 # Vertex AI — needs `gcloud auth application-default login` run on the machine first
 imagine providers add vertex --gcp-project <gcp-project-id> --location us-central1
 ```
+
+**OpenAI has two auth methods.** The flag form above is the API-key method — safe to run headless. The alternative is a ChatGPT **subscription** (gpt-image-2 billed to the user's Plus/Pro plan, no API key):
+
+```bash
+imagine providers add openai login    # opens the user's BROWSER for OAuth sign-in
+```
+
+Do **not** run `imagine providers add openai login` (or the bare `imagine providers add openai` picker) yourself in a non-interactive context — both block waiting on a human (a browser callback / a TTY prompt). If the user wants subscription auth, tell them to run `imagine providers add openai login` in their own terminal; once signed in, you generate exactly as with an API key. Config-wise this writes `auth_method: subscription` (tokens live in a separate `~/.config/imagine/openai-subscription-auth.json`, not in `config.yaml`).
 
 Each provider also accepts an optional `--vision-model` flag to override the default model used by `imagine describe`:
 
@@ -82,7 +90,7 @@ imagine providers add openai --api-key sk-XXX --vision-model gpt-5.4
 imagine providers add gemini --api-key AIza-XXX --vision-model gemini-pro-latest
 ```
 
-Defaults (used when `vision_model` is unset): `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), `gpt-5.4-mini` (openai).
+Defaults (used when `vision_model` is unset): `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), `gpt-5.5` (openai).
 
 `imagine providers add <name>` writes to `~/.config/imagine/config.yaml` (creates the file on first run), preserves existing comments and unrelated keys, and writes atomically.
 
@@ -137,7 +145,7 @@ error: no provider configured
 Setting a flag that doesn't belong to the active provider returns `--X is not supported by provider "Y" (supported by: [Z])`. Either drop the flag or switch providers with `--provider Z`.
 
 - **Gemini / Vertex** → [references/gemini.md](references/gemini.md). Flags: `-m pro/flash`, `-s 1K/2K/4K`, `-a <aspect-ratio>`, `-g` (grounding), `-t minimal|high` (flash only), `-I` (image-search, Gemini flash only — Vertex does not support).
-- **OpenAI** → [references/openai.md](references/openai.md). Flags: `-m gpt-image-2 family`, `-s shorthand or raw WxH`, `-q quality`, `--compression`, `--moderation`, `--background`. Edit-mode size is restricted to `1024x1024`, `1536x1024`, `1024x1536`, `auto`.
+- **OpenAI** → [references/openai.md](references/openai.md). Flags: `-m gpt-image-2 family`, `-s shorthand or raw WxH`, `-q quality`, `--compression`, `--moderation`, `--background`. Same flags for both auth methods (API key or ChatGPT subscription). Edit-mode size is restricted to `1024x1024`, `1536x1024`, `1024x1536`, `auto` on the **API-key route only** — the subscription route accepts any size in edit mode.
 
 Provider pick heuristic:
 
@@ -300,7 +308,9 @@ Resolution order when `--provider` is omitted:
 Default vision models per provider (overridable in config as `vision_model`):
 - **gemini**: `gemini-pro-latest`
 - **vertex**: `gemini-3-flash-preview`
-- **openai**: `gpt-5.4-mini`
+- **openai**: `gpt-5.5` (both auth methods)
+
+Describe works on both OpenAI auth methods.
 
 Bare `imagine describe` (no flags) prints help and exits 0.
 
@@ -317,8 +327,9 @@ providers:
     api_key: AIza-...
     vision_model: gemini-pro-latest    # optional per-provider describe model
   openai:
-    api_key: sk-...
-    vision_model: gpt-5.4-mini
+    auth_method: api_key             # "api_key" or "subscription" (ChatGPT sign-in via `add openai login`)
+    api_key: sk-...                  # only for auth_method: api_key
+    vision_model: gpt-5.5
   vertex:
     gcp_project: my-project-id
     location: global                   # optional — "global" when omitted

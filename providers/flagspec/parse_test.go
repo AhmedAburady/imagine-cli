@@ -178,8 +178,8 @@ func TestParse_StrictEnumCanonicalised(t *testing.T) {
 func TestParse_ParityWithRead(t *testing.T) {
 	cases := []struct {
 		name string
-		args []string         // for Read (cobra parsing)
-		vals map[string]any   // for Parse (yaml/json values)
+		args []string       // for Read (cobra parsing)
+		vals map[string]any // for Parse (yaml/json values)
 	}{
 		{
 			name: "all defaults",

@@ -1,0 +1,327 @@
+package openai
+
+// Subscription route: image generation through the Codex Responses endpoint
+// (chatgpt.com/backend-api/codex/responses) driving the built-in
+// image_generation tool, billed to the user's ChatGPT plan. The dedicated
+// /images endpoints on that host are Cloudflare-gated for non-browser TLS
+// clients (403 challenge); /responses, the official hot path, is reachable
+// with the OAuth token — both verified empirically.
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+
+	"github.com/google/uuid"
+
+	"github.com/AhmedAburady/imagine-cli/internal/images"
+	"github.com/AhmedAburady/imagine-cli/internal/transport"
+	"github.com/AhmedAburady/imagine-cli/providers"
+)
+
+const (
+	codexBaseURL  = "https://chatgpt.com/backend-api/codex"
+	responsesPath = "/responses"
+
+	// driverModel hosts the image_generation tool call; the image model
+	// itself travels inside the tool object.
+	driverModel = "gpt-5.5"
+
+	// imageInstructions is the minimal system prompt the endpoint needs to
+	// reliably invoke the tool (it misbehaves with none).
+	imageInstructions = "You are an image generation assistant. Generate exactly one image for the user's request using the image_generation tool."
+)
+
+func (p *Provider) generateSubscription(ctx context.Context, opts *Options, req providers.Request) (*providers.Response, error) {
+	access, account, err := p.ensureFreshToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+	auth := &codexAuth{accessToken: access, accountID: account, sessionID: uuid.NewString()}
+
+	body := responsesBody{
+		Model:        driverModel,
+		Instructions: imageInstructions,
+		Input:        []inputMessage{{Role: "user", Content: responsesContent(req.Prompt, req.References)}},
+		Tools:        []imageTool{buildTool(opts)},
+		ToolChoice:   &toolChoice{Type: "image_generation"},
+		Stream:       true,
+	}
+	return p.doResponses(ctx, auth, body, opts.OutputFormat)
+}
+
+func responsesContent(text string, refs []images.Reference) []contentItem {
+	content := []contentItem{{Type: "input_text", Text: text}}
+	for _, ref := range refs {
+		content = append(content, contentItem{Type: "input_image", ImageURL: dataURL(ref.MimeType, ref.Data)})
+	}
+	return content
+}
+
+// buildTool maps Options onto the image_generation tool, omitting anything left
+// on its auto/default sentinel.
+func buildTool(opts *Options) imageTool {
+	t := imageTool{
+		Type:         "image_generation",
+		Model:        opts.Model,
+		Size:         apiSize(opts.Size),
+		Quality:      apiQuality(opts.Quality),
+		OutputFormat: opts.OutputFormat,
+		Moderation:   opts.Moderation,
+		Background:   opts.Background,
+	}
+	if (opts.OutputFormat == "jpeg" || opts.OutputFormat == "webp") && opts.Compression > 0 && opts.Compression < 100 {
+		t.OutputCompression = new(opts.Compression)
+	}
+	return t
+}
+
+// --- Request wire types ------------------------------------------------------
+
+type responsesBody struct {
+	Model        string         `json:"model"`
+	Instructions string         `json:"instructions"`
+	Input        []inputMessage `json:"input"`
+	Tools        []imageTool    `json:"tools,omitempty"`
+	ToolChoice   *toolChoice    `json:"tool_choice,omitempty"`
+	Stream       bool           `json:"stream"`
+	Store        bool           `json:"store"`
+}
+
+type inputMessage struct {
+	Role    string        `json:"role"`
+	Content []contentItem `json:"content"`
+}
+
+type contentItem struct {
+	Type     string `json:"type"`
+	Text     string `json:"text,omitempty"`
+	ImageURL string `json:"image_url,omitempty"`
+}
+
+type imageTool struct {
+	Type              string `json:"type"`
+	Model             string `json:"model,omitempty"`
+	Size              string `json:"size,omitempty"`
+	Quality           string `json:"quality,omitempty"`
+	OutputFormat      string `json:"output_format,omitempty"`
+	Moderation        string `json:"moderation,omitempty"`
+	Background        string `json:"background,omitempty"`
+	OutputCompression *int   `json:"output_compression,omitempty"`
+}
+
+type toolChoice struct {
+	Type string `json:"type"`
+}
+
+// --- SSE response handling ---------------------------------------------------
+
+// sseEvent is the subset of each streamed event we inspect: the terminal image
+// item (base64 result), assistant text (describe), and error envelopes.
+type sseEvent struct {
+	Type string `json:"type"`
+	Text string `json:"text"` // response.output_text.done
+	Item *struct {
+		Type         string `json:"type"`
+		Status       string `json:"status"`
+		Result       string `json:"result"`
+		OutputFormat string `json:"output_format"`
+	} `json:"item"`
+	Response *struct {
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+		IncompleteDetails *struct {
+			Reason string `json:"reason"`
+		} `json:"incomplete_details"`
+	} `json:"response"`
+	Error *struct {
+		Message string `json:"message"`
+		Code    string `json:"code"`
+	} `json:"error"`
+}
+
+// postResponses POSTs a Responses request and returns the live response on
+// success; the caller owns Body.Close(). A non-2xx is drained, closed, and
+// turned into a readable error.
+func (p *Provider) postResponses(ctx context.Context, auth *codexAuth, body responsesBody) (*http.Response, error) {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, codexBaseURL+responsesPath, bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if err := auth.Apply(req); err != nil {
+		return nil, err
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("openai subscription error (status %d): %s", resp.StatusCode, summarizeError(resp.StatusCode, snippet))
+	}
+	return resp, nil
+}
+
+// doResponses scans the SSE stream for the rendered image. wantFormat is the
+// MIME fallback when the server doesn't echo an output_format.
+func (p *Provider) doResponses(ctx context.Context, auth *codexAuth, body responsesBody, wantFormat string) (*providers.Response, error) {
+	resp, err := p.postResponses(ctx, auth, body)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	return parseImageStream(resp.Body, wantFormat)
+}
+
+// scanSSE invokes fn for every decoded `data:` event. Data lines can be ~1MB of
+// base64, so bufio.Reader.ReadString is used rather than Scanner's capped
+// tokens. fn returns (stop, err); shared by the image and text parsers.
+func scanSSE(r io.Reader, fn func(ev *sseEvent) (stop bool, err error)) error {
+	br := bufio.NewReaderSize(r, 64*1024)
+	for {
+		line, err := br.ReadString('\n')
+		if data, ok := strings.CutPrefix(strings.TrimRight(line, "\r\n"), "data: "); ok && data != "[DONE]" {
+			var ev sseEvent
+			if json.Unmarshal([]byte(data), &ev) == nil {
+				stop, ferr := fn(&ev)
+				if ferr != nil {
+					return ferr
+				}
+				if stop {
+					return nil
+				}
+			}
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return fmt.Errorf("read stream: %w", err)
+		}
+	}
+}
+
+func parseImageStream(r io.Reader, wantFormat string) (*providers.Response, error) {
+	var out *providers.Response
+	err := scanSSE(r, func(ev *sseEvent) (bool, error) {
+		if msg := eventError(ev); msg != "" {
+			return false, fmt.Errorf("openai subscription: %s", msg)
+		}
+		if ev.Type == "response.output_item.done" && ev.Item != nil &&
+			ev.Item.Type == "image_generation_call" && ev.Item.Result != "" {
+			raw, derr := transport.DecodeB64(ev.Item.Result)
+			if derr != nil {
+				return false, derr
+			}
+			format := ev.Item.OutputFormat
+			if format == "" {
+				format = wantFormat
+			}
+			out = &providers.Response{Images: []providers.GeneratedImage{{Data: raw, MimeType: mimeTypeFor(format)}}}
+			return true, nil
+		}
+		return false, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		return nil, errors.New("openai subscription returned no image")
+	}
+	return out, nil
+}
+
+func eventError(ev *sseEvent) string {
+	if ev.Error != nil && ev.Error.Message != "" {
+		return ev.Error.Message
+	}
+	if ev.Response != nil {
+		if ev.Response.Error != nil && ev.Response.Error.Message != "" {
+			return ev.Response.Error.Message
+		}
+		// A moderation/safety stop arrives as response.incomplete, not a
+		// "failed" event — surface its reason instead of a generic "no image".
+		if ev.Response.IncompleteDetails != nil && ev.Response.IncompleteDetails.Reason != "" {
+			return "image generation stopped: " + ev.Response.IncompleteDetails.Reason
+		}
+	}
+	return ""
+}
+
+// summarizeError pulls a message from a non-2xx body, with a Cloudflare-aware
+// hint (a challenge here usually means the session expired).
+func summarizeError(status int, raw []byte) string {
+	var env struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+		Detail string `json:"detail"`
+	}
+	if json.Unmarshal(raw, &env) == nil {
+		if env.Error.Message != "" {
+			return env.Error.Message
+		}
+		if env.Detail != "" {
+			return env.Detail
+		}
+	}
+	if status == 403 && bytes.Contains(bytes.ToLower(raw), []byte("cloudflare")) {
+		return "blocked by Cloudflare — your session may have expired; re-run `imagine providers add openai`"
+	}
+	s := strings.TrimSpace(string(raw))
+	if len(s) > 200 {
+		s = s[:197] + "..."
+	}
+	return s
+}
+
+func apiSize(size string) string {
+	if size == "auto" {
+		return ""
+	}
+	return size
+}
+
+func apiQuality(q string) string {
+	if q == "auto" {
+		return ""
+	}
+	return q
+}
+
+// codexAuth sets the headers the Codex Responses endpoint expects: bearer token,
+// workspace account id, streaming/beta markers, a per-request session id, and
+// the client identity we authenticated as. Implements transport.Auth.
+type codexAuth struct {
+	accessToken string
+	accountID   string
+	sessionID   string
+}
+
+func (a *codexAuth) Apply(req *http.Request) error {
+	req.Header.Set("Authorization", "Bearer "+a.accessToken)
+	if a.accountID != "" {
+		req.Header.Set("ChatGPT-Account-Id", a.accountID)
+	}
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("OpenAI-Beta", "responses=experimental")
+	req.Header.Set("originator", originator)
+	req.Header.Set("User-Agent", userAgent)
+	if a.sessionID != "" {
+		req.Header.Set("session_id", a.sessionID)
+	}
+	return nil
+}

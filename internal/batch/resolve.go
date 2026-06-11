@@ -278,7 +278,8 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 			} else {
 				ctx = context.Background()
 			}
-			resolved, rerr := rc.Config.ResolveProvider(ctx, provName)
+			skip := providers.UnusedSecretKeys(provName, rc.Config.Providers[provName])
+			resolved, rerr := rc.Config.ResolveProvider(ctx, provName, skip...)
 			if rerr != nil {
 				providerErrCache[provName] = rerr
 				return Resolved{}, rerr
