@@ -12,7 +12,9 @@ import (
 )
 
 const (
-	DefaultVisionModel  = "gpt-5.4-mini"
+	// DefaultVisionModel is the describe model for both auth routes — gpt-5.5 is
+	// API-available and vision-capable, so a single default keeps them aligned.
+	DefaultVisionModel  = "gpt-5.5"
 	chatCompletionsPath = "/chat/completions"
 )
 

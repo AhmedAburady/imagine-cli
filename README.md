@@ -131,7 +131,7 @@ providers:
   openai:                             # two auth methods — pick one (see Credentials)
     auth_method: api_key              # "api_key" or "subscription" (ChatGPT sign-in)
     api_key: sk-your-openai-key-here  # only for auth_method: api_key
-    vision_model: gpt-5.4-mini        # optional — defaults to gpt-5.4-mini
+    vision_model: gpt-5.5             # optional — defaults to gpt-5.5
 
   vertex:
     gcp_project: your-gcp-project-id
@@ -148,7 +148,7 @@ providers:
 | `providers.openai.api_key` | For `api_key` | OpenAI platform API key. Not needed (or read) when `auth_method: subscription`. |
 | `providers.vertex.gcp_project` | Yes | GCP project id with the Vertex AI API enabled. |
 | `providers.vertex.location` | No | Vertex region. Defaults to `global`. |
-| `providers.<name>.vision_model` | No | Model `imagine describe` uses for that provider. Defaults are `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), and `gpt-5.4-mini` (openai). |
+| `providers.<name>.vision_model` | No | Model `imagine describe` uses for that provider. Defaults are `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), and `gpt-5.5` (openai — same on both auth methods). |
 
 Older configs that nested Vertex credentials under `provider_options:` still load — they're auto-migrated to flat on the next `imagine providers` write.
 
@@ -466,7 +466,7 @@ Default vision models per provider:
 |---|---|---|
 | gemini | `gemini-pro-latest` | `providers.gemini.vision_model` OR `-m <id>` |
 | vertex | `gemini-3-flash-preview` | `providers.vertex.vision_model` OR `-m <id>` |
-| openai | `gpt-5.4-mini` | `providers.openai.vision_model` OR `-m <id>` |
+| openai | `gpt-5.5` | `providers.openai.vision_model` OR `-m <id>` |
 
 **Examples**
 

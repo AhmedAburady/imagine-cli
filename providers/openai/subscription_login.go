@@ -43,7 +43,8 @@ func subscriptionLogin(ctx context.Context, out io.Writer) error {
 	authURL := buildAuthorizeURL(pk.challenge, state, redirectURI)
 
 	resultCh := make(chan callbackResult, 1)
-	srv := &http.Server{Handler: callbackMux(state, resultCh)}
+	successCh := make(chan struct{}, 1)
+	srv := &http.Server{Handler: callbackMux(state, resultCh, successCh)}
 	for _, ln := range lns {
 		go func(l net.Listener) { _ = srv.Serve(l) }(ln)
 	}
@@ -82,8 +83,13 @@ func subscriptionLogin(ctx context.Context, out io.Writer) error {
 			return serr
 		}
 
-		// Let the browser fetch /success before the deferred shutdown.
-		time.Sleep(600 * time.Millisecond)
+		// Wait for the browser to actually fetch /success before the deferred
+		// shutdown tears the listener down; cap the wait so a closed tab can't
+		// hang us.
+		select {
+		case <-successCh:
+		case <-time.After(3 * time.Second):
+		}
 		fmt.Fprintf(out, "  Signed in. Credentials stored at %s\n", path)
 		return nil
 	}
@@ -95,8 +101,9 @@ type callbackResult struct {
 }
 
 // callbackMux validates state and captures the code at /auth/callback, then
-// bounces the browser to /success.
-func callbackMux(state string, resultCh chan<- callbackResult) *http.ServeMux {
+// bounces the browser to /success. Serving /success signals successCh so the
+// caller can shut down only after the confirmation page is delivered.
+func callbackMux(state string, resultCh chan<- callbackResult, successCh chan<- struct{}) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc(callbackPath, func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
@@ -124,6 +131,10 @@ func callbackMux(state string, resultCh chan<- callbackResult) *http.ServeMux {
 	mux.HandleFunc(successPath, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = io.WriteString(w, successHTML)
+		select {
+		case successCh <- struct{}{}:
+		default:
+		}
 	})
 	return mux
 }

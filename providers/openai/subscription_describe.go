@@ -15,8 +15,6 @@ import (
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
 
-const subscriptionVisionModel = "gpt-5.5"
-
 const describeSystem = "You are an expert image style analyst. Follow the user's instruction exactly and output only what it asks for, with no preamble."
 
 func (p *Provider) describeSubscription(ctx context.Context, req providers.DescribeRequest) (*providers.ImageDescription, error) {
@@ -31,7 +29,7 @@ func (p *Provider) describeSubscription(ctx context.Context, req providers.Descr
 		model = p.visionModel
 	}
 	if model == "" {
-		model = subscriptionVisionModel
+		model = DefaultVisionModel
 	}
 
 	instruction := providers.PickInstruction(req, TextInstruction, JSONInstruction)

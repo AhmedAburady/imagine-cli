@@ -31,7 +31,7 @@ providers:
   openai:
     auth_method: api_key                # "api_key" (default) or "subscription"
     api_key: sk-your-openai-key-here    # only for auth_method: api_key
-    vision_model: gpt-5.4-mini          # optional, defaults to gpt-5.4-mini
+    vision_model: gpt-5.5               # optional, defaults to gpt-5.5
 
   vertex:
     gcp_project: your-gcp-project-id
@@ -53,7 +53,7 @@ Per-provider config is **flat**: every key/value under `providers.<name>` is a d
 | `providers.openai.api_key` | For `api_key` | OpenAI platform API key. Not read when `auth_method: subscription`. |
 | `providers.vertex.gcp_project` | Yes | GCP project id with Vertex AI API enabled. |
 | `providers.vertex.location` | No | Vertex region. Defaults to `global`. |
-| `providers.<name>.vision_model` | No | Model `imagine describe` uses for this provider. Defaults: `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), `gpt-5.4-mini` (openai). |
+| `providers.<name>.vision_model` | No | Model `imagine describe` uses for this provider. Defaults: `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), `gpt-5.5` (openai). |
 
 ### Legacy `provider_options:` shape (still supported on read)
 

@@ -103,7 +103,7 @@ func (p *Provider) ConfigSchema() []providers.ConfigField {
 		{
 			Key:         "vision_model",
 			Title:       "Vision Model",
-			Description: "Model for `imagine describe` (any GPT-5.4 variant)",
+			Description: "Model for `imagine describe` (default: gpt-5.5)",
 			Default:     DefaultVisionModel,
 		},
 	}
@@ -222,8 +222,7 @@ func (p *Provider) generate(ctx context.Context, r generateRequest) (*providers.
 		Background:   r.Background,
 	}
 	if (r.OutputFormat == "jpeg" || r.OutputFormat == "webp") && r.Compression > 0 && r.Compression < 100 {
-		c := r.Compression
-		body.OutputCompression = &c
+		body.OutputCompression = new(r.Compression)
 	}
 
 	resp, err := transport.PostJSON[generationsResponse](ctx, httpClient, baseURL+generationsPath, transport.Bearer(p.apiKey), body)

@@ -3,6 +3,7 @@ package commands
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 
@@ -107,16 +108,29 @@ func registerFieldFlags(cmd *cobra.Command, fields []providers.ConfigField) {
 	}
 }
 
-// unionFields flattens every method's fields, de-duplicated by key.
+// unionFields flattens every method's fields, de-duplicated by key, for flag
+// registration only (persistence uses each method's own fields). A key shared
+// by multiple methods is emitted once with its method-specific default dropped,
+// so `--help` doesn't show one method's default as if it applied to all.
 func unionFields(methods []providers.AuthMethod) []providers.ConfigField {
+	count := map[string]int{}
+	for _, m := range methods {
+		for _, f := range m.Fields {
+			count[f.Key]++
+		}
+	}
 	seen := map[string]bool{}
 	var out []providers.ConfigField
 	for _, m := range methods {
 		for _, f := range m.Fields {
-			if !seen[f.Key] {
-				seen[f.Key] = true
-				out = append(out, f)
+			if seen[f.Key] {
+				continue
 			}
+			seen[f.Key] = true
+			if count[f.Key] > 1 {
+				f.Default = ""
+			}
+			out = append(out, f)
 		}
 	}
 	return out
@@ -186,9 +200,7 @@ func runMultiAuthAdd(cmd *cobra.Command, name string, bundle providers.Bundle, a
 		return nil // user cancelled
 	}
 	fields := map[string]string{"auth_method": method.Key}
-	for k, v := range collected {
-		fields[k] = v
-	}
+	maps.Copy(fields, collected)
 	return persistAndReport(cmd, name, fields)
 }
 

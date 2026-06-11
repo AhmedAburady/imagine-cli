@@ -71,8 +71,8 @@ func init() {
 				Fields: []providers.ConfigField{{
 					Key:         "vision_model",
 					Title:       "Vision Model",
-					Description: "Model for `imagine describe` over the ChatGPT route",
-					Default:     subscriptionVisionModel,
+					Description: "Model for `imagine describe`",
+					Default:     DefaultVisionModel,
 				}},
 				Login: subscriptionLogin,
 			},
