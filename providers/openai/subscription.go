@@ -77,8 +77,7 @@ func buildTool(opts *Options) imageTool {
 		Background:   opts.Background,
 	}
 	if (opts.OutputFormat == "jpeg" || opts.OutputFormat == "webp") && opts.Compression > 0 && opts.Compression < 100 {
-		c := opts.Compression
-		t.OutputCompression = &c
+		t.OutputCompression = new(opts.Compression)
 	}
 	return t
 }

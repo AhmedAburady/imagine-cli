@@ -77,7 +77,7 @@ func subscriptionLogin(ctx context.Context, out io.Writer) error {
 		sa.Tokens.AccountID = accountIDFromIDToken(tr.IDToken)
 		sa.LastRefresh = time.Now()
 
-		path := defaultAuthPath()
+		path := loginStorePath()
 		if serr := saveAuth(path, &sa); serr != nil {
 			return serr
 		}
@@ -134,15 +134,20 @@ func callbackMux(state string, resultCh chan<- callbackResult) *http.ServeMux {
 // http://localhost reaches us regardless of how localhost resolves on the host.
 func listenCallback() ([]net.Listener, int, error) {
 	for _, port := range []int{callbackPort, callbackPortFallback} {
-		var lns []net.Listener
-		for _, host := range []string{"127.0.0.1", "[::1]"} {
-			if ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, port)); err == nil {
-				lns = append(lns, ln)
-			}
+		// 127.0.0.1 is what localhost resolves to on virtually every host, so
+		// we must own it on the chosen port — if it's taken, move to the next
+		// port rather than half-owning this one and handing the browser a port
+		// where someone else answers on IPv4.
+		v4, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+		if err != nil {
+			continue
 		}
-		if len(lns) > 0 {
-			return lns, port, nil
+		lns := []net.Listener{v4}
+		// ::1 is best-effort, for hosts that resolve localhost to IPv6.
+		if v6, verr := net.Listen("tcp", fmt.Sprintf("[::1]:%d", port)); verr == nil {
+			lns = append(lns, v6)
 		}
+		return lns, port, nil
 	}
 	return nil, 0, fmt.Errorf("could not bind localhost port %d or %d for the sign-in callback — close whatever is using them and retry", callbackPort, callbackPortFallback)
 }

@@ -158,33 +158,36 @@ func runAddForProvider(cmd *cobra.Command, name string, schema []providers.Confi
 	return persistAndReport(cmd, name, collected)
 }
 
-// runMultiAuthAdd selects an auth method, runs its onboarding, and persists
-// auth_method alongside the gathered fields.
+// runMultiAuthAdd selects an auth method, runs its onboarding (an interactive
+// login and/or a field form), and persists auth_method alongside the gathered
+// fields. Field collection runs for both kinds so an explicit flag (e.g.
+// --vision-model) is honoured even on the login path.
 func runMultiAuthAdd(cmd *cobra.Command, name string, bundle providers.Bundle, args []string) error {
 	method, err := selectAuthMethod(cmd, bundle, args)
 	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s  %s\n", bulletDim, dimStyle.Render("cancelled"))
+			return nil
+		}
 		return err
 	}
-	fields := map[string]string{"auth_method": method.Key}
 
 	if method.Login != nil {
 		if err := method.Login(cmd.Context(), cmd.OutOrStdout()); err != nil {
 			return err
 		}
-		for k, v := range schemaDefaults(method.Fields) {
-			fields[k] = v
-		}
-	} else {
-		collected, err := collectFields(cmd, method.Fields)
-		if err != nil {
-			return err
-		}
-		if collected == nil {
-			return nil // user cancelled
-		}
-		for k, v := range collected {
-			fields[k] = v
-		}
+	}
+
+	collected, err := collectFields(cmd, method.Fields)
+	if err != nil {
+		return err
+	}
+	if collected == nil {
+		return nil // user cancelled
+	}
+	fields := map[string]string{"auth_method": method.Key}
+	for k, v := range collected {
+		fields[k] = v
 	}
 	return persistAndReport(cmd, name, fields)
 }
@@ -412,19 +415,6 @@ func missingFlagsError(name string, missing []providers.ConfigField) error {
 	}
 	b.WriteString("Run this command from a terminal to use the interactive wizard instead.")
 	return errors.New(b.String())
-}
-
-// schemaDefaults collects a provider's non-empty default field values into a
-// stanza map. Used by the Login path to persist a minimal, discoverable
-// config entry without prompting (the real secrets live elsewhere).
-func schemaDefaults(schema []providers.ConfigField) map[string]string {
-	out := map[string]string{}
-	for _, f := range schema {
-		if f.Default != "" {
-			out[f.Key] = f.Default
-		}
-	}
-	return out
 }
 
 // toFlag converts a schema key (underscore_case) to a CLI flag name

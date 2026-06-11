@@ -52,6 +52,19 @@ func subscriptionAuthFile(override string) string {
 	return defaultAuthPath()
 }
 
+// loginStorePath is where the interactive login writes tokens. The login flow
+// has no Provider/Auth in hand, so it reads providers.openai.auth_file straight
+// from config to stay in sync with what New() → ensureFreshToken later loads
+// (the value is a plain path, so no secret resolution is needed).
+func loginStorePath() string {
+	if cfg, err := config.Load(); err == nil {
+		if af := cfg.Providers["openai"]["auth_file"]; af != "" {
+			return af
+		}
+	}
+	return defaultAuthPath()
+}
+
 // subscriptionConfigured reports whether a token store exists at the resolved
 // path — used to infer the auth method for configs predating auth_method.
 func subscriptionConfigured(override string) bool {
