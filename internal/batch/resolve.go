@@ -327,11 +327,7 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 		if model == "" {
 			model = providerInst.Info().DefaultModel
 		}
-		params.Metadata = []images.TextTag{
-			{Key: "prompt", Value: common.prompt},
-			{Key: "model", Value: model},
-			{Key: "provider", Value: providerInst.Info().Name},
-		}
+		params.Metadata = images.MetadataTags(common.prompt, model, providerInst.Info().Name, effInputs)
 	}
 
 	return Resolved{

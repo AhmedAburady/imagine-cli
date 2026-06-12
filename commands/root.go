@@ -175,6 +175,7 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 		newDescribeCmd(),
 		newVersionCmd(version),
 		newProvidersCmd(),
+		newMetadataCmd(),
 	)
 
 	return root

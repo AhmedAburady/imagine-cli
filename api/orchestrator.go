@@ -51,6 +51,8 @@ type GenerationResult struct {
 	Filename  string
 	Error     error
 	Duration  time.Duration // wall time of the provider call that produced this image
+
+	metadataEmbedded bool // whether saveOne actually embedded requested metadata
 }
 
 // GenerationOutput wraps the full run.
@@ -58,6 +60,9 @@ type GenerationOutput struct {
 	Results      []GenerationResult
 	OutputFolder string
 	Elapsed      time.Duration
+
+	// MetadataSkipped is true when Metadata was requested but a saved image wasn't PNG, so nothing was embedded.
+	MetadataSkipped bool
 }
 
 // RunGeneration dispatches NumImages through the given Provider, batching at
@@ -166,17 +171,22 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 	}()
 
 	var results []GenerationResult
+	metadataSkipped := false
 	for r := range resultsChan {
 		results = append(results, r)
+		if len(params.Metadata) > 0 && r.Error == nil && !r.metadataEmbedded {
+			metadataSkipped = true // metadata requested but EmbedPNGText no-op'd (non-PNG)
+		}
 		if params.Progress != nil {
 			params.Progress <- r
 		}
 	}
 
 	return GenerationOutput{
-		Results:      results,
-		OutputFolder: params.OutputFolder,
-		Elapsed:      time.Since(startTime),
+		Results:         results,
+		OutputFolder:    params.OutputFolder,
+		MetadataSkipped: metadataSkipped,
+		Elapsed:         time.Since(startTime),
 	}
 }
 
@@ -201,8 +211,9 @@ func saveOne(res *GenerationResult, data []byte, params Params) {
 		data = converted
 	}
 
+	embedded := false
 	if len(params.Metadata) > 0 {
-		data = images.EmbedPNGText(data, params.Metadata) // no-op for non-PNG
+		data, embedded = images.EmbedPNGText(data, params.Metadata) // no-op for non-PNG
 	}
 
 	outputFile := filepath.Join(params.OutputFolder, filename)
@@ -212,4 +223,5 @@ func saveOne(res *GenerationResult, data []byte, params Params) {
 	}
 	res.Filename = filename
 	res.ImageData = data
+	res.metadataEmbedded = embedded
 }

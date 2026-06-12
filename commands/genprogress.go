@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/progress"
@@ -12,35 +13,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
-	"github.com/charmbracelet/x/term"
 
 	"github.com/AhmedAburady/imagine-cli/api"
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
-
-var (
-	uiDim    = lipgloss.Color("#6C7086")
-	uiCyan   = lipgloss.Color("#00B2C7")
-	uiYellow = lipgloss.Color("#F2C94C")
-	uiInk    = lipgloss.Color("#1A1A1A")
-
-	uiPale      = lipgloss.NewStyle().Foreground(uiDim)
-	uiPill      = lipgloss.NewStyle().Foreground(uiInk).Background(uiYellow).Bold(true).Padding(0, 1)
-	uiCyanStyle = lipgloss.NewStyle().Foreground(uiCyan)
-	uiHeader    = lipgloss.NewStyle().Foreground(uiCyan).Bold(true)
-	uiAmber     = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
-)
-
-// stdoutIsTTY reports whether the live progress UI can take over stdout.
-func stdoutIsTTY() bool { return term.IsTerminal(os.Stdout.Fd()) }
-
-// paint applies a style only on a TTY, leaving piped output free of escape codes.
-func paint(st lipgloss.Style, s string) string {
-	if stdoutIsTTY() {
-		return st.Render(s)
-	}
-	return s
-}
 
 // resultMsg carries one finished image; ok=false signals the channel closed.
 type resultMsg struct {
@@ -158,11 +134,6 @@ func fmtDuration(d time.Duration) string {
 	return fmt.Sprintf("%dm%02ds", int(d/time.Minute), int(d%time.Minute/time.Second))
 }
 
-// warnLine renders a non-blocking [WARNING] notice in the same amber tag style as [Aborted].
-func warnLine(msg string) string {
-	return " " + paint(uiAmber, "[WARNING]") + "  " + paint(uiPale, msg)
-}
-
 // abortBlock is the graceful summary shown when the user cancels mid-run.
 func abortBlock(done, total int, elapsed, outputPath string) string {
 	out := " " + paint(uiAmber, "[Aborted]") + "  " + paint(uiPale, fmt.Sprintf("%d/%d generated before cancel · %s", done, total, elapsed))
@@ -212,13 +183,19 @@ func resultsTable(model string, results []api.GenerationResult, outputPath strin
 		t.Row(name, model, fmtDuration(r.Duration), status)
 	}
 
-	out := t.String()
+	var out strings.Builder
+	out.WriteString(t.String())
 	for _, r := range rows {
 		if r.Error != nil {
-			out += "\n  " + paint(uiPale, fmt.Sprintf("image %d: %v", r.Index+1, r.Error))
+			out.WriteString("\n  ")
+			out.WriteString(paint(uiPale, fmt.Sprintf("image %d: %v", r.Index+1, r.Error)))
 		}
 	}
-	return out + "\n  " + paint(uiCyanStyle, "→") + " " + paint(uiPale, outputPath)
+	out.WriteString("\n  ")
+	out.WriteString(paint(uiCyanStyle, "→"))
+	out.WriteString(" ")
+	out.WriteString(paint(uiPale, outputPath))
+	return out.String()
 }
 
 // runWithProgress runs the generation with a live UI on a TTY (or plain lines when piped),

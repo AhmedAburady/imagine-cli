@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -29,18 +28,6 @@ func loadReferences(refInputs []string) ([]images.Reference, error) {
 		refs = append(refs, loaded...)
 	}
 	return refs, nil
-}
-
-// isPNGOutputName reports whether a filename targets PNG — the only format
-// --embed-metadata supports. Empty (default) and extension-less stems are PNG.
-func isPNGOutputName(name string) bool {
-	ext := strings.ToLower(filepath.Ext(name))
-	return ext == "" || ext == ".png"
-}
-
-// embedTargetIsPNG reports whether the resolved output is PNG. -f drives it; default and -r both yield PNG.
-func embedTargetIsPNG(opts *cli.Options) bool {
-	return isPNGOutputName(opts.OutputFilename)
 }
 
 // refInputPathFor returns the original input path to feed ResolveFilename's
@@ -94,19 +81,6 @@ func runBatch(cmd *cobra.Command, opts *cli.Options, providerName string) error 
 	if err != nil {
 		return err
 	}
-
-	if opts.EmbedMetadata {
-		var skipped []string
-		for _, r := range resolved {
-			if len(r.Params.Metadata) > 0 && !isPNGOutputName(r.Params.OutputFilename) {
-				skipped = append(skipped, r.DisplayName)
-			}
-		}
-		if len(skipped) > 0 {
-			fmt.Println(warnLine("--embed-metadata supports PNG only; skipped for non-PNG entries: " + strings.Join(skipped, ", ")))
-		}
-	}
-
 	return batch.Run(cmd.Context(), resolved, opts.MaxParallel)
 }
 
@@ -130,15 +104,7 @@ func runGeneration(ctx context.Context, provider providers.Provider, req provide
 	}
 
 	if opts.EmbedMetadata {
-		if embedTargetIsPNG(opts) {
-			params.Metadata = []images.TextTag{
-				{Key: "prompt", Value: req.Prompt},
-				{Key: "model", Value: model},
-				{Key: "provider", Value: provider.Info().Name},
-			}
-		} else {
-			fmt.Println(warnLine("--embed-metadata supports PNG only; metadata not embedded for this output format"))
-		}
+		params.Metadata = images.MetadataTags(req.Prompt, model, provider.Info().Name, opts.RefInputs)
 	}
 
 	output, aborted := runWithProgress(ctx, modeText, provider, req, &params)
@@ -167,6 +133,9 @@ func runGeneration(ctx context.Context, provider providers.Provider, req provide
 		os.Exit(130) // SIGINT convention: graceful summary, but non-zero for scripts/CI
 	}
 
+	if output.MetadataSkipped {
+		fmt.Println(warnLine("--embed-metadata supports PNG only; metadata was not embedded for this output format"))
+	}
 	fmt.Println(resultsTable(model, output.Results, outputPath))
 
 	if errorCount > 0 {

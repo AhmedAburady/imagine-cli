@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"image"
 	"image/png"
 	"os"
@@ -9,7 +10,19 @@ import (
 	"testing"
 
 	"github.com/AhmedAburady/imagine-cli/internal/images"
+	"github.com/AhmedAburady/imagine-cli/providers"
 )
+
+// fakeProvider returns fixed bytes so a test can control the saved image's format.
+type fakeProvider struct{ data []byte }
+
+func (f fakeProvider) Info() providers.Info {
+	return providers.Info{Name: "fake", Capabilities: providers.Capabilities{MaxBatchN: 1}}
+}
+
+func (f fakeProvider) Generate(context.Context, providers.Request) (*providers.Response, error) {
+	return &providers.Response{Images: []providers.GeneratedImage{{Data: f.data}}}, nil
+}
 
 func testPNG(t *testing.T) []byte {
 	t.Helper()
@@ -42,6 +55,24 @@ func TestSaveOne_EmbedsMetadataIntoPNG(t *testing.T) {
 	}
 	if !bytes.Contains(saved, []byte("a teal cube")) || !bytes.Contains(saved, []byte("iTXt")) {
 		t.Error("metadata not embedded in saved PNG")
+	}
+}
+
+func TestRunGeneration_MetadataSkippedReflectsActualBytes(t *testing.T) {
+	meta := []images.TextTag{{Key: "prompt", Value: "x"}}
+
+	// PNG bytes → embedded → not skipped.
+	pngOut := RunGeneration(context.Background(), fakeProvider{data: testPNG(t)}, providers.Request{},
+		Params{OutputFolder: t.TempDir(), NumImages: 1, Metadata: meta})
+	if pngOut.MetadataSkipped {
+		t.Error("PNG output: MetadataSkipped should be false")
+	}
+
+	// -f x.webp + non-PNG provider bytes → not embeddable → skipped (the OpenAI-webp case).
+	webpOut := RunGeneration(context.Background(), fakeProvider{data: []byte{'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P'}},
+		providers.Request{}, Params{OutputFolder: t.TempDir(), NumImages: 1, OutputFilename: "x.webp", Metadata: meta})
+	if !webpOut.MetadataSkipped {
+		t.Error("non-PNG (webp) output: MetadataSkipped should be true")
 	}
 }
 
