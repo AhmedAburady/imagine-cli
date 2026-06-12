@@ -316,6 +316,20 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 		RefInputPath:     refInputPath,
 	}
 
+	// Effective embed: CLI --embed-metadata, overridable per entry. EmbedPNGText
+	// no-ops for non-PNG output, so this is safe to set regardless of format.
+	effEmbed := rc.CLIOptions.EmbedMetadata
+	if common.embedMetadata != nil {
+		effEmbed = *common.embedMetadata
+	}
+	if effEmbed {
+		model := requestLabel(providerOpts)
+		if model == "" {
+			model = providerInst.Info().DefaultModel
+		}
+		params.Metadata = images.MetadataTags(common.prompt, model, providerInst.Info().Name, effInputs)
+	}
+
 	return Resolved{
 		Key:          entry.Key,
 		Index:        entry.Index,
@@ -331,13 +345,14 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 // commonOverrides holds entry overrides for common flags. Pointers
 // distinguish "key absent" from "key present, value zero".
 type commonOverrides struct {
-	prompt   string
-	provider string
-	output   *string
-	filename *string
-	count    *int
-	input    []string
-	replace  *bool
+	prompt        string
+	provider      string
+	output        *string
+	filename      *string
+	count         *int
+	input         []string
+	replace       *bool
+	embedMetadata *bool
 }
 
 // splitEntryRaw walks raw and partitions common-flag keys into c.
@@ -388,6 +403,12 @@ func splitEntryRaw(raw map[string]any) (c commonOverrides, providerKeys map[stri
 				return c, nil, fmt.Errorf("replace: %v", e)
 			}
 			c.replace = &b
+		case "embed-metadata":
+			b, e := asBool(v)
+			if e != nil {
+				return c, nil, fmt.Errorf("embed-metadata: %v", e)
+			}
+			c.embedMetadata = &b
 		default:
 			providerKeys[k] = v
 		}

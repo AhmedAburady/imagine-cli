@@ -35,6 +35,13 @@ type Params struct {
 	// per-entry and per-image axes. Single-shot leaves this nil and the
 	// orchestrator builds a private sem from MaxParallel.
 	Sem chan struct{}
+
+	// Progress, when non-nil, receives each result in completion order and is closed when the run finishes.
+	// Sends are synchronous: it MUST be buffered to >= NumImages or drained concurrently, else RunGeneration blocks.
+	Progress chan<- GenerationResult
+
+	// Metadata, when non-empty, is embedded into PNG output (--embed-metadata); a no-op for other formats.
+	Metadata []images.TextTag
 }
 
 // GenerationResult is the outcome of a single image request/save.
@@ -43,6 +50,9 @@ type GenerationResult struct {
 	ImageData []byte
 	Filename  string
 	Error     error
+	Duration  time.Duration // wall time of the provider call that produced this image
+
+	metadataEmbedded bool // whether saveOne actually embedded requested metadata
 }
 
 // GenerationOutput wraps the full run.
@@ -50,6 +60,9 @@ type GenerationOutput struct {
 	Results      []GenerationResult
 	OutputFolder string
 	Elapsed      time.Duration
+
+	// MetadataSkipped is true when Metadata was requested but a saved image wasn't PNG, so nothing was embedded.
+	MetadataSkipped bool
 }
 
 // RunGeneration dispatches NumImages through the given Provider, batching at
@@ -58,6 +71,10 @@ type GenerationOutput struct {
 // ctx cancels in-flight HTTP (Ctrl+C via fang).
 func RunGeneration(ctx context.Context, provider providers.Provider, request providers.Request, params Params) GenerationOutput {
 	startTime := time.Now()
+
+	if params.Progress != nil {
+		defer close(params.Progress)
+	}
 
 	if err := os.MkdirAll(params.OutputFolder, 0755); err != nil {
 		return GenerationOutput{
@@ -116,10 +133,12 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 				}
 			}
 
+			t0 := time.Now()
 			resp, err := provider.Generate(ctx, req)
+			dur := time.Since(t0)
 			if err != nil {
 				for i := range batchSize {
-					resultsChan <- GenerationResult{Index: startIndex + i, Error: err}
+					resultsChan <- GenerationResult{Index: startIndex + i, Error: err, Duration: dur}
 				}
 				return
 			}
@@ -129,7 +148,7 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 					// Provider returned more images than requested; ignore extras.
 					break
 				}
-				res := GenerationResult{Index: startIndex + i, ImageData: img.Data}
+				res := GenerationResult{Index: startIndex + i, ImageData: img.Data, Duration: dur}
 				saveOne(&res, img.Data, params)
 				resultsChan <- res
 			}
@@ -138,8 +157,9 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 			// so the per-image error surfaces to the user.
 			for i := len(resp.Images); i < batchSize; i++ {
 				resultsChan <- GenerationResult{
-					Index: startIndex + i,
-					Error: fmt.Errorf("provider returned only %d of %d requested images", len(resp.Images), batchSize),
+					Index:    startIndex + i,
+					Error:    fmt.Errorf("provider returned only %d of %d requested images", len(resp.Images), batchSize),
+					Duration: dur,
 				}
 			}
 		}(startIndex, size, batchReq)
@@ -151,14 +171,22 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 	}()
 
 	var results []GenerationResult
+	metadataSkipped := false
 	for r := range resultsChan {
 		results = append(results, r)
+		if len(params.Metadata) > 0 && r.Error == nil && !r.metadataEmbedded {
+			metadataSkipped = true // metadata requested but EmbedPNGText no-op'd (non-PNG)
+		}
+		if params.Progress != nil {
+			params.Progress <- r
+		}
 	}
 
 	return GenerationOutput{
-		Results:      results,
-		OutputFolder: params.OutputFolder,
-		Elapsed:      time.Since(startTime),
+		Results:         results,
+		OutputFolder:    params.OutputFolder,
+		MetadataSkipped: metadataSkipped,
+		Elapsed:         time.Since(startTime),
 	}
 }
 
@@ -183,6 +211,11 @@ func saveOne(res *GenerationResult, data []byte, params Params) {
 		data = converted
 	}
 
+	embedded := false
+	if len(params.Metadata) > 0 {
+		data, embedded = images.EmbedPNGText(data, params.Metadata) // no-op for non-PNG
+	}
+
 	outputFile := filepath.Join(params.OutputFolder, filename)
 	if err := os.WriteFile(outputFile, data, 0644); err != nil {
 		res.Error = fmt.Errorf("failed to save: %v", err)
@@ -190,4 +223,5 @@ func saveOne(res *GenerationResult, data []byte, params Params) {
 	}
 	res.Filename = filename
 	res.ImageData = data
+	res.metadataEmbedded = embedded
 }

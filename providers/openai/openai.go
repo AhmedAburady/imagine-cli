@@ -37,9 +37,11 @@ const (
 	methodSubscription authMethod = "subscription"
 )
 
-// httpClient uses a longer timeout than Gemini — OpenAI docs note that
-// complex prompts may take up to 2 minutes.
+// httpClient serves the API-key path: one JSON blob, so a total request cap fits.
 var httpClient = transport.NewClient(180 * time.Second)
+
+// streamClient serves the subscription SSE path: bounded by connection-phase timeouts + the stall watchdog, no total cap.
+var streamClient = transport.NewStreamingClient()
 
 // Provider is the OpenAI Images implementation of providers.Provider. It holds
 // the credentials for whichever auth method is active; mu/cached guard the

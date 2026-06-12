@@ -39,12 +39,15 @@ func Describe(ctx context.Context, cc *genai.ClientConfig, model string, req pro
 		Description: "Analyses images and extracts style descriptions",
 		Instruction: instruction,
 	}
+	// Only constrain thinking when an effort was resolved; an empty effort
+	// (custom --model pass-through) leaves the model on its native default.
+	if req.Effort != "" {
+		cfg.GenerateContentConfig = &genai.GenerateContentConfig{
+			ThinkingConfig: &genai.ThinkingConfig{ThinkingLevel: thinkingLevel(req.Effort)},
+		}
+	}
 	if req.StructuredOutput {
 		cfg.OutputSchema = styleSchema()
-	} else {
-		cfg.GenerateContentConfig = &genai.GenerateContentConfig{
-			ThinkingConfig: &genai.ThinkingConfig{ThinkingLevel: genai.ThinkingLevelHigh},
-		}
 	}
 
 	ag, err := llmagent.New(cfg)
@@ -90,6 +93,23 @@ func Describe(ctx context.Context, cc *genai.ClientConfig, model string, req pro
 	}
 
 	return parse(text, req.StructuredOutput), nil
+}
+
+// DefaultEffort is the uniform describe default (effort sets are model-specific, declared per provider).
+const DefaultEffort = "medium"
+
+// thinkingLevel maps a pre-validated effort to a Gemini thinking level; empty/unknown falls back to high.
+func thinkingLevel(effort string) genai.ThinkingLevel {
+	switch strings.ToLower(effort) {
+	case "minimal":
+		return genai.ThinkingLevelMinimal
+	case "low":
+		return genai.ThinkingLevelLow
+	case "medium":
+		return genai.ThinkingLevelMedium
+	default:
+		return genai.ThinkingLevelHigh
+	}
 }
 
 func toParts(refs []images.Reference) []*genai.Part {

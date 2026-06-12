@@ -3,6 +3,7 @@ package vertex
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/AhmedAburady/imagine-cli/internal/gvision"
 	"github.com/AhmedAburady/imagine-cli/providers"
 	"github.com/AhmedAburady/imagine-cli/providers/flagspec"
 	"github.com/AhmedAburady/imagine-cli/providers/gemini"
@@ -28,6 +29,10 @@ func init() {
 		Examples:       gemini.Examples, // Vertex reuses Gemini's examples
 		Info:           info,
 		ConfigSchema:   (&Provider{}).ConfigSchema(),
-		Vision:         &providers.Vision{DefaultModel: DefaultVisionModel},
+		Vision: &providers.Vision{
+			DefaultModel:  DefaultVisionModel, // gemini-3-flash-preview: supports "minimal"
+			Efforts:       []string{"minimal", "low", "medium", "high"},
+			DefaultEffort: gvision.DefaultEffort,
+		},
 	})
 }

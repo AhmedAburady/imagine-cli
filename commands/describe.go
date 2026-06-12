@@ -16,7 +16,15 @@ import (
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
 
-func newDescribeCmd() *cobra.Command {
+// describeEffortUsage builds the --effort help from the hinted provider's Vision metadata.
+func describeEffortUsage(hint string) string {
+	if b, ok := providers.Get(hint); ok && b.Vision != nil && len(b.Vision.Efforts) > 0 {
+		return fmt.Sprintf("Reasoning effort for %s: %s (default %s)", hint, strings.Join(b.Vision.Efforts, "|"), b.Vision.DefaultEffort)
+	}
+	return "Reasoning/thinking effort (provider-specific, e.g. low|medium|high)"
+}
+
+func newDescribeCmd(describeHint string) *cobra.Command {
 	var (
 		input            string
 		output           string
@@ -24,6 +32,7 @@ func newDescribeCmd() *cobra.Command {
 		additional       string
 		model            string
 		providerName     string
+		effort           string
 		jsonOutput       bool
 		showInstructions bool
 	)
@@ -42,14 +51,6 @@ func newDescribeCmd() *cobra.Command {
 			if input == "" {
 				return cmd.Help()
 			}
-			refs, err := images.Load(input)
-			if err != nil {
-				return fmt.Errorf("load references: %w", err)
-			}
-			if len(refs) == 0 {
-				return errors.New("no readable images at the provided input path")
-			}
-
 			cfg, err := config.Load()
 			if err != nil {
 				return fmt.Errorf("load config: %w", err)
@@ -59,12 +60,29 @@ func newDescribeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			bundle, _ := providers.Get(active)
+
+			// Validate --effort first (pure local check) so a bad flag fails fast,
+			// before loading images or resolving secrets/auth.
+			if bundle.Vision != nil {
+				effort, err = bundle.Vision.NormalizeEffortForModel(effort, model)
+				if err != nil {
+					return fmt.Errorf("%s: %w", active, err)
+				}
+			}
+
+			refs, err := images.Load(input)
+			if err != nil {
+				return fmt.Errorf("load references: %w", err)
+			}
+			if len(refs) == 0 {
+				return errors.New("no readable images at the provided input path")
+			}
 
 			auth, err := resolveAuth(cmd.Context(), cfg, active)
 			if err != nil {
 				return err
 			}
-			bundle, _ := providers.Get(active)
 			p, err := bundle.Factory(auth)
 			if err != nil {
 				return err
@@ -85,6 +103,7 @@ func newDescribeCmd() *cobra.Command {
 				Additional:       additional,
 				Model:            model,
 				StructuredOutput: jsonOutput,
+				Effort:           effort,
 			})
 			s.Stop()
 			if err != nil {
@@ -112,6 +131,7 @@ func newDescribeCmd() *cobra.Command {
 	f.StringVarP(&additional, "additional", "a", "", "Additional context, prepended to the default instruction")
 	f.StringVarP(&model, "model", "m", "", "Override the provider's vision model for this invocation")
 	f.StringVar(&providerName, "provider", "", "Override the describer provider for this invocation")
+	f.StringVarP(&effort, "effort", "e", "", describeEffortUsage(describeHint))
 	f.BoolVar(&jsonOutput, "json", false, "Emit structured JSON (StyleAnalysis schema) instead of prose")
 	f.BoolVar(&showInstructions, "show-instructions", false, "Print the built-in describe prompts for the active provider and exit")
 

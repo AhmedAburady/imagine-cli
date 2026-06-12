@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 )
@@ -27,19 +28,50 @@ type Client struct {
 	*http.Client
 }
 
+func baseTransport() *http.Transport {
+	return &http.Transport{
+		MaxIdleConns:        20,
+		MaxIdleConnsPerHost: 20,
+		IdleConnTimeout:     90 * time.Second,
+	}
+}
+
 // NewClient returns a Client with sensible pool settings. Cancellation is
 // handled via context on each request; timeout is a per-request ceiling.
 func NewClient(timeout time.Duration) *Client {
-	return &Client{
-		Client: &http.Client{
-			Timeout: timeout,
-			Transport: &http.Transport{
-				MaxIdleConns:        20,
-				MaxIdleConnsPerHost: 20,
-				IdleConnTimeout:     90 * time.Second,
-			},
-		},
+	return &Client{Client: &http.Client{Timeout: timeout, Transport: baseTransport()}}
+}
+
+// NewStreamingClient has no whole-request ceiling (suited to long SSE reads) but
+// bounds each pre-body phase — dial, TLS, request write, and response headers —
+// so a connection that stalls before the body still fails fast.
+func NewStreamingClient() *Client {
+	dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+	t := baseTransport()
+	t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		c, err := dialer.DialContext(ctx, network, addr)
+		if err != nil {
+			return nil, err
+		}
+		return &writeDeadlineConn{Conn: c, timeout: 60 * time.Second}, nil
 	}
+	t.TLSHandshakeTimeout = 15 * time.Second
+	t.ResponseHeaderTimeout = 60 * time.Second
+	return &Client{Client: &http.Client{Timeout: 0, Transport: t}}
+}
+
+// writeDeadlineConn bounds each socket write, capping a stalled request upload
+// without touching reads (the SSE body never writes, so the stream is unaffected).
+type writeDeadlineConn struct {
+	net.Conn
+	timeout time.Duration
+}
+
+func (c *writeDeadlineConn) Write(b []byte) (int, error) {
+	if err := c.Conn.SetWriteDeadline(time.Now().Add(c.timeout)); err != nil {
+		return 0, err
+	}
+	return c.Conn.Write(b)
 }
 
 // --- Auth injectors --------------------------------------------------------

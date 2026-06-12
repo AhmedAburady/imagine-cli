@@ -140,6 +140,37 @@ type ConfigField struct {
 // Provider also implements Describer.
 type Vision struct {
 	DefaultModel string
+
+	// Efforts are the reasoning/thinking levels this describer accepts, in
+	// display order; empty means the provider exposes no effort control.
+	Efforts []string
+
+	// DefaultEffort is applied when --effort is omitted; must be in Efforts.
+	DefaultEffort string
+}
+
+// NormalizeEffortForModel validates against the default model's set; a custom model gets an explicit effort passed through (API validates) and no forced default.
+func (v *Vision) NormalizeEffortForModel(effort, model string) (string, error) {
+	if model != "" && model != v.DefaultModel {
+		return strings.ToLower(strings.TrimSpace(effort)), nil
+	}
+	return v.NormalizeEffort(effort)
+}
+
+// NormalizeEffort lowercases effort, applies DefaultEffort when empty, and
+// validates against Efforts — one validation path shared by every describer.
+func (v *Vision) NormalizeEffort(effort string) (string, error) {
+	e := strings.ToLower(strings.TrimSpace(effort))
+	if e == "" {
+		e = v.DefaultEffort
+	}
+	if e == "" || len(v.Efforts) == 0 {
+		return e, nil
+	}
+	if !slices.Contains(v.Efforts, e) {
+		return "", fmt.Errorf("unsupported effort %q (valid: %s)", effort, strings.Join(v.Efforts, ", "))
+	}
+	return e, nil
 }
 
 // Describer is implemented by providers that analyse images.
@@ -153,6 +184,7 @@ type DescribeRequest struct {
 	Additional       string
 	Model            string
 	StructuredOutput bool
+	Effort           string // reasoning/thinking effort; "" = provider default
 }
 
 type ImageDescription struct {

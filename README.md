@@ -27,6 +27,7 @@
 - [Batch runs and automation](#batch-runs-and-automation)
 - [Usage](#usage)
   - [Common flags](#common-flags)
+  - [Metadata](#metadata)
   - [Gemini and Vertex](#gemini-and-vertex)
   - [OpenAI](#openai)
   - [Describe](#describe)
@@ -314,11 +315,43 @@ These flags work with any provider:
 | `-n` | `--count` | Number of images (1–20) | `1` |
 | `-i` | `--input` | Reference image or folder, repeatable; presence flips the command into edit mode | — |
 | `-r` | `--replace` | Use the input filename for output (single `-i` file only) | `false` |
+|  | `--embed-metadata` | Embed generation details (prompt, model, provider, references) into PNG output | `false` |
 |  | `--provider` | Override the active provider for this invocation | config |
 | `-v` | `--version` | Print version | — |
 | `-h` | `--help` | Show provider-aware help | — |
 
 Provider-specific flags live with each provider below. When you set a flag that the active provider doesn't support, imagine errors out clearly and tells you which provider *does* support it.
+
+### Metadata
+
+Embed generation details into your output, or read them back.
+
+**Embed** — pass `--embed-metadata` during generation. If the output format is `.png`, imagine writes the prompt, model, provider, and reference images into the file as standard `iTXt` text chunks. (No-op for `.jpg` / `.webp`; a warning is printed if metadata was requested but skipped.)
+
+```bash
+imagine -p "cyberpunk city" --embed-metadata -f city.png
+```
+
+**Read** — use the `metadata` subcommand to extract those tags from one or more PNGs.
+
+```bash
+imagine metadata city.png
+```
+
+Flags let you print only specific raw values, one per line, for easy piping into scripts:
+```bash
+imagine metadata city.png --prompt
+imagine metadata city.png --model --provider
+imagine metadata city.png --reference-image
+```
+
+In [batch mode](#batch-runs-and-automation), set `embed-metadata: true` per entry:
+```yaml
+hero:
+  prompt: "A samurai at dusk"
+  provider: openai
+  embed-metadata: true
+```
 
 ### Gemini and Vertex
 
@@ -605,7 +638,7 @@ Files you **don't** edit when adding a provider: `commands/`, `cli/`, `api/`, `c
 
 **`--background transparent is not supported by gpt-image-2`** — known OpenAI limitation; use `-m 1.5` for transparency.
 
-**Ctrl+C hangs** — it shouldn't. imagine uses context cancellation; in-flight HTTP requests are aborted when you press Ctrl+C.
+**Ctrl+C hangs** — it shouldn't. imagine uses context cancellation; in-flight HTTP requests are aborted when you press Ctrl+C. Mid-run cancellations print a graceful summary of what succeeded and exit with code 130.
 
 **Vertex "failed to create Vertex AI client"** — you haven't run `gcloud auth application-default login` yet, or the project id in your config is wrong / doesn't have the Vertex AI API enabled.
 

@@ -41,8 +41,9 @@ func (p *Provider) describeAPIKey(ctx context.Context, req providers.DescribeReq
 	}
 
 	body := chatRequest{
-		Model:    model,
-		Messages: []chatMessage{{Role: "user", Content: buildContent(req)}},
+		Model:           model,
+		Messages:        []chatMessage{{Role: "user", Content: buildContent(req)}},
+		ReasoningEffort: req.Effort, // validated upstream against Vision.Efforts
 	}
 	if req.StructuredOutput {
 		body.ResponseFormat = &responseFormat{
@@ -133,9 +134,10 @@ func styleSchema() map[string]any {
 // --- wire types -------------------------------------------------------------
 
 type chatRequest struct {
-	Model          string          `json:"model"`
-	Messages       []chatMessage   `json:"messages"`
-	ResponseFormat *responseFormat `json:"response_format,omitempty"`
+	Model           string          `json:"model"`
+	Messages        []chatMessage   `json:"messages"`
+	ResponseFormat  *responseFormat `json:"response_format,omitempty"`
+	ReasoningEffort string          `json:"reasoning_effort,omitempty"`
 }
 
 type chatMessage struct {

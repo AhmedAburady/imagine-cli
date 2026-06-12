@@ -31,6 +31,9 @@ type Options struct {
 	// unlimited, the pre-existing behaviour.
 	MaxParallel int
 
+	// EmbedMetadata embeds prompt/model/provider into PNG output (--embed-metadata).
+	EmbedMetadata bool
+
 	// IsBatch is set by Validate when -p resolves to a batch file
 	// (.yaml/.yml/.json). Callers branch on this to call internal/batch
 	// instead of building a single-shot Request.
@@ -49,16 +52,17 @@ func IsBatchPath(path string) bool {
 // batch path read from this map. Any flag not listed here must be
 // claimed by at least one provider's Bundle.SupportedFlags.
 var CommonFlagNames = map[string]bool{
-	"prompt":       true,
-	"output":       true,
-	"filename":     true,
-	"count":        true,
-	"input":        true,
-	"replace":      true,
-	"provider":     true,
-	"max-parallel": true,
-	"help":         true,
-	"version":      true,
+	"prompt":         true,
+	"output":         true,
+	"filename":       true,
+	"count":          true,
+	"input":          true,
+	"replace":        true,
+	"provider":       true,
+	"max-parallel":   true,
+	"embed-metadata": true,
+	"help":           true,
+	"version":        true,
 }
 
 // IsCommonFlag reports whether name is a common (provider-agnostic) flag.

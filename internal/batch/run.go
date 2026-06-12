@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,6 +59,7 @@ func Run(ctx context.Context, resolved []Resolved, maxParallel int) error {
 
 	fmt.Println()
 	totalFail := printSummary(results, time.Since(startTime))
+	warnMetadataSkips(results)
 
 	if path := commonOutputFolder(resolved); path != "" {
 		if !filepath.IsAbs(path) {
@@ -76,6 +78,21 @@ func Run(ctx context.Context, resolved []Resolved, maxParallel int) error {
 		return fmt.Errorf("%d image(s) failed across batch", totalFail)
 	}
 	return nil
+}
+
+// warnMetadataSkips notes entries where --embed-metadata embedded nothing (non-PNG output).
+func warnMetadataSkips(results []EntryResult) {
+	var skipped []string
+	for _, er := range results {
+		if er.Output.MetadataSkipped {
+			skipped = append(skipped, er.Resolved.DisplayName)
+		}
+	}
+	if len(skipped) == 0 {
+		return
+	}
+	tag := lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true).Render("[WARNING]")
+	fmt.Printf("\n %s --embed-metadata supports PNG only; not embedded for: %s\n", tag, strings.Join(skipped, ", "))
 }
 
 // --- Summary table (marina-style lipgloss) ----------------------------------

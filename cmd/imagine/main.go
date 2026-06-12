@@ -44,8 +44,9 @@ func main() {
 	// Peek --provider + config before fang renders help, so flag visibility
 	// and the provider cheatsheet reflect the right provider.
 	hint := commands.ProviderHintFromArgs(os.Args[1:])
+	describeHint := commands.DescriberHintFromArgs(os.Args[1:])
 	v := resolveVersion()
-	root := commands.NewRootCmd(v, hint)
+	root := commands.NewRootCmd(v, hint, describeHint)
 	if err := fang.Execute(context.Background(), root,
 		fang.WithVersion(v),
 		fang.WithNotifySignal(os.Interrupt, syscall.SIGTERM),

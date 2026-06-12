@@ -32,7 +32,7 @@ import (
 // NewRootCmd builds the root cobra command. activeHint is the best-effort
 // provider name to use for help-output flag visibility; pre-parsed from argv
 // + config in main() because fang renders help before PreRunE fires.
-func NewRootCmd(version, activeHint string) *cobra.Command {
+func NewRootCmd(version, activeHint, describeHint string) *cobra.Command {
 	opts := &cli.Options{}
 	var providerName string
 	// providerOptions is populated in PreRunE from the active provider's
@@ -154,6 +154,7 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 	f.BoolVarP(&opts.PreserveFilename, "replace", "r", false, "Replace: use input filename for output (single file only)")
 	f.StringVar(&providerName, "provider", "", "Override the active provider (else: config default, else: first under providers:)")
 	f.IntVar(&opts.MaxParallel, "max-parallel", 0, "Cap concurrent provider HTTP requests (0 = unlimited)")
+	f.BoolVar(&opts.EmbedMetadata, "embed-metadata", false, "Embed prompt/model/provider into PNG output (PNG only)")
 
 	// Attach each registered provider's private flags. BindFlags is idempotent,
 	// so whichever provider registers a shared flag name (-m, -s) first wins
@@ -171,9 +172,10 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 	applyProviderFlagVisibility(root, activeHint)
 
 	root.AddCommand(
-		newDescribeCmd(),
+		newDescribeCmd(describeHint),
 		newVersionCmd(version),
 		newProvidersCmd(),
+		newMetadataCmd(),
 	)
 
 	return root

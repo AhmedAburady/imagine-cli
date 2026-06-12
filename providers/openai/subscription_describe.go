@@ -39,6 +39,9 @@ func (p *Provider) describeSubscription(ctx context.Context, req providers.Descr
 		Input:        []inputMessage{{Role: "user", Content: responsesContent(instruction, req.Images)}},
 		Stream:       true,
 	}
+	if req.Effort != "" {
+		body.Reasoning = &reasoningParam{Effort: req.Effort} // validated upstream
+	}
 
 	resp, err := p.postResponses(ctx, auth, body)
 	if err != nil {
