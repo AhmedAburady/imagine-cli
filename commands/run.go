@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
+	"strings"
 
-	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
 
 	"github.com/AhmedAburady/imagine-cli/api"
@@ -30,6 +29,18 @@ func loadReferences(refInputs []string) ([]images.Reference, error) {
 		refs = append(refs, loaded...)
 	}
 	return refs, nil
+}
+
+// isPNGOutputName reports whether a filename targets PNG — the only format
+// --embed-metadata supports. Empty (default) and extension-less stems are PNG.
+func isPNGOutputName(name string) bool {
+	ext := strings.ToLower(filepath.Ext(name))
+	return ext == "" || ext == ".png"
+}
+
+// embedTargetIsPNG reports whether the resolved output is PNG. -f drives it; default and -r both yield PNG.
+func embedTargetIsPNG(opts *cli.Options) bool {
+	return isPNGOutputName(opts.OutputFilename)
 }
 
 // refInputPathFor returns the original input path to feed ResolveFilename's
@@ -83,6 +94,19 @@ func runBatch(cmd *cobra.Command, opts *cli.Options, providerName string) error 
 	if err != nil {
 		return err
 	}
+
+	if opts.EmbedMetadata {
+		var skipped []string
+		for _, r := range resolved {
+			if len(r.Params.Metadata) > 0 && !isPNGOutputName(r.Params.OutputFilename) {
+				skipped = append(skipped, r.DisplayName)
+			}
+		}
+		if len(skipped) > 0 {
+			fmt.Println(warnLine("--embed-metadata supports PNG only; skipped for non-PNG entries: " + strings.Join(skipped, ", ")))
+		}
+	}
+
 	return batch.Run(cmd.Context(), resolved, opts.MaxParallel)
 }
 
@@ -100,29 +124,34 @@ func runGeneration(ctx context.Context, provider providers.Provider, req provide
 	}
 	modeText += ")"
 
-	s := spinner.New(spinner.CharSets[14], 80*time.Millisecond)
-	s.Suffix = fmt.Sprintf(" %s %d image(s)...", modeText, params.NumImages)
-	_ = s.Color("magenta")
-	s.Start()
+	model := requestLabel(providerOpts)
+	if model == "" {
+		model = provider.Info().DefaultModel
+	}
 
-	output := api.RunGeneration(ctx, provider, req, params)
-	s.Stop()
+	if opts.EmbedMetadata {
+		if embedTargetIsPNG(opts) {
+			params.Metadata = []images.TextTag{
+				{Key: "prompt", Value: req.Prompt},
+				{Key: "model", Value: model},
+				{Key: "provider", Value: provider.Info().Name},
+			}
+		} else {
+			fmt.Println(warnLine("--embed-metadata supports PNG only; metadata not embedded for this output format"))
+		}
+	}
 
-	fmt.Println()
+	output, aborted := runWithProgress(ctx, modeText, provider, req, &params)
+
 	successCount := 0
 	errorCount := 0
 	for _, r := range output.Results {
 		if r.Error != nil {
-			fmt.Printf("\033[31m✗\033[0m Image %d: %v\n", r.Index+1, r.Error)
 			errorCount++
 		} else {
-			fmt.Printf("\033[32m✓\033[0m %s\n", r.Filename)
 			successCount++
 		}
 	}
-
-	fmt.Println()
-	fmt.Printf("Done: %d success, %d failed (%.1fs)\n", successCount, errorCount, output.Elapsed.Seconds())
 
 	outputPath := params.OutputFolder
 	if !filepath.IsAbs(outputPath) {
@@ -130,7 +159,15 @@ func runGeneration(ctx context.Context, provider providers.Provider, req provide
 			outputPath = abs
 		}
 	}
-	fmt.Printf("Output: %s\n", outputPath)
+
+	fmt.Println()
+	if aborted {
+		fmt.Println(abortBlock(successCount, params.NumImages, fmt.Sprintf("%.1fs", output.Elapsed.Seconds()), outputPath))
+		_ = os.Stdout.Sync()
+		os.Exit(130) // SIGINT convention: graceful summary, but non-zero for scripts/CI
+	}
+
+	fmt.Println(resultsTable(model, output.Results, outputPath))
 
 	if errorCount > 0 {
 		return fmt.Errorf("%d image(s) failed", errorCount)

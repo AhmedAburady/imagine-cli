@@ -11,6 +11,7 @@ import (
 	"github.com/AhmedAburady/imagine-cli/cli"
 	"github.com/AhmedAburady/imagine-cli/config"
 	"github.com/AhmedAburady/imagine-cli/internal/batch"
+	"github.com/AhmedAburady/imagine-cli/internal/images"
 	_ "github.com/AhmedAburady/imagine-cli/providers/all"
 )
 
@@ -129,6 +130,57 @@ func TestResolve_EntryOverrideWinsOverCLI(t *testing.T) {
 	}
 	if r.Params.OutputFolder != "/tmp/specific" {
 		t.Errorf("OutputFolder: got %q, want /tmp/specific (entry override)", r.Params.OutputFolder)
+	}
+}
+
+// --- Embed metadata ---------------------------------------------------------
+
+func metaValue(tags []images.TextTag, key string) string {
+	for _, t := range tags {
+		if t.Key == key {
+			return t.Value
+		}
+	}
+	return ""
+}
+
+func TestResolve_EmbedMetadataFromCLI(t *testing.T) {
+	spec := &batch.Spec{Entries: []batch.Entry{
+		{Key: "hero", Index: 0, Raw: map[string]any{"prompt": "a cat", "provider": "openai"}},
+	}}
+	cli := defaultCLI()
+	cli.EmbedMetadata = true
+
+	resolved, err := batch.Resolve(batch.ResolveContext{
+		Spec: spec, CLIOptions: cli, Cmd: stubCmd(t), Config: stubConfig(), DefaultProvider: "openai",
+	})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	m := resolved[0].Params.Metadata
+	if metaValue(m, "prompt") != "a cat" || metaValue(m, "provider") != "openai" || metaValue(m, "model") == "" {
+		t.Errorf("metadata not threaded from CLI flag: %+v", m)
+	}
+}
+
+func TestResolve_EmbedMetadataEntryOverrides(t *testing.T) {
+	spec := &batch.Spec{Entries: []batch.Entry{
+		{Key: "on", Index: 0, Raw: map[string]any{"prompt": "x", "provider": "openai", "embed-metadata": true}},
+		{Key: "off", Index: 1, Raw: map[string]any{"prompt": "y", "provider": "openai", "embed-metadata": false}},
+	}}
+	cli := defaultCLI() // CLI flag off; entries decide
+
+	resolved, err := batch.Resolve(batch.ResolveContext{
+		Spec: spec, CLIOptions: cli, Cmd: stubCmd(t), Config: stubConfig(), DefaultProvider: "openai",
+	})
+	if err != nil {
+		t.Fatalf("Resolve (entry-level embed-metadata must not be an unknown key): %v", err)
+	}
+	if len(resolved[0].Params.Metadata) == 0 {
+		t.Error("entry embed-metadata:true should set Metadata")
+	}
+	if len(resolved[1].Params.Metadata) != 0 {
+		t.Error("entry embed-metadata:false should leave Metadata empty")
 	}
 }
 

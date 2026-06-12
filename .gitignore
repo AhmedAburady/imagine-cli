@@ -33,7 +33,8 @@ Thumbs.db
 # Output folders
 output/
 input/
-./*.png
+*.png
+!.assets/*.png
 generations/
 .claude/
 /imagine
