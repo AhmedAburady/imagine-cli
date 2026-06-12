@@ -97,7 +97,10 @@ func (m genProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.done++
 		}
-		pct := float64(m.done+m.failed) / float64(m.total)
+		var pct float64
+		if m.total > 0 {
+			pct = float64(m.done+m.failed) / float64(m.total)
+		}
 		return m, tea.Batch(m.progress.SetPercent(pct), waitForResult(m.results))
 	case spinner.TickMsg:
 		var cmd tea.Cmd

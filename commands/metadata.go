@@ -19,7 +19,8 @@ func newMetadataCmd() *cobra.Command {
 			"prompt/model/provider/reference_image fields written by --embed-metadata.\n\n" +
 			"With no flags, prints all fields in a readable table. With one or more field\n" +
 			"flags (--prompt/--model/--provider/--reference-image), prints only those raw\n" +
-			"values — no labels or colour, one per line in that fixed order — for piping.",
+			"values — no labels or colour, one per line in that fixed order — for piping.\n" +
+			"With multiple files, each raw value is prefixed with \"<filename>\\t\" (grep-style).",
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var keys []string // requested fields, in stable order
@@ -53,8 +54,12 @@ func newMetadataCmd() *cobra.Command {
 				}
 
 				if raw {
+					prefix := "" // grep-style: filename-tab only when reading multiple files
+					if len(args) > 1 {
+						prefix = path + "\t"
+					}
 					for _, k := range keys {
-						fmt.Println(tagValue(tags, k)) // raw value, empty line if absent
+						fmt.Println(prefix + tagValue(tags, k)) // raw value, empty line if absent
 					}
 					continue
 				}

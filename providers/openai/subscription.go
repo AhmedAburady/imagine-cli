@@ -200,26 +200,36 @@ func (p *Provider) doResponses(ctx context.Context, auth *codexAuth, body respon
 }
 
 // stallReader wraps a streaming body, closing it (which unblocks the read) after its idle duration of silence.
+// Read records activity timestamps rather than resetting the timer, so a Read that races the
+// timer's expiry can't be wrongly reported as a stall — the timer func re-checks last activity.
 type stallReader struct {
-	rc      io.ReadCloser
-	idle    time.Duration
-	timer   *time.Timer
-	stalled atomic.Bool
+	rc       io.ReadCloser
+	idle     time.Duration
+	timer    *time.Timer
+	lastRead atomic.Int64 // unix-nanos of the most recent Read that returned bytes
+	stalled  atomic.Bool
 }
 
 func newStallReader(rc io.ReadCloser, idle time.Duration) *stallReader {
 	sr := &stallReader{rc: rc, idle: idle}
-	sr.timer = time.AfterFunc(idle, func() {
-		sr.stalled.Store(true)
-		_ = rc.Close()
-	})
+	sr.lastRead.Store(time.Now().UnixNano())
+	sr.timer = time.AfterFunc(idle, sr.onTimer)
 	return sr
+}
+
+func (sr *stallReader) onTimer() {
+	if idle := time.Duration(time.Now().UnixNano() - sr.lastRead.Load()); idle < sr.idle {
+		sr.timer.Reset(sr.idle - idle) // activity since scheduling; re-check after the remaining window
+		return
+	}
+	sr.stalled.Store(true)
+	_ = sr.rc.Close()
 }
 
 func (sr *stallReader) Read(p []byte) (int, error) {
 	n, err := sr.rc.Read(p)
 	if n > 0 {
-		sr.timer.Reset(sr.idle)
+		sr.lastRead.Store(time.Now().UnixNano())
 	}
 	if err != nil && sr.stalled.Load() {
 		return n, errStalled

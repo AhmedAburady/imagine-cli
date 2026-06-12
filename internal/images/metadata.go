@@ -40,11 +40,10 @@ func EmbedPNGText(data []byte, tags []TextTag) ([]byte, bool) {
 	if len(tags) == 0 || len(data) < 33 || !bytes.HasPrefix(data, pngSignature) || string(data[12:16]) != "IHDR" {
 		return data, false
 	}
-	ihdrLen := binary.BigEndian.Uint32(data[8:12])
-	insert := 8 + 8 + int(ihdrLen) + 4 // signature + (len+type) + data + crc
-	if insert > len(data) {
-		return data, false
+	if binary.BigEndian.Uint32(data[8:12]) != 13 {
+		return data, false // IHDR is spec-fixed at 13 bytes; bail rather than splice at a bad offset
 	}
+	const insert = 33 // 8 (signature) + 8 (length+type) + 13 (IHDR data) + 4 (CRC)
 
 	var chunks []byte
 	for _, t := range tags {

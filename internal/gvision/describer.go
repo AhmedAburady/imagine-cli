@@ -38,9 +38,13 @@ func Describe(ctx context.Context, cc *genai.ClientConfig, model string, req pro
 		Model:       llm,
 		Description: "Analyses images and extracts style descriptions",
 		Instruction: instruction,
-		GenerateContentConfig: &genai.GenerateContentConfig{
+	}
+	// Only constrain thinking when an effort was resolved; an empty effort
+	// (custom --model pass-through) leaves the model on its native default.
+	if req.Effort != "" {
+		cfg.GenerateContentConfig = &genai.GenerateContentConfig{
 			ThinkingConfig: &genai.ThinkingConfig{ThinkingLevel: thinkingLevel(req.Effort)},
-		},
+		}
 	}
 	if req.StructuredOutput {
 		cfg.OutputSchema = styleSchema()
