@@ -218,8 +218,16 @@ func newStallReader(rc io.ReadCloser, idle time.Duration) *stallReader {
 }
 
 func (sr *stallReader) onTimer() {
-	if idle := time.Duration(time.Now().UnixNano() - sr.lastRead.Load()); idle < sr.idle {
+	last := sr.lastRead.Load()
+	if idle := time.Duration(time.Now().UnixNano() - last); idle < sr.idle {
 		sr.timer.Reset(sr.idle - idle) // activity since scheduling; re-check after the remaining window
+		return
+	}
+	// Commit the close only if no Read updated lastRead since we sampled it; a
+	// byte racing into this window makes the CAS fail, so we reschedule rather
+	// than terminate a stream that just came back to life.
+	if !sr.lastRead.CompareAndSwap(last, last) {
+		sr.timer.Reset(sr.idle)
 		return
 	}
 	sr.stalled.Store(true)
