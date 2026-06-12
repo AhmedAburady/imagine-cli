@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -304,6 +306,31 @@ func TestParseImageStream_IncompleteSurfacesReason(t *testing.T) {
 	_, err := parseImageStream(strings.NewReader(stream), "png")
 	if err == nil || !strings.Contains(err.Error(), "content_filter") {
 		t.Fatalf("expected incomplete reason surfaced, got %v", err)
+	}
+}
+
+func TestStallReader_AbortsOnSilence(t *testing.T) {
+	pr, _ := io.Pipe() // never written; the read blocks until the stall watchdog closes it
+	sr := newStallReader(pr, 30*time.Millisecond)
+	if _, err := sr.Read(make([]byte, 8)); !errors.Is(err, errStalled) {
+		t.Fatalf("expected errStalled, got %v", err)
+	}
+}
+
+func TestStallReader_StallsOnCustomIdleAfterData(t *testing.T) {
+	pr, pw := io.Pipe()
+	go func() { _, _ = pw.Write([]byte("data: {}\n")) }() // bytes, then permanent silence (no close)
+	sr := newStallReader(pr, 30*time.Millisecond)
+	if _, err := io.ReadAll(sr); !errors.Is(err, errStalled) {
+		t.Fatalf("expected errStalled on the custom idle, got %v", err)
+	}
+}
+
+func TestStallReader_PassesDataThrough(t *testing.T) {
+	sr := newStallReader(io.NopCloser(strings.NewReader("hello")), time.Second)
+	defer sr.Close()
+	if got, err := io.ReadAll(sr); err != nil || string(got) != "hello" {
+		t.Fatalf("got %q, %v", got, err)
 	}
 }
 

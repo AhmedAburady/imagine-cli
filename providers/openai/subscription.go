@@ -17,6 +17,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -37,6 +39,11 @@ const (
 	// reliably invoke the tool (it misbehaves with none).
 	imageInstructions = "You are an image generation assistant. Generate exactly one image for the user's request using the image_generation tool."
 )
+
+// stallTimeout aborts the SSE read only after this much continuous silence; it resets on every byte received.
+const stallTimeout = 180 * time.Second
+
+var errStalled = errors.New("stream stalled: no data for 180s (network hang or backend stall) — retry")
 
 func (p *Provider) generateSubscription(ctx context.Context, opts *Options, req providers.Request) (*providers.Response, error) {
 	access, account, err := p.ensureFreshToken(ctx)
@@ -163,10 +170,11 @@ func (p *Provider) postResponses(ctx context.Context, auth *codexAuth, body resp
 	if err := auth.Apply(req); err != nil {
 		return nil, err
 	}
-	resp, err := httpClient.Do(req)
+	resp, err := streamClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
+	resp.Body = newStallReader(resp.Body, stallTimeout)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		_ = resp.Body.Close()
@@ -184,6 +192,39 @@ func (p *Provider) doResponses(ctx context.Context, auth *codexAuth, body respon
 	}
 	defer func() { _ = resp.Body.Close() }()
 	return parseImageStream(resp.Body, wantFormat)
+}
+
+// stallReader wraps a streaming body, closing it (which unblocks the read) after its idle duration of silence.
+type stallReader struct {
+	rc      io.ReadCloser
+	idle    time.Duration
+	timer   *time.Timer
+	stalled atomic.Bool
+}
+
+func newStallReader(rc io.ReadCloser, idle time.Duration) *stallReader {
+	sr := &stallReader{rc: rc, idle: idle}
+	sr.timer = time.AfterFunc(idle, func() {
+		sr.stalled.Store(true)
+		_ = rc.Close()
+	})
+	return sr
+}
+
+func (sr *stallReader) Read(p []byte) (int, error) {
+	n, err := sr.rc.Read(p)
+	if n > 0 {
+		sr.timer.Reset(sr.idle)
+	}
+	if err != nil && sr.stalled.Load() {
+		return n, errStalled
+	}
+	return n, err
+}
+
+func (sr *stallReader) Close() error {
+	sr.timer.Stop()
+	return sr.rc.Close()
 }
 
 // scanSSE invokes fn for every decoded `data:` event. Data lines can be ~1MB of
