@@ -55,7 +55,11 @@ func init() {
 		Examples:       Examples,
 		Info:           info,
 		ConfigSchema:   (&Provider{}).ConfigSchema(),
-		Vision:         &providers.Vision{DefaultModel: DefaultVisionModel},
+		Vision: &providers.Vision{
+			DefaultModel:  DefaultVisionModel,
+			Efforts:       []string{"none", "low", "medium", "high", "xhigh"}, // gpt-5.5 set; no "minimal"
+			DefaultEffort: "medium",
+		},
 		AuthMethods: []providers.AuthMethod{
 			{
 				Key:    "api_key",

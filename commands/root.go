@@ -32,7 +32,7 @@ import (
 // NewRootCmd builds the root cobra command. activeHint is the best-effort
 // provider name to use for help-output flag visibility; pre-parsed from argv
 // + config in main() because fang renders help before PreRunE fires.
-func NewRootCmd(version, activeHint string) *cobra.Command {
+func NewRootCmd(version, activeHint, describeHint string) *cobra.Command {
 	opts := &cli.Options{}
 	var providerName string
 	// providerOptions is populated in PreRunE from the active provider's
@@ -172,7 +172,7 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 	applyProviderFlagVisibility(root, activeHint)
 
 	root.AddCommand(
-		newDescribeCmd(),
+		newDescribeCmd(describeHint),
 		newVersionCmd(version),
 		newProvidersCmd(),
 		newMetadataCmd(),

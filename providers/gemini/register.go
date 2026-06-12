@@ -3,6 +3,7 @@ package gemini
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/AhmedAburady/imagine-cli/internal/gvision"
 	"github.com/AhmedAburady/imagine-cli/providers"
 	"github.com/AhmedAburady/imagine-cli/providers/flagspec"
 )
@@ -32,6 +33,10 @@ func init() {
 		Examples:       Examples,
 		Info:           info,
 		ConfigSchema:   (&Provider{}).ConfigSchema(),
-		Vision:         &providers.Vision{DefaultModel: DefaultVisionModel},
+		Vision: &providers.Vision{
+			DefaultModel:  DefaultVisionModel, // gemini-pro-latest (3.1 Pro): no "minimal"
+			Efforts:       []string{"low", "medium", "high"},
+			DefaultEffort: gvision.DefaultEffort,
+		},
 	})
 }

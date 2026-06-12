@@ -84,19 +84,39 @@ func resolveProvider(flagValue string) (string, error) {
 //
 // Order: --provider in argv → config.default_provider → first under providers:
 // Returns "" when nothing is configured (help shows all flags).
-func ProviderHintFromArgs(args []string) string {
+// providerFromArgs returns a registered --provider value from argv, or "".
+func providerFromArgs(args []string) string {
 	for i, a := range args {
 		if a == "--provider" && i+1 < len(args) {
-			name := args[i+1]
-			if _, ok := providers.Get(name); ok {
-				return name
+			if _, ok := providers.Get(args[i+1]); ok {
+				return args[i+1]
 			}
 		} else if after, ok := strings.CutPrefix(a, "--provider="); ok {
-			name := after
-			if _, ok := providers.Get(name); ok {
-				return name
+			if _, ok := providers.Get(after); ok {
+				return after
 			}
 		}
+	}
+	return ""
+}
+
+// DescriberHintFromArgs resolves the best-effort describer provider for help,
+// mirroring resolveDescriber's precedence (argv --provider → vision default → default → first).
+func DescriberHintFromArgs(args []string) string {
+	cfg, err := config.Load()
+	if err != nil {
+		return ""
+	}
+	name, err := resolveDescriber(providerFromArgs(args), cfg)
+	if err != nil {
+		return ""
+	}
+	return name
+}
+
+func ProviderHintFromArgs(args []string) string {
+	if name := providerFromArgs(args); name != "" {
+		return name
 	}
 	if name := config.GetDefaultProvider(); name != "" {
 		if _, ok := providers.Get(name); ok {

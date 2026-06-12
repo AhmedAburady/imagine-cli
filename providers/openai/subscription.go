@@ -92,13 +92,18 @@ func buildTool(opts *Options) imageTool {
 // --- Request wire types ------------------------------------------------------
 
 type responsesBody struct {
-	Model        string         `json:"model"`
-	Instructions string         `json:"instructions"`
-	Input        []inputMessage `json:"input"`
-	Tools        []imageTool    `json:"tools,omitempty"`
-	ToolChoice   *toolChoice    `json:"tool_choice,omitempty"`
-	Stream       bool           `json:"stream"`
-	Store        bool           `json:"store"`
+	Model        string          `json:"model"`
+	Instructions string          `json:"instructions"`
+	Input        []inputMessage  `json:"input"`
+	Tools        []imageTool     `json:"tools,omitempty"`
+	ToolChoice   *toolChoice     `json:"tool_choice,omitempty"`
+	Reasoning    *reasoningParam `json:"reasoning,omitempty"`
+	Stream       bool            `json:"stream"`
+	Store        bool            `json:"store"`
+}
+
+type reasoningParam struct {
+	Effort string `json:"effort,omitempty"`
 }
 
 type inputMessage struct {
