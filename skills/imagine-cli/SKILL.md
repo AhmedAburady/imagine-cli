@@ -14,7 +14,7 @@ Use this skill whenever the user:
 - Mentions `imagine`, any of its flags, providers (gemini, vertex, openai), or model aliases (`gpt-image-2`, `pro`, `flash`, `1.5`, etc.)
 - Wants to generate or edit images from the command line
 - Is setting up the tool, adding an API key, or changing the default provider
-- Runs any `imagine providers …` or `imagine describe` subcommand
+- Runs any `imagine providers …`, `imagine describe`, or `imagine metadata` subcommand
 - Hits an error — fixes live in [references/troubleshooting.md](references/troubleshooting.md)
 - Asks which provider to pick for a task
 - References sizes (`1K`, `2K`, `4K`, `1024x1024`, `3840x2160`, etc.)
@@ -136,6 +136,7 @@ error: no provider configured
 | `-n` | `--count` | 1–20 images |
 | `-i` | `--input` | Reference image/folder, repeatable. Flips to **edit mode**. |
 | `-r` | `--replace` | Use input filename for output (single `-i` only; mutually exclusive with `-f`) |
+|   | `--embed-metadata` | Embed generation details (prompt, model, provider, references) into PNG output |
 |   | `--provider` | Per-invocation override |
 
 `-f` and `-r` are mutually exclusive. `-r` requires exactly one `-i` pointing at a single file.
@@ -192,6 +193,7 @@ List form — entries are anonymous; the summary table identifies them by 1-base
 | `count` | int | 1–20. With `count > 1`, names get `_1`, `_2`, … suffix. |
 | `input` | string OR list | Reference file/folder, or list of them. Flips entry into edit mode. `~` expanded. |
 | `replace` | bool | Use input filename as output. Requires exactly one input pointing at a file. Mutually exclusive with `filename`. |
+| `embed-metadata` | bool | Embed generation details into PNG output. |
 
 ### Provider-private keys
 
@@ -274,6 +276,25 @@ imagine -p mixed.yaml -o ./out
 ```
 
 Full schema, more examples (edit mode, JSON, multi-line prompts), and an extended error/fix table: [`Docs/batch-files.md`](../../Docs/batch-files.md) in the imagine-cli repo.
+
+## Metadata
+
+Pass `--embed-metadata` during generation to write the prompt, model, provider, and reference paths into the output `.png` as standard `iTXt` text chunks. (Silently ignored for `.jpg` / `.webp`.)
+
+```bash
+imagine -p "cyberpunk city" --embed-metadata -f city.png
+```
+
+Read those values back with the `metadata` subcommand. Useful for agents inspecting prior outputs.
+
+```bash
+imagine metadata city.png                 # prints all fields in a readable table
+imagine metadata city.png --prompt        # prints only the raw prompt (pipeable)
+imagine metadata city.png --model --provider
+imagine metadata city.png --reference-image
+```
+
+In [batch mode](#batch-mode), use the boolean key `embed-metadata: true` per entry.
 
 ## Describe subcommand
 
