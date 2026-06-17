@@ -112,6 +112,14 @@ func CheckClaimedSomewhere(setNames []string, bundles []Bundle) []error {
 	return errs
 }
 
+// CheckMaxN caps n against the provider's per-provider limit; maxN 0 defers to the global range.
+func CheckMaxN(providerName string, maxN, n int) error {
+	if maxN > 0 && n > maxN {
+		return fmt.Errorf("-n %d exceeds the limit for provider %q (max %d)", n, providerName, maxN)
+	}
+	return nil
+}
+
 // ResolvedModelID extracts the canonical model ID from opaque Options.
 // Prefers ResolvedModeler; falls back to the legacy map[string]any
 // "model" key for providers still on the untyped interface. Returns ""

@@ -18,10 +18,10 @@ import (
 
 // loadReferences walks the user-provided -i paths and returns the full set of
 // reference images. Errors out on the first unreadable or unsupported entry.
-func loadReferences(refInputs []string) ([]images.Reference, error) {
+func loadReferences(refInputs []string, accept []string) ([]images.Reference, error) {
 	var refs []images.Reference
 	for _, ref := range refInputs {
-		loaded, err := images.Load(ref)
+		loaded, err := images.Load(ref, accept...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load references: %w", err)
 		}
@@ -88,9 +88,14 @@ func runBatch(cmd *cobra.Command, opts *cli.Options, providerName string) error 
 // Returns a non-nil error when any image fails or setup fails; fang uses the
 // return value to decide the process exit code.
 func runGeneration(ctx context.Context, provider providers.Provider, req providers.Request, params api.Params, opts *cli.Options, providerOpts any) error {
-	modeText := "Generating"
+	isVideo := provider.Info().Capabilities.MediaKind == providers.KindVideo
+	noun := ""
+	if isVideo {
+		noun = " video"
+	}
+	modeText := "Generating" + noun
 	if len(opts.RefInputs) > 0 {
-		modeText = "Editing"
+		modeText = "Editing" + noun
 	}
 	modeText += fmt.Sprintf(" (%s", provider.Info().Name)
 	if label := requestLabel(providerOpts); label != "" && label != provider.Info().DefaultModel {
@@ -103,7 +108,8 @@ func runGeneration(ctx context.Context, provider providers.Provider, req provide
 		model = provider.Info().DefaultModel
 	}
 
-	if opts.EmbedMetadata {
+	// --embed-metadata is image-specific (PNG text chunks); skip it for video.
+	if opts.EmbedMetadata && !isVideo {
 		params.Metadata = images.MetadataTags(req.Prompt, model, provider.Info().Name, opts.RefInputs)
 	}
 
@@ -133,7 +139,7 @@ func runGeneration(ctx context.Context, provider providers.Provider, req provide
 		os.Exit(130) // SIGINT convention: graceful summary, but non-zero for scripts/CI
 	}
 
-	if output.MetadataSkipped {
+	if output.MetadataSkipped && !isVideo {
 		fmt.Println(warnLine("--embed-metadata supports PNG only; metadata was not embedded for this output format"))
 	}
 	fmt.Println(resultsTable(model, output.Results, outputPath))

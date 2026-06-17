@@ -159,7 +159,7 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 		for _, pt := range c.Content.Parts {
 			if pt.InlineData != nil && len(pt.InlineData.Data) > 0 {
 				return &providers.Response{
-					Images: []providers.GeneratedImage{{
+					Assets: []providers.GeneratedImage{{
 						Data:     pt.InlineData.Data,
 						MimeType: pt.InlineData.MIMEType,
 					}},

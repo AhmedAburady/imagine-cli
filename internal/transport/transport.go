@@ -94,6 +94,16 @@ func (a *bearerAuth) Apply(req *http.Request) error {
 	return nil
 }
 
+// Key sets "Authorization: Key <token>". Used by fal.ai.
+func Key(token string) Auth { return &keyAuth{token: token} }
+
+type keyAuth struct{ token string }
+
+func (a *keyAuth) Apply(req *http.Request) error {
+	req.Header.Set("Authorization", "Key "+a.token)
+	return nil
+}
+
 // QueryKey appends ?<param>=<value> to the URL. Used by Gemini's REST API.
 func QueryKey(param, value string) Auth { return &queryKeyAuth{param: param, value: value} }
 
@@ -142,6 +152,43 @@ func PostMultipart[Resp any](ctx context.Context, c *Client, url string, auth Au
 	}
 	req.Header.Set("Content-Type", contentType)
 	return doAndDecode[Resp](c, req, auth)
+}
+
+// GetJSON GETs url with auth applied and decodes the response into *Resp on
+// 2xx. Non-2xx yields *APIError, same as PostJSON.
+func GetJSON[Resp any](ctx context.Context, c *Client, url string, auth Auth) (*Resp, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	return doAndDecode[Resp](c, req, auth)
+}
+
+// GetBytes GETs url with auth applied and returns the full response body on
+// 2xx (e.g. downloading a public mp4 with NoAuth). Non-2xx yields *APIError.
+func GetBytes(ctx context.Context, c *Client, url string, auth Auth) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	if err := auth.Apply(req); err != nil {
+		return nil, fmt.Errorf("failed to apply auth: %w", err)
+	}
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, parseAPIError(resp.StatusCode, raw)
+	}
+	return raw, nil
 }
 
 func doAndDecode[Resp any](c *Client, req *http.Request, auth Auth) (*Resp, error) {

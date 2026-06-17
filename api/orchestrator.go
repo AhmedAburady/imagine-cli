@@ -143,22 +143,22 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 				return
 			}
 
-			for i, img := range resp.Images {
+			for i, asset := range resp.Assets {
 				if i >= batchSize {
 					// Provider returned more images than requested; ignore extras.
 					break
 				}
-				res := GenerationResult{Index: startIndex + i, ImageData: img.Data, Duration: dur}
-				saveOne(&res, img.Data, params)
+				res := GenerationResult{Index: startIndex + i, ImageData: asset.Data, Duration: dur}
+				saveOne(&res, asset, params)
 				resultsChan <- res
 			}
 
 			// If the provider returned fewer images than requested, fill the gap
 			// so the per-image error surfaces to the user.
-			for i := len(resp.Images); i < batchSize; i++ {
+			for i := len(resp.Assets); i < batchSize; i++ {
 				resultsChan <- GenerationResult{
 					Index:    startIndex + i,
-					Error:    fmt.Errorf("provider returned only %d of %d requested images", len(resp.Images), batchSize),
+					Error:    fmt.Errorf("provider returned only %d of %d requested images", len(resp.Assets), batchSize),
 					Duration: dur,
 				}
 			}
@@ -193,15 +193,21 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 // saveOne resolves the output filename (honouring -f, -r, and default rules),
 // converts to JPEG when the extension requests it, and writes the file.
 // Mutates res.Filename on success or res.Error on failure.
-func saveOne(res *GenerationResult, data []byte, params Params) {
+func saveOne(res *GenerationResult, asset providers.GeneratedAsset, params Params) {
+	data := asset.Data
 	filename := images.ResolveFilename(images.FilenameParams{
 		Custom:       params.OutputFilename,
 		Preserve:     params.PreserveFilename,
 		RefInputPath: params.RefInputPath,
 		Index:        res.Index,
 		Total:        params.NumImages,
+		AssetMime:    asset.MimeType,
 	})
 
+	// Post-processing keys off byte-level signals, not the asset's MIME label:
+	// JPEG conversion runs only when the resolved filename is .jpg (video never
+	// resolves to .jpg), and EmbedPNGText sniffs the PNG signature and no-ops on
+	// non-PNG. So video/audio bytes pass through verbatim with no MIME gate.
 	if images.HasJPEGExt(filename) {
 		converted, err := images.ConvertToJPEG(data)
 		if err != nil {

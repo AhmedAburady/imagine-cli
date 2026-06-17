@@ -56,14 +56,50 @@ type ModelInfo struct {
 	SupportedFlags []string
 }
 
+// MediaKind classifies the output (and reference) media a provider handles.
+type MediaKind int
+
+const (
+	KindImage MediaKind = iota // zero value = image
+	KindVideo
+	KindAudio
+)
+
+// Class maps a MediaKind to its top-level MIME class string.
+func (k MediaKind) Class() string {
+	switch k {
+	case KindVideo:
+		return "video"
+	case KindAudio:
+		return "audio"
+	default:
+		return "image"
+	}
+}
+
+// RefClasses returns the accepted reference MIME classes; empty RefKinds means image-only.
+func (c Capabilities) RefClasses() []string {
+	if len(c.RefKinds) == 0 {
+		return []string{"image"}
+	}
+	out := make([]string, len(c.RefKinds))
+	for i, k := range c.RefKinds {
+		out[i] = k.Class()
+	}
+	return out
+}
+
 // Capabilities tells the CLI what orchestration / validation rules apply.
 type Capabilities struct {
-	Edit        bool     // supports reference images
-	Grounding   bool     // supports Google Search grounding
-	Thinking    bool     // supports thinking level
-	ImageSearch bool     // supports image-search grounding
-	MaxBatchN   int      // images per single Generate call; 1 means orchestrator loops
-	Sizes       []string // accepted values for -s
+	Edit        bool        // supports reference images
+	Grounding   bool        // supports Google Search grounding
+	Thinking    bool        // supports thinking level
+	ImageSearch bool        // supports image-search grounding
+	MaxBatchN   int         // images per single Generate call; 1 means orchestrator loops
+	Sizes       []string    // accepted values for -s
+	MediaKind   MediaKind   // output kind; zero value = image
+	RefKinds    []MediaKind // accepted reference classes; nil = image-only
+	MaxN        int         // per-provider cap on -n; 0 = use the global limit
 }
 
 // Request is the per-batch input to a provider's Generate call.
@@ -80,15 +116,18 @@ type Request struct {
 	Options    any
 }
 
-// GeneratedImage is a single produced image: raw bytes + MIME type.
-type GeneratedImage struct {
+// GeneratedAsset is a single produced asset: raw bytes + MIME type.
+type GeneratedAsset struct {
 	Data     []byte
 	MimeType string
 }
 
+// GeneratedImage is a back-compat alias for GeneratedAsset.
+type GeneratedImage = GeneratedAsset
+
 // Response is one Generate call's output.
 type Response struct {
-	Images []GeneratedImage
+	Assets []GeneratedAsset
 }
 
 // Provider is the interface the CLI uses to talk to any image backend.
