@@ -276,6 +276,12 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 
 	result, err := transport.GetJSON[resultResp](ctx, falClient, submit.ResponseURL, transport.Key(p.apiKey))
 	if err != nil {
+		// A 422 at the result stage is fal's post-generation content moderation
+		// rejecting the produced video, not a transport fault — say so plainly.
+		var apiErr *transport.APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusUnprocessableEntity {
+			return nil, fmt.Errorf("fal: the generated video was rejected by content moderation: %w", err)
+		}
 		return nil, fmt.Errorf("fal: fetch result: %w", err)
 	}
 

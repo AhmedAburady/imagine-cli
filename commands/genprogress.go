@@ -146,9 +146,10 @@ func abortBlock(done, total int, elapsed, outputPath string) string {
 	return out
 }
 
-// resultsTable renders one row per image (IMAGE / MODEL / TIME / STATUS),
-// matching the batch summary palette. Failures are detailed below the table.
-func resultsTable(model string, results []api.GenerationResult, outputPath string) string {
+// resultsTable renders one row per output (header label from noun: image or
+// video), matching the batch summary palette. Failures are detailed below the
+// table.
+func resultsTable(model, noun string, results []api.GenerationResult, outputPath string) string {
 	rows := append([]api.GenerationResult(nil), results...)
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Index < rows[j].Index })
 
@@ -176,12 +177,12 @@ func resultsTable(model string, results []api.GenerationResult, outputPath strin
 			}
 			return cell
 		}).
-		Headers("IMAGE", "MODEL", "TIME", "STATUS")
+		Headers(strings.ToUpper(noun), "MODEL", "TIME", "STATUS")
 
 	for _, r := range rows {
 		name, status := r.Filename, "ok"
 		if r.Error != nil {
-			name, status = fmt.Sprintf("image %d", r.Index+1), "failed"
+			name, status = fmt.Sprintf("%s %d", noun, r.Index+1), "failed"
 		}
 		t.Row(name, model, fmtDuration(r.Duration), status)
 	}
@@ -191,7 +192,7 @@ func resultsTable(model string, results []api.GenerationResult, outputPath strin
 	for _, r := range rows {
 		if r.Error != nil {
 			out.WriteString("\n  ")
-			out.WriteString(paint(uiPale, fmt.Sprintf("image %d: %v", r.Index+1, r.Error)))
+			out.WriteString(paint(uiPale, fmt.Sprintf("%s %d: %v", noun, r.Index+1, r.Error)))
 		}
 	}
 	out.WriteString("\n  ")

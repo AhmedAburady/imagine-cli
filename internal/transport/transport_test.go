@@ -153,6 +153,45 @@ func TestPostJSON_ErrorWithoutParseableBody(t *testing.T) {
 	}
 }
 
+func TestPostJSON_ErrorDetailArray(t *testing.T) {
+	// FastAPI/Pydantic validation shape (fal). The field-level reason must
+	// survive instead of collapsing to a bare "API error (status 422)".
+	srv := newServer(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = io.WriteString(w, `{"detail":[{"loc":["body","duration"],"msg":"value is not a valid enumeration member","type":"type_error.enum"}]}`)
+	})
+	defer srv.Close()
+
+	_, err := transport.PostJSON[echoResp](context.Background(), transport.NewClient(5*time.Second), srv.URL, transport.NoAuth(), echoReq{})
+	var apiErr *transport.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T: %v", err, err)
+	}
+	if apiErr.StatusCode != 422 {
+		t.Errorf("StatusCode: got %d, want 422", apiErr.StatusCode)
+	}
+	if apiErr.Message != "duration: value is not a valid enumeration member" {
+		t.Errorf("Message: got %q", apiErr.Message)
+	}
+}
+
+func TestPostJSON_ErrorDetailString(t *testing.T) {
+	srv := newServer(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = io.WriteString(w, `{"detail":"prompt failed content moderation"}`)
+	})
+	defer srv.Close()
+
+	_, err := transport.PostJSON[echoResp](context.Background(), transport.NewClient(5*time.Second), srv.URL, transport.NoAuth(), echoReq{})
+	var apiErr *transport.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T: %v", err, err)
+	}
+	if apiErr.Message != "prompt failed content moderation" {
+		t.Errorf("Message: got %q", apiErr.Message)
+	}
+}
+
 func TestPostJSON_ErrorMessageTruncated(t *testing.T) {
 	// Build a message longer than the 200-char ceiling to confirm truncation.
 	long := strings.Repeat("x", 300)

@@ -19,6 +19,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -250,13 +251,62 @@ func parseAPIError(status int, raw []byte) *APIError {
 		} `json:"error"`
 	}
 	if err := json.Unmarshal(raw, &errResp); err == nil && errResp.Error.Message != "" {
-		msg := errResp.Error.Message
-		if len(msg) > errBodyMaxLen {
-			msg = msg[:errBodyMaxLen-3] + "..."
-		}
-		return &APIError{StatusCode: status, Message: msg}
+		return &APIError{StatusCode: status, Message: truncateMsg(errResp.Error.Message)}
+	}
+	// FastAPI/Pydantic validation shape (fal): {"detail":[{"loc":[...],"msg":"...","type":"..."}]}
+	// or a plain {"detail":"..."}. Surface the field-level reason, not a bare status.
+	if msg := parseDetail(raw); msg != "" {
+		return &APIError{StatusCode: status, Message: truncateMsg(msg)}
 	}
 	return &APIError{StatusCode: status}
+}
+
+// parseDetail extracts a message from a FastAPI "detail" body, handling both
+// the validation-array and plain-string forms. Returns "" on neither shape.
+func parseDetail(raw []byte) string {
+	var arr struct {
+		Detail []struct {
+			Loc []any  `json:"loc"`
+			Msg string `json:"msg"`
+		} `json:"detail"`
+	}
+	if err := json.Unmarshal(raw, &arr); err == nil && len(arr.Detail) > 0 {
+		parts := make([]string, 0, len(arr.Detail))
+		for _, d := range arr.Detail {
+			if field := detailField(d.Loc); field != "" {
+				parts = append(parts, field+": "+d.Msg)
+			} else if d.Msg != "" {
+				parts = append(parts, d.Msg)
+			}
+		}
+		return strings.Join(parts, "; ")
+	}
+	var str struct {
+		Detail string `json:"detail"`
+	}
+	if err := json.Unmarshal(raw, &str); err == nil && str.Detail != "" {
+		return str.Detail
+	}
+	return ""
+}
+
+// detailField renders the last non-"body" string in a Pydantic "loc" path as
+// the offending field name (loc is typically ["body","<field>"]).
+func detailField(loc []any) string {
+	for i := len(loc) - 1; i >= 0; i-- {
+		if s, ok := loc[i].(string); ok && s != "body" {
+			return s
+		}
+	}
+	return ""
+}
+
+// truncateMsg caps an extracted error message at errBodyMaxLen.
+func truncateMsg(msg string) string {
+	if len(msg) > errBodyMaxLen {
+		return msg[:errBodyMaxLen-3] + "..."
+	}
+	return msg
 }
 
 // --- Image helpers ---------------------------------------------------------

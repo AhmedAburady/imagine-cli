@@ -89,13 +89,17 @@ func runBatch(cmd *cobra.Command, opts *cli.Options, providerName string) error 
 // return value to decide the process exit code.
 func runGeneration(ctx context.Context, provider providers.Provider, req providers.Request, params api.Params, opts *cli.Options, providerOpts any) error {
 	isVideo := provider.Info().Capabilities.MediaKind == providers.KindVideo
-	noun := ""
+	// noun labels the produced asset in user-facing output (table, failures).
+	noun := "image"
 	if isVideo {
-		noun = " video"
+		noun = "video"
 	}
-	modeText := "Generating" + noun
+	modeText := "Generating"
 	if len(opts.RefInputs) > 0 {
-		modeText = "Editing" + noun
+		modeText = "Editing"
+	}
+	if isVideo {
+		modeText += " video"
 	}
 	modeText += fmt.Sprintf(" (%s", provider.Info().Name)
 	if label := requestLabel(providerOpts); label != "" && label != provider.Info().DefaultModel {
@@ -142,10 +146,10 @@ func runGeneration(ctx context.Context, provider providers.Provider, req provide
 	if output.MetadataSkipped && !isVideo {
 		fmt.Println(warnLine("--embed-metadata supports PNG only; metadata was not embedded for this output format"))
 	}
-	fmt.Println(resultsTable(model, output.Results, outputPath))
+	fmt.Println(resultsTable(model, noun, output.Results, outputPath))
 
 	if errorCount > 0 {
-		return fmt.Errorf("%d image(s) failed", errorCount)
+		return fmt.Errorf("%d %s(s) failed", errorCount, noun)
 	}
 	_ = os.Stdout.Sync()
 	return nil
