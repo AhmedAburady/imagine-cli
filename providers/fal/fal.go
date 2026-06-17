@@ -307,6 +307,13 @@ func (p *Provider) poll(ctx context.Context, submit *submitResp) error {
 		if status.Status == "COMPLETED" {
 			return nil
 		}
+		// Defend against an undocumented terminal status with no error field:
+		// without this, FAILED/CANCELLED/ERROR would poll forever (the enum is
+		// happy-path-only per design doc §9).
+		switch status.Status {
+		case "FAILED", "CANCELLED", "ERROR":
+			return fmt.Errorf("fal: job ended with status %q", status.Status)
+		}
 
 		select {
 		case <-ctx.Done():
