@@ -5,7 +5,7 @@
 # Imagine-cli
 
 [![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat&logo=go)](https://go.dev/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/AhmedAburady/imagine-cli?include_prereleases)](https://github.com/AhmedAburady/imagine-cli/releases)
 
 </div>
@@ -654,7 +654,7 @@ Bugs, features, and PRs welcome. Adding a new provider is one new directory unde
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+AGPL-3.0 — see [LICENSE](LICENSE).
 
 ---
 
