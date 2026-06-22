@@ -43,8 +43,6 @@ generations/
 message.txt
 
 
-context/
-.agents/
 .firecrawl/
 
 !.claude/CLAUDE.md
