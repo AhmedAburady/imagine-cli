@@ -109,6 +109,118 @@ func SaveProviderFields(name string, fields map[string]string) error {
 	return writeNodeFile(&root, path)
 }
 
+// storageField pairs a YAML key with the StorageConfig value it maps to,
+// in the deterministic write order SaveStorage emits.
+func storageFields(sc *StorageConfig) []struct {
+	key string
+	val string
+} {
+	return []struct {
+		key string
+		val string
+	}{
+		{"endpoint", sc.Endpoint},
+		{"region", sc.Region},
+		{"bucket", sc.Bucket},
+		{"access_key", sc.AccessKey},
+		{"secret_key", sc.SecretKey},
+		{"path_prefix", sc.PathPrefix},
+		{"public_url_base", sc.PublicURLBase},
+	}
+}
+
+// SaveStorage writes (or updates) the top-level `storage:` section,
+// preserving every surrounding comment and unrelated key. Like
+// SaveProviderFields it creates the config file on first use (onboarding
+// flow). Non-empty fields are upserted in a deterministic order; empty
+// fields are removed so clearing an optional value drops its key.
+func SaveStorage(sc *StorageConfig) error {
+	if sc == nil {
+		return ClearStorage()
+	}
+	path, existing, err := readExistingConfig()
+	if errors.Is(err, ErrNoConfig) {
+		return writeInitialStorage(sc)
+	}
+	if err != nil {
+		return err
+	}
+
+	var root yaml.Node
+	if err := yaml.Unmarshal(existing, &root); err != nil {
+		return fmt.Errorf("parse existing config: %w", err)
+	}
+	top, err := documentMapping(&root)
+	if err != nil {
+		return err
+	}
+
+	storageNode := findOrCreateMapping(top, "storage")
+	changed := false
+	for _, f := range storageFields(sc) {
+		if f.val == "" {
+			if removeMappingKey(storageNode, f.key) {
+				changed = true
+			}
+			continue
+		}
+		if setMappingScalar(storageNode, f.key, f.val) {
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	return writeNodeFile(&root, path)
+}
+
+// writeInitialStorage creates a minimal config.yaml carrying just the
+// storage section. Routes through the node-tree + encoder so YAML-special
+// values (URLs with `:`) quote correctly.
+func writeInitialStorage(sc *StorageConfig) error {
+	dir := DefaultConfigDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create config dir: %w", err)
+	}
+	var root yaml.Node
+	top, err := documentMapping(&root)
+	if err != nil {
+		return err
+	}
+	storageNode := findOrCreateMapping(top, "storage")
+	for _, f := range storageFields(sc) {
+		if f.val != "" {
+			setMappingScalar(storageNode, f.key, f.val)
+		}
+	}
+	return writeNodeFile(&root, DefaultConfigPath())
+}
+
+// ClearStorage removes the top-level `storage:` section, preserving all
+// other keys and comments. No-op (nil) when storage is already absent or
+// no config file exists.
+func ClearStorage() error {
+	path, existing, err := readExistingConfig()
+	if errors.Is(err, ErrNoConfig) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var root yaml.Node
+	if err := yaml.Unmarshal(existing, &root); err != nil {
+		return fmt.Errorf("parse existing config: %w", err)
+	}
+	top, err := documentMapping(&root)
+	if err != nil {
+		return err
+	}
+	if !removeMappingKey(top, "storage") {
+		return nil
+	}
+	return writeNodeFile(&root, path)
+}
+
 // readExistingConfig returns the path and bytes of the current config
 // file. Returns ErrNoConfig when neither config.yaml nor config.yml
 // exists in the config directory.

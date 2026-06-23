@@ -37,23 +37,42 @@ providers:
     gcp_project: your-gcp-project-id
     location: us-central1               # optional, defaults to "global"
     vision_model: gemini-3-flash-preview
+
+  fal:                                  # video — Seedance 2.0 via fal.ai
+    api_key: fal-your-key-here
+
+  modelark:                             # video — Seedance 2.0 via BytePlus ModelArk
+    api_key: ark-your-key-here          # references need a storage: bucket (below)
+
+storage:                                # S3-compatible bucket for modelark references (image/video/audio)
+  endpoint: "https://tos-ap-southeast-1.bytepluses.com"
+  region: "ap-southeast-1"
+  bucket: "my-imagine-bucket"           # dedicated, public-read
+  access_key: "AK..."                   # supports ${ENV} / op://
+  secret_key: "${S3_SECRET}"            # supports ${ENV} / op://
+  path_prefix: "imagine-refs/"          # optional
+  public_url_base: ""                   # optional — CDN/custom-domain read base
+  path_style: false                     # optional — true for MinIO/RustFS (TOS = false)
 ```
 
-Per-provider config is **flat**: every key/value under `providers.<name>` is a direct field (no nested `provider_options:` sub-map). Each provider declares its fields via a `ConfigSchema` in the code, and `imagine providers add` surfaces them as flags + form inputs.
+Per-provider config is **flat**: every key/value under `providers.<name>` is a direct field (no nested `provider_options:` sub-map). Each provider declares its fields via a `ConfigSchema` in the code, and `imagine providers add` surfaces them as flags + form inputs. The top-level `storage:` section is **not** a provider — it configures the shared S3 upload brick used by modelark for references (full detail: [storage.md](storage.md)).
 
 ### Fields
 
 | Field | Required | Notes |
 |---|---|---|
-| `default_provider` | No | Provider for image generation when `--provider` is omitted. If empty, imagine picks the first provider under `providers:` alphabetically. |
+| `default_provider` | No | Provider for image/video generation when `--provider` is omitted. If empty, imagine picks the first provider under `providers:` alphabetically. |
 | `vision_default_provider` | No | Provider for `imagine describe` when `--provider` is omitted. Falls back to `default_provider` when empty. Must name a describe-capable provider. |
-| `providers.<name>` | Yes (at least one) | Per-provider block. The `<name>` must be one of the providers compiled into this binary (currently `gemini`, `vertex`, `openai`). |
+| `providers.<name>` | Yes (at least one) | Per-provider block. The `<name>` must be one of the providers compiled into this binary (currently `gemini`, `vertex`, `openai`, `fal`, `modelark`). |
 | `providers.gemini.api_key` | Yes | Google AI Studio API key. |
 | `providers.openai.auth_method` | No | `api_key` (default) or `subscription` (ChatGPT sign-in). Inferred from the presence of `api_key` when omitted. See the OpenAI setup section below. |
 | `providers.openai.api_key` | For `api_key` | OpenAI platform API key. Not read when `auth_method: subscription`. |
 | `providers.vertex.gcp_project` | Yes | GCP project id with Vertex AI API enabled. |
 | `providers.vertex.location` | No | Vertex region. Defaults to `global`. |
+| `providers.fal.api_key` | Yes | fal.ai API key (`FAL_KEY`). Video provider; no storage needed (own CDN). |
+| `providers.modelark.api_key` | Yes | BytePlus ModelArk API key (`ARK_API_KEY`). Video provider; references need the `storage:` section. |
 | `providers.<name>.vision_model` | No | Model `imagine describe` uses for this provider. Defaults: `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), `gpt-5.5` (openai). |
+| `storage.*` | For modelark refs | S3-compatible bucket fields: `endpoint`, `bucket`, `access_key`, `secret_key` (required), `region`/`path_prefix`/`public_url_base`/`path_style` (optional). See [storage.md](storage.md). |
 
 ### Legacy `provider_options:` shape (still supported on read)
 

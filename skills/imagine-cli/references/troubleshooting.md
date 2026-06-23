@@ -189,6 +189,28 @@ imagine providers add --help
 
 That's the intended behaviour — the picker treats `q`, `esc`, `ctrl+c` as graceful cancel. Exit code 0, no error message, config untouched. To actually change the default either run `providers select` again and press enter, or use `providers use <name>`.
 
+## Video / storage (fal, modelark)
+
+### `provider "modelark" needs S3-compatible storage to upload references — run \`imagine storage set\` first`
+
+modelark fetches references server-side from a URL, so `-i` inputs need a configured public-read bucket. Run `imagine storage set` (see [storage.md](storage.md)). Only fires when the run has `-i` references — text-to-video isn't gated. `fal` never needs storage.
+
+### `tls: handshake failure` during `storage test` or a video upload
+
+Virtual-host addressing (`https://{bucket}.{host}/…`) hit a server whose TLS cert doesn't cover the bucket subdomain — typical for **MinIO / RustFS**. Set `path_style: true` in the `storage:` section of config.yaml (there's no CLI flag for it). BytePlus TOS is the opposite — it's virtual-host only, so leave `path_style` unset/false for TOS.
+
+### `anonymous read of … failed — the bucket must be public-read`
+
+The signed write succeeded but the public GET didn't. Use a dedicated public-read bucket for imagine; reads are anonymous by design.
+
+### `resolution 1080p exceeds the maximum 720p for model …` / `--end-image … not supported on model …mini…`
+
+modelark per-model limits: `1080p`/`4k` are full-model only (use `-m seedance`); `mini` doesn't support `--end-image`. See [video.md](video.md).
+
+### `op://` secret not resolving for storage
+
+The value must resolve to the raw reference: `secret_key: "op://…"` works; a double-wrapped `'"op://…"'` is treated as a literal string. Re-write it with the outer single-quoting removed.
+
 ## Help output looks wrong for a provider
 
 `imagine --help` is provider-aware — it renders the active provider's flags and hides the other providers'. If the active provider isn't what you expected:

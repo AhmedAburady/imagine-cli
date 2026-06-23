@@ -26,6 +26,7 @@ import (
 	"github.com/AhmedAburady/imagine-cli/api"
 	"github.com/AhmedAburady/imagine-cli/cli"
 	"github.com/AhmedAburady/imagine-cli/config"
+	"github.com/AhmedAburady/imagine-cli/internal/storage"
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
 
@@ -79,6 +80,13 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 				return err
 			}
 			bundle, _ := providers.Get(active)
+
+			// Reference-aware storage gate: a RequireStorage provider needs the
+			// bucket only when local references will be uploaded (text-to-video
+			// uploads nothing).
+			if bundle.RequireStorage && len(opts.RefInputs) > 0 && !storage.Configured() {
+				return fmt.Errorf("provider %q needs S3-compatible storage to upload references — run `imagine storage set` first", active)
+			}
 
 			if err := enforceFlagSupport(cmd, bundle); err != nil {
 				return err
@@ -180,6 +188,7 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 		newDescribeCmd(describeHint),
 		newVersionCmd(version),
 		newProvidersCmd(),
+		newStorageCmd(),
 		newMetadataCmd(),
 	)
 

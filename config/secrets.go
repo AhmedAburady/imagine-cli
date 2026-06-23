@@ -80,6 +80,27 @@ func (c *Config) ResolveProvider(ctx context.Context, name string, skipKeys ...s
 	return out, nil
 }
 
+// ResolveStorage returns a copy of the storage config with every field
+// resolved through expandEnv + 1Password, mirroring ResolveProvider. The
+// stored config is left untouched. Returns (nil, nil) when storage is
+// unconfigured, so callers can treat "no storage" and "resolved storage"
+// uniformly. ctx is threaded to the `op` subprocess (Ctrl+C cancels reads).
+func (c *Config) ResolveStorage(ctx context.Context) (*StorageConfig, error) {
+	if c == nil || c.Storage == nil {
+		return nil, nil
+	}
+	out := *c.Storage
+	for _, f := range []*string{&out.Endpoint, &out.Region, &out.Bucket,
+		&out.AccessKey, &out.SecretKey, &out.PathPrefix, &out.PublicURLBase} {
+		v, err := resolveValue(ctx, *f)
+		if err != nil {
+			return nil, fmt.Errorf("storage: %w", err)
+		}
+		*f = v
+	}
+	return &out, nil
+}
+
 // resolveValue applies env expansion then 1Password resolution to a single
 // scalar. Plain literals pass through untouched. The caller's ctx is honoured
 // for 1Password lookups (Ctrl+C cancels `op read` immediately) with opTimeout()

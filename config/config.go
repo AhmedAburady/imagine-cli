@@ -35,7 +35,27 @@ import (
 type Config struct {
 	DefaultProvider       string                    `yaml:"default_provider,omitempty"`
 	VisionDefaultProvider string                    `yaml:"vision_default_provider,omitempty"`
+	Storage               *StorageConfig            `yaml:"storage,omitempty"`
 	Providers             map[string]ProviderConfig `yaml:"providers,omitempty"`
+}
+
+// StorageConfig is the top-level `storage:` section: credentials and
+// addressing for an S3-compatible bucket the storage brick PUTs reference
+// assets to. Storage is not a provider (no model, no Generate), so it lives
+// in its own section rather than the providers map — keeping provider
+// resolution, `providers show`, and model lookup clean.
+//
+// Every string field accepts a ${ENV} or op:// reference, resolved by
+// ResolveStorage exactly like provider credentials.
+type StorageConfig struct {
+	Endpoint      string `yaml:"endpoint"`                  // e.g. "https://tos-ap-southeast-1.bytepluses.com"
+	Region        string `yaml:"region,omitempty"`          // e.g. "ap-southeast-1"
+	Bucket        string `yaml:"bucket"`                    //
+	AccessKey     string `yaml:"access_key"`                // supports ${ENV} / op://
+	SecretKey     string `yaml:"secret_key"`                // supports ${ENV} / op://
+	PathPrefix    string `yaml:"path_prefix,omitempty"`     // e.g. "imagine-refs/"
+	PublicURLBase string `yaml:"public_url_base,omitempty"` // CDN/custom-domain override
+	PathStyle     bool   `yaml:"path_style,omitempty"`      // path-style addressing (MinIO); default false = virtual-host (BytePlus TOS)
 }
 
 // ProviderConfig is the flat per-provider config — any key/value pair the

@@ -283,6 +283,11 @@ func chooseAuthMethod(methods []providers.AuthMethod) (providers.AuthMethod, err
 // collectFields gathers values for `fields` from flags, falling back to an
 // interactive wizard for missing required fields on a TTY. Returns a nil map
 // (no error) when the user cancels the wizard.
+//
+// A non-empty Default satisfies a field even when Required — so a caller that
+// pre-seeds Defaults from existing config (e.g. `storage set`) gets merge
+// semantics, while a fresh onboarding (no Defaults on required fields) still
+// routes missing required fields to the wizard or error path.
 func collectFields(cmd *cobra.Command, fields []providers.ConfigField) (map[string]string, error) {
 	collected := map[string]string{}
 	var missing []providers.ConfigField
@@ -291,7 +296,7 @@ func collectFields(cmd *cobra.Command, fields []providers.ConfigField) (map[stri
 		switch {
 		case val != "":
 			collected[f.Key] = val
-		case f.Default != "" && !f.Required:
+		case f.Default != "":
 			collected[f.Key] = f.Default
 		default:
 			missing = append(missing, f)

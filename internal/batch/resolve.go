@@ -18,6 +18,7 @@ import (
 	"github.com/AhmedAburady/imagine-cli/config"
 	"github.com/AhmedAburady/imagine-cli/internal/images"
 	"github.com/AhmedAburady/imagine-cli/internal/paths"
+	"github.com/AhmedAburady/imagine-cli/internal/storage"
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
 
@@ -195,6 +196,13 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 	}
 	for i, ref := range effInputs {
 		effInputs[i] = paths.ExpandTilde(ref)
+	}
+
+	// Storage gate per entry. Single-shot's root PreRunE early-returns on
+	// IsBatch, so this check is required (not redundant) for parity. It's
+	// reference-aware: a text-only entry uploads nothing and needs no storage.
+	if bundle.RequireStorage && len(effInputs) > 0 && !storage.Configured() {
+		return Resolved{}, fmt.Errorf("provider %q needs S3-compatible storage to upload references — run `imagine storage set` first", provName)
 	}
 	for _, ref := range effInputs {
 		info, err := os.Stat(ref)

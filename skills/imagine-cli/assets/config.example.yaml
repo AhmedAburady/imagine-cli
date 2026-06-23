@@ -47,3 +47,28 @@ providers:
     gcp_project: your-gcp-project-id
     location: global                   # optional — "global" is the default
     # vision_model: gemini-3-flash-preview  # optional describe model override
+
+  # fal (video — Seedance 2.0). Key: https://fal.ai/dashboard/keys
+  # Or: imagine providers add fal --api-key fal-...
+  # Uploads references to fal's own CDN — no storage: section needed.
+  fal:
+    api_key: fal-paste-your-key-here
+
+  # modelark (video — Seedance 2.0 via BytePlus ModelArk).
+  # Or: imagine providers add modelark --api-key ark-...
+  # References (-i) are uploaded to YOUR S3 bucket — configure storage: below.
+  modelark:
+    api_key: ark-paste-your-key-here
+
+# Storage — S3-compatible bucket for modelark references (image/video/audio; omit if unused).
+# Must be a DEDICATED, PUBLIC-READ bucket: modelark fetches references over the
+# public internet with no credentials. Verify with: imagine storage test
+# Configure via: imagine storage set --endpoint ... --bucket ... --access-key ... --secret-key ...
+# storage:
+#   endpoint: "https://tos-ap-southeast-1.bytepluses.com"  # BytePlus TOS extranet host
+#   region: "ap-southeast-1"
+#   bucket: "my-imagine-bucket"
+#   access_key: "AK..."                # supports ${ENV} / op://
+#   secret_key: "${S3_SECRET}"         # supports ${ENV} / op://
+#   path_prefix: "imagine-refs/"       # optional
+#   path_style: false                  # true for MinIO/RustFS; false (default) for BytePlus TOS

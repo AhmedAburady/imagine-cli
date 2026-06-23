@@ -32,6 +32,8 @@
   - [OpenAI](#openai)
   - [Describe](#describe)
   - [Provider management](#provider-management)
+- [Video generation](#video-generation)
+- [Storage for references](#storage-for-references)
 - [Output formats](#output-formats)
 - [AI agent skill](#ai-agent-skill)
 - [Development](#development)
@@ -48,6 +50,7 @@ The best image models out there — Nano Banana, Nano Banana 2, and gpt-image-2 
 I built [banana-cli](https://github.com/AhmedAburady/banana-cli) first — a focused CLI for Google's image models. imagine is the next step: same idea, built to be extensible. One tool that can grow to support whatever good image models come next, across any provider.
 
 - **The models that matter** — Nano Banana (`gemini-3-pro-image-preview`), Nano Banana 2 (`gemini-3.1-flash-image-preview`), and gpt-image-2. Direct API access, no middlemen.
+- **Video too** — text/image/reference → video via **Seedance 2.0**, through either [fal.ai](#video-generation) or [BytePlus ModelArk](#video-generation). Same `imagine -p "..."` command, same batch runner; output is `.mp4`.
 - **Built for workflows** — pipe into scripts, run inside loops, chain with other CLI tools. Anywhere a command runs, imagine runs.
 - **Concurrent generation** — `-n 10` fires off 10 images in one invocation. No clicking, no waiting for one to finish before starting the next.
 - **Batch runs from a file** — `imagine -p batch.yaml` describes many jobs in one file: different prompts, different providers, different sizes. Every entry runs in parallel; validation is exhaustive before any HTTP fires; results land in a styled summary table. Built for scripts and CI.
@@ -138,6 +141,21 @@ providers:
     gcp_project: your-gcp-project-id
     location: us-central1             # optional, defaults to "global"
     vision_model: gemini-3-flash-preview
+
+  fal:                                # video — Seedance 2.0 via fal.ai
+    api_key: fal-your-key-here
+
+  modelark:                           # video — Seedance 2.0 via BytePlus ModelArk
+    api_key: ark-your-key-here        # needs a storage: bucket for references (below)
+
+storage:                              # S3-compatible bucket for modelark references (image/video/audio)
+  endpoint: "https://tos-ap-southeast-1.bytepluses.com"
+  region: "ap-southeast-1"
+  bucket: "my-imagine-bucket"
+  access_key: "AK..."
+  secret_key: "${S3_SECRET}"          # supports ${ENV} / op://
+  path_prefix: "imagine-refs/"        # optional
+  path_style: false                   # optional — true for MinIO/RustFS (see Storage)
 ```
 
 | Field | Required | Notes |
@@ -572,14 +590,98 @@ OpenAI is multi-auth: `imagine providers add openai` opens an API-key / ChatGPT-
 
 ---
 
+## Video generation
+
+imagine generates video from the same `imagine -p "..."` command, through either of two providers wrapping **Seedance 2.0**. The tier is the model; the modality is derived from your references — no `-i` is text-to-video, one `-i` is image-to-video, multiple references is reference-to-video. Output is `.mp4`.
+
+| Provider | Backend | Reference upload | Models |
+|---|---|---|---|
+| `fal` | [fal.ai](https://fal.ai) queue API | fal's own CDN (no setup) | `seedance`, `fast` |
+| `modelark` | [BytePlus ModelArk](https://docs.byteplus.com/en/docs/ModelArk) direct API | your [S3 bucket](#storage-for-references) | `seedance` (full), `fast`, `mini` |
+
+```bash
+imagine providers add fal --api-key fal-your-key
+imagine providers add modelark --api-key ark-your-key
+```
+
+Shared flags (`-m`/`-s`/`-a`) plus video-specific ones:
+
+| Flag | Long | Description | Default |
+|---|---|---|---|
+| `-m` | `--model` | Tier: `seedance` / `fast` (both); `mini` (modelark) | `seedance` |
+| `-s` | `--size` | `480p` / `720p` / `1080p` (fal); `+4k`, full-model only (modelark) | `720p` |
+| `-a` | `--aspect-ratio` | `21:9` / `16:9` / `4:3` / `1:1` / `3:4` / `9:16` / `auto`\|`adaptive` | auto |
+|  | `--duration` | `4`–`15` seconds, or `auto`/`-1` | auto |
+|  | `--audio` | Generate synchronized audio | `true` |
+|  | `--end-image` | i2v end-frame for first+last-frame video (single `-i`; not on modelark `mini`) | — |
+|  | `--bitrate` | `standard` / `high` (**fal only**) | `standard` |
+|  | `--seed` | Reproducible seed (**fal only**) | random |
+
+```bash
+# text → video
+imagine -p "a fox leaping through tall grass" --provider fal
+
+# image → video, full quality (modelark; requires a storage bucket)
+imagine -p "slow zoom on the skyline" --provider modelark -i frame.png -s 1080p
+
+# first + last frame
+imagine -p "pan to the right" --provider fal -i start.png --end-image end.png
+
+# reference → video (style/subject references)
+imagine -p "match this look" --provider modelark -i ref1.png -i clip.mp4
+```
+
+Video is expensive — both providers cap `-n` at 4. modelark's `1080p`/`4k` are full-model only (fast/mini cap at 720p); `4k` is H.265/10-bit and may not play in every player. Seedance rejects references containing real human faces. Both providers coexist and can be mixed in one [batch file](#batch-runs-and-automation).
+
+Provider design docs: **[Docs/modelark.md](Docs/modelark.md)** (ModelArk direct API) and **[Docs/video-providers.md](Docs/video-providers.md)** (the media-spine + fal).
+
+[↑ Back to top](#table-of-contents)
+
+---
+
+## Storage for references
+
+`modelark` fetches references **server-side from a URL** (it rejects inline data), so every local `-i` reference — image, video, or audio — is uploaded to an S3-compatible bucket you control, and the public URLs are handed to the API. (The brick is content-type-agnostic; "video provider" refers to the output, not the references.) Configure it once with `imagine storage`:
+
+```bash
+imagine storage set \
+  --endpoint https://tos-ap-southeast-1.bytepluses.com \
+  --bucket my-imagine-bucket \
+  --access-key AK... --secret-key "${S3_SECRET}"
+imagine storage test     # signed write → anonymous read → cleanup
+```
+
+| Command | Purpose |
+|---|---|
+| `imagine storage` / `imagine storage show` | Show current config (secrets masked) |
+| `imagine storage set [flags]` | Write/update the `storage:` section (merge — unset fields keep their value) |
+| `imagine storage test` | Round-trip a marker object to verify writes **and** public reads |
+| `imagine storage clear` | Remove the `storage:` section |
+
+Requirements and notes:
+
+- **Use a dedicated, public-read bucket.** Reads are anonymous (the provider has no credentials); imagine doesn't tag individual objects — readability is the bucket's job. Everything uploaded is world-readable by design, so don't reuse a private bucket. `imagine storage test` verifies exactly this.
+- **Any S3-compatible backend** works — BytePlus TOS, MinIO, RustFS, Cloudflare R2, Wasabi, AWS S3. No AWS SDK; requests are signed with stdlib SigV4.
+- **Addressing.** Default is virtual-host (`https://{bucket}.{host}/{key}`), required by BytePlus TOS. For **MinIO / RustFS** (whose TLS cert covers the bare host, not a `{bucket}.` subdomain) set `path_style: true` in the `storage:` section — otherwise the upload fails with a TLS handshake error.
+- **Credentials** support `${ENV}` / `op://` references, same as provider keys.
+- `fal` does **not** need this — it uploads to its own CDN.
+
+Full design (SigV4, the `RequireStorage` gate, security model, troubleshooting): **[Docs/storage.md](Docs/storage.md)**.
+
+[↑ Back to top](#table-of-contents)
+
+---
+
 ## Output formats
 
 **Input** (reference images for edit mode): `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`
+**Input** (references for video providers): also `.mp4`, `.mov` (video) and `.mp3`, `.wav` (audio), in addition to the image formats above
 
 **Output** — driven by the `-f` filename extension:
-- `.png` (default)
+- `.png` (default, image providers)
 - `.jpg` / `.jpeg` — For Gemini/Vertex, imagine converts locally at quality 95. For OpenAI, the API returns JPEG directly.
 - `.webp` — OpenAI only.
+- `.mp4` — video providers (`fal`, `modelark`). The default extension for video output.
 
 [↑ Back to top](#table-of-contents)
 
@@ -641,6 +743,12 @@ Files you **don't** edit when adding a provider: `commands/`, `cli/`, `api/`, `c
 **Ctrl+C hangs** — it shouldn't. imagine uses context cancellation; in-flight HTTP requests are aborted when you press Ctrl+C. Mid-run cancellations print a graceful summary of what succeeded and exit with code 130.
 
 **Vertex "failed to create Vertex AI client"** — you haven't run `gcloud auth application-default login` yet, or the project id in your config is wrong / doesn't have the Vertex AI API enabled.
+
+**`provider "modelark" needs S3-compatible storage to upload references`** — you passed `-i` to modelark with no `storage:` configured. Run `imagine storage set` (see [Storage](#storage-for-references)). Text-to-video (no `-i`) isn't gated.
+
+**`tls: handshake failure` during `storage test` / video upload** — virtual-host addressing hit a server whose TLS cert doesn't cover the `{bucket}.` subdomain (typical for MinIO / RustFS). Set `path_style: true` in the `storage:` section.
+
+**`anonymous read of … failed — the bucket must be public-read`** — the signed write worked but the public GET didn't. Use a dedicated public-read bucket for imagine. See [Storage](#storage-for-references).
 
 [↑ Back to top](#table-of-contents)
 

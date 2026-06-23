@@ -401,6 +401,10 @@ func init() {
 
 That's the whole file. `flagspec.Bind`, `Read`, `Parse`, and `FieldNames` all derive from your `Options` struct via reflection. `ConfigSchema` is cached on the Bundle (not called via interface) so onboarding works before any auth exists — instantiating the provider would fail with empty credentials.
 
+### `RequireStorage` — providers that publish local references as public URLs
+
+If your API fetches reference media **server-side from a URL** (and rejects inline Base64), set `RequireStorage: true` on the Bundle. Your provider then uploads each local reference through the shared [storage brick](storage.md) (`storage.Get` once, then `storage.UploadWith` per reference) and inherits a reference-aware configured-storage gate — when the user passes `-i` with no `storage:` section configured, imagine fails fast in both single-shot and batch with an actionable message, before any HTTP call. Reference-free generation (e.g. text-to-video) is never gated. The [`modelark`](modelark.md) provider is the reference implementation. No other framework changes are needed — it's a one-line capability bit.
+
 ### What `ParseOptions` does
 
 `ParseOptions` is the batch-file face of your schema. When a user runs `imagine -p batch.yaml` with multiple entries, the runner loads the file, resolves per-entry overrides against CLI defaults, then calls each entry's provider's `ParseOptions(values, common)` to populate a typed `Options`. The returned shape matches what `ReadFlags` produces — `Generate` type-asserts both paths identically.

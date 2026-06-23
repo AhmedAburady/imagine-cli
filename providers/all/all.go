@@ -10,6 +10,7 @@ package all
 import (
 	_ "github.com/AhmedAburady/imagine-cli/providers/fal"
 	_ "github.com/AhmedAburady/imagine-cli/providers/gemini"
+	_ "github.com/AhmedAburady/imagine-cli/providers/modelark"
 	_ "github.com/AhmedAburady/imagine-cli/providers/openai"
 	_ "github.com/AhmedAburady/imagine-cli/providers/vertex"
 )

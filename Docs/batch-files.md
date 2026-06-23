@@ -122,7 +122,7 @@ These work for any provider.
 | Key | Type | Required | Notes |
 |---|---|---|---|
 | `prompt` | string | yes | The text prompt, **or a path to a file** whose contents become the prompt (`~` expanded; relative paths resolve against the batch file's directory; trimmed; must be non-empty). A value that doesn't name an existing file is used literally. Multi-line inline prompts OK with YAML's `\|` block scalar. |
-| `provider` | string | no | `openai`, `gemini`, or `vertex`. Falls back to `--provider` then config default. |
+| `provider` | string | no | Image: `openai`, `gemini`, `vertex`. Video: `fal`, `modelark`. Falls back to `--provider` then config default. |
 | `output` | string | no | Output folder. `~` expanded. Defaults to CLI `-o` (or `.`). |
 | `filename` | string | no | Output filename. Extension picks format (`.png`, `.jpg`, `.webp`). Mutually exclusive with `replace`. |
 | `count` | int | no | 1–20. Defaults to CLI `-n` (or 1). With `count > 1`, filenames get `_1`, `_2`, … suffixes. |
@@ -189,6 +189,32 @@ Each provider has its own set. Setting a key for a provider that doesn't claim i
 | `background` | string | `auto` | `auto`, `opaque`, `transparent`. **`transparent` requires PNG/WebP output AND a non-`gpt-image-2` model** |
 
 OpenAI edit mode (when `input:` is set) restricts `size:` to `1024x1024`, `1536x1024`, `1024x1536`, or `auto`.
+
+### fal (video — Seedance 2.0)
+
+| Key | Type | Default | Notes |
+|---|---|---|---|
+| `model` | string | `seedance` | `seedance` (normal) or `fast` |
+| `size` | string | `720p` | `480p` / `720p` / `1080p` |
+| `aspect-ratio` | string | `auto` | `auto`/`21:9`/`16:9`/`4:3`/`1:1`/`3:4`/`9:16` |
+| `duration` | string | `auto` | `auto` or `4`–`15` seconds |
+| `audio` | bool | `true` | Generate synchronized audio |
+| `bitrate` | string | `standard` | `standard` or `high` |
+| `seed` | int | (random) | Reproducible seed |
+| `end-image` | string | — | i2v end-frame image path (single `input:` only) |
+
+### modelark (video — Seedance 2.0, BytePlus ModelArk)
+
+| Key | Type | Default | Notes |
+|---|---|---|---|
+| `model` | string | `seedance` | `seedance` (full), `fast`, or `mini` |
+| `size` | string | `720p` | `480p`/`720p` (all); `1080p`/`4k` **full only** |
+| `aspect-ratio` | string | `adaptive` | `adaptive`/`21:9`/`16:9`/`4:3`/`1:1`/`3:4`/`9:16` |
+| `duration` | int | `-1` | `-1` (auto) or `4`–`15` seconds |
+| `audio` | bool | `true` | Generate synchronized audio |
+| `end-image` | string | — | i2v end-frame (first+last frame; **not on mini**; single `input:` only) |
+
+Video providers output `.mp4` (set `filename: clip.mp4`). `MaxBatchN: 1` and `MaxN: 4` — `count:` fans out parallel tasks, capped at 4 per entry. **modelark requires a configured public-read [storage bucket](storage.md)** whenever an entry has `input:` references (text-to-video entries don't). `fal` uploads to its own CDN and needs no storage.
 
 ---
 

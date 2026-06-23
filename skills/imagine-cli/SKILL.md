@@ -1,24 +1,26 @@
 ---
 name: imagine-cli
-description: imagine is a multi-provider command-line tool for generating and editing images via Google Gemini, Google Vertex AI, and OpenAI (gpt-image-2). Use this skill whenever the user mentions imagine, wants to generate or edit images from the terminal, needs to set up an API key — or sign in with a ChatGPT Plus/Pro subscription — for Gemini / OpenAI / Vertex, switches default providers, runs any `imagine providers` / `imagine describe` subcommand, or wants to run multiple image-generation jobs from a YAML/JSON batch file (single command, many prompts, parallel) — even if they don't say the word "imagine" explicitly.
+description: imagine is a multi-provider command-line tool for generating and editing images (Google Gemini, Google Vertex AI, OpenAI gpt-image-2) AND generating video (Seedance 2.0 via fal.ai or BytePlus ModelArk) from the terminal. Use this skill whenever the user mentions imagine, wants to generate or edit images or video from the terminal, needs to set up an API key — or sign in with a ChatGPT Plus/Pro subscription — for Gemini / OpenAI / Vertex / fal / modelark, configure an S3-compatible storage bucket (`imagine storage`), switch default providers, run any `imagine providers` / `imagine describe` subcommand, or run multiple generation jobs from a YAML/JSON batch file (single command, many prompts, parallel) — even if they don't say the word "imagine" explicitly.
 ---
 
 # imagine CLI
 
-`imagine` is a multi-provider image-generation CLI. One binary, one YAML config file, three providers (gemini, vertex, openai). `imagine -p "..."` generates; add `-i reference.png` and the same command edits.
+`imagine` is a multi-provider generation CLI. One binary, one YAML config file. Image providers (gemini, vertex, openai) and video providers (fal, modelark — Seedance 2.0). `imagine -p "..."` generates; add `-i reference.png` and the same command edits (image) or drives image/reference-to-video.
 
 ## When to use
 
 Use this skill whenever the user:
 
-- Mentions `imagine`, any of its flags, providers (gemini, vertex, openai), or model aliases (`gpt-image-2`, `pro`, `flash`, `1.5`, etc.)
-- Wants to generate or edit images from the command line
+- Mentions `imagine`, any of its flags, providers (gemini, vertex, openai, fal, modelark), or model aliases (`gpt-image-2`, `pro`, `flash`, `1.5`, `seedance`, `fast`, `mini`, etc.)
+- Wants to generate or edit images, **or generate video**, from the command line
 - Is setting up the tool, adding an API key, or changing the default provider
-- Runs any `imagine providers …`, `imagine describe`, or `imagine metadata` subcommand
+- Wants to **generate video** (text/image/reference → mp4, Seedance 2.0) → [references/video.md](references/video.md)
+- Wants to configure **S3-compatible storage** for modelark references (`imagine storage …`) → [references/storage.md](references/storage.md)
+- Runs any `imagine providers …`, `imagine storage …`, `imagine describe`, or `imagine metadata` subcommand
 - Hits an error — fixes live in [references/troubleshooting.md](references/troubleshooting.md)
 - Asks which provider to pick for a task
-- References sizes (`1K`, `2K`, `4K`, `1024x1024`, `3840x2160`, etc.)
-- Wants to run multiple jobs in one invocation, mix providers in a single run, or hands you a `.yaml` / `.yml` / `.json` file describing image-generation jobs — that's batch mode (`imagine -p batch.yaml`)
+- References sizes (`1K`, `2K`, `4K`, `1024x1024`, `3840x2160`, `720p`, `1080p`, `4k`, etc.)
+- Wants to run multiple jobs in one invocation, mix providers in a single run, or hands you a `.yaml` / `.yml` / `.json` file describing generation jobs — that's batch mode (`imagine -p batch.yaml`)
 
 ## Workflow
 
@@ -73,6 +75,12 @@ imagine providers add openai --api-key sk-XXX
 
 # Vertex AI — needs `gcloud auth application-default login` run on the machine first
 imagine providers add vertex --gcp-project <gcp-project-id> --location us-central1
+
+# fal — video (Seedance 2.0), key from https://fal.ai/dashboard/keys
+imagine providers add fal --api-key fal-XXX
+
+# modelark — video (Seedance 2.0 via BytePlus ModelArk); also needs a storage bucket (see Video / Storage)
+imagine providers add modelark --api-key ark-XXX
 ```
 
 **OpenAI has two auth methods.** The flag form above is the API-key method — safe to run headless. The alternative is a ChatGPT **subscription** (gpt-image-2 billed to the user's Plus/Pro plan, no API key):
@@ -147,12 +155,53 @@ Setting a flag that doesn't belong to the active provider returns `--X is not su
 
 - **Gemini / Vertex** → [references/gemini.md](references/gemini.md). Flags: `-m pro/flash`, `-s 1K/2K/4K`, `-a <aspect-ratio>`, `-g` (grounding), `-t minimal|high` (flash only), `-I` (image-search, Gemini flash only — Vertex does not support).
 - **OpenAI** → [references/openai.md](references/openai.md). Flags: `-m gpt-image-2 family`, `-s shorthand or raw WxH`, `-q quality`, `--compression`, `--moderation`, `--background`. Same flags for both auth methods (API key or ChatGPT subscription). Edit-mode size is restricted to `1024x1024`, `1536x1024`, `1024x1536`, `auto` on the **API-key route only** — the subscription route accepts any size in edit mode.
+- **fal / modelark** (video, Seedance 2.0) → [references/video.md](references/video.md). Flags: `-m seedance/fast`(/`mini` modelark), `-s 480p/720p/1080p`(/`4k` modelark full), `-a <aspect-ratio>`, `--duration`, `--audio`, `--end-image`; fal also `--bitrate`/`--seed`. **modelark requires a configured [storage bucket](references/storage.md) for `-i` references**; fal uses its own CDN.
 
 Provider pick heuristic:
 
 - Photorealism, text rendering, intricate prompts → **OpenAI `gpt-image-2`**
 - Fast iteration, Google ecosystem, live-search grounding → **Gemini**
 - GCP-native auth / enterprise quotas → **Vertex**
+- Video, no infra setup → **fal**
+- Video, you have / want your own S3 bucket (BytePlus ModelArk, mini tier) → **modelark**
+
+## Video generation (fal, modelark)
+
+Both wrap **Seedance 2.0**. Same `imagine -p "..."` command; output is `.mp4`. Modality is derived from references: **no `-i`** = text-to-video, **one `-i`** = image-to-video, **multiple references** = reference-to-video. Tier is the model.
+
+```bash
+imagine -p "a fox leaping" --provider fal                       # text → video
+imagine -p "zoom on skyline" --provider modelark -i frame.png -s 1080p   # image → video (needs storage)
+imagine -p "pan right" --provider fal -i start.png --end-image end.png   # first+last frame
+imagine -p "match this" --provider modelark -i ref1.png -i clip.mp4      # reference → video
+```
+
+Key facts (full detail: [references/video.md](references/video.md)):
+
+- **`-n` is capped at 4** (video is expensive). `MaxBatchN: 1` — `-n` fans out parallel tasks.
+- **modelark needs storage**: any run with `-i` references requires a configured public-read S3 bucket ([references/storage.md](references/storage.md)). Text-to-video does not. fal needs no storage (own CDN).
+- modelark `1080p`/`4k` are **full-model only** (fast/mini cap at 720p); `4k` is H.265/10-bit. `--end-image` is not supported on modelark `mini`.
+- Reference inputs for video providers additionally accept `.mp4`, `.mov` (video) and `.mp3`, `.wav` (audio), on top of the image formats. modelark uploads every kind to storage.
+- Seedance rejects references containing real human faces (server-side).
+
+## Storage (`imagine storage`)
+
+Only **modelark** needs this — it fetches references server-side from a URL, so local `-i` files are uploaded to an S3-compatible bucket you control.
+
+```bash
+imagine storage set --endpoint https://tos-ap-southeast-1.bytepluses.com \
+  --bucket my-bucket --access-key AK... --secret-key "${S3_SECRET}"
+imagine storage test     # signed write → anonymous read → cleanup (verifies public-read)
+imagine storage show     # secrets masked
+imagine storage clear
+```
+
+Critical points (full detail: [references/storage.md](references/storage.md)):
+
+- **Dedicated, public-read bucket.** Reads are anonymous; everything uploaded is world-readable by design. `storage test` verifies this.
+- **Any S3-compatible backend** (BytePlus TOS, MinIO, RustFS, Cloudflare R2, Wasabi, AWS S3).
+- **`path_style`**: default is virtual-host (`{bucket}.{host}`), required by BytePlus TOS. For **MinIO/RustFS**, set `path_style: true` in the `storage:` section (config-file only — no flag) or uploads fail with a TLS handshake error.
+- `access_key`/`secret_key` support `${ENV}` / `op://`. `storage set` merges (unset fields keep their value).
 
 ## Batch mode
 
@@ -206,6 +255,10 @@ Setting a key for the wrong provider errors. Defaults are applied per provider; 
 **OpenAI:** `model` (`gpt-image-2` (default) / `1.5` / `1` / `mini` / `1-mini` / `latest`), `size` (`1K`/`2K`/`4K` shorthand, `auto`, or raw `WxH` like `1024x1024`, default `auto`), `quality` (`auto`/`low`/`medium`/`high`, default `auto`), `compression` (0–100 int, default `100`, jpeg/webp only), `moderation` (`auto`/`low`), `background` (`auto`/`opaque`/`transparent`; `transparent` requires PNG/WebP output AND a non-`gpt-image-2` model).
 
 OpenAI edit mode (entry has `input:`) restricts `size:` to `1024x1024` / `1536x1024` / `1024x1536` / `auto`.
+
+**fal** (video): `model` (`seedance` (default) / `fast`), `size` (`480p`/`720p`/`1080p`, default `720p`), `aspect-ratio` (`auto`/`21:9`/`16:9`/`4:3`/`1:1`/`3:4`/`9:16`), `duration` (`auto` or `4`–`15`), `audio` (bool, default `true`), `bitrate` (`standard`/`high`), `seed` (int), `end-image` (path, single `input:` only).
+
+**modelark** (video): `model` (`seedance` (full, default) / `fast` / `mini`), `size` (`480p`/`720p`; `1080p`/`4k` **full only**, default `720p`), `aspect-ratio` (`adaptive`/`21:9`/`16:9`/`4:3`/`1:1`/`3:4`/`9:16`), `duration` (int `-1` auto or `4`–`15`), `audio` (bool, default `true`), `end-image` (path; **not on mini**). Video entries output `.mp4`; `count` capped at 4. **modelark entries with `input:` require a configured [storage bucket](references/storage.md).**
 
 ### CLI flag interaction
 
@@ -355,6 +408,19 @@ providers:
     gcp_project: my-project-id
     location: global                   # optional — "global" when omitted
     vision_model: gemini-3-flash-preview
+  fal:                                 # video — Seedance 2.0 via fal.ai
+    api_key: fal-...
+  modelark:                            # video — Seedance 2.0 via BytePlus ModelArk
+    api_key: ark-...
+
+storage:                               # S3-compatible bucket for modelark references
+  endpoint: "https://tos-ap-southeast-1.bytepluses.com"
+  region: "ap-southeast-1"
+  bucket: "my-imagine-bucket"
+  access_key: "AK..."
+  secret_key: "${S3_SECRET}"           # supports ${ENV} / op://
+  path_prefix: "imagine-refs/"         # optional
+  path_style: false                    # true for MinIO/RustFS
 ```
 
 Older configs with `providers.vertex.provider_options.gcp_project` still load; the next `imagine providers add` / `use` rewrites them flat.

@@ -75,6 +75,14 @@ type Bundle struct {
 	// `providers add` records the chosen method's Key under auth_method and
 	// the Factory branches on it. Empty → the provider uses ConfigSchema.
 	AuthMethods []AuthMethod
+
+	// RequireStorage marks a provider that needs the shared S3-compatible
+	// storage brick to publish local references as public URLs (because its
+	// upstream API fetches references server-side and rejects Base64).
+	// Generic: any future provider sets this and inherits the
+	// configured-storage gate + onboarding error, with no other framework
+	// changes. All existing providers leave it false.
+	RequireStorage bool
 }
 
 // AuthMethod is one credential strategy a provider supports. Exactly one of
