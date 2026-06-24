@@ -144,12 +144,12 @@ func (opts *Options) Validate() error {
 			return fmt.Errorf("cannot access reference path: %v", err)
 		}
 		if info.IsDir() {
-			count, _ := images.CountInDir(ref)
+			count, _ := images.CountMediaInDir(ref)
 			if count == 0 {
-				return fmt.Errorf("no images found in reference directory: %s", ref)
+				return fmt.Errorf("no supported media found in directory: %s", ref)
 			}
-		} else if !images.IsSupported(ref) {
-			return fmt.Errorf("unsupported image format: %s", ref)
+		} else if !images.IsSupportedMedia(ref) {
+			return fmt.Errorf("unsupported media format: %s", ref)
 		}
 	}
 

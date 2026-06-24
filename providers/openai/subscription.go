@@ -294,7 +294,7 @@ func parseImageStream(r io.Reader, wantFormat string) (*providers.Response, erro
 			if format == "" {
 				format = wantFormat
 			}
-			out = &providers.Response{Images: []providers.GeneratedImage{{Data: raw, MimeType: mimeTypeFor(format)}}}
+			out = &providers.Response{Assets: []providers.GeneratedImage{{Data: raw, MimeType: mimeTypeFor(format)}}}
 			return true, nil
 		}
 		return false, nil

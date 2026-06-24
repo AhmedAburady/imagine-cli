@@ -21,7 +21,7 @@ func (f fakeProvider) Info() providers.Info {
 }
 
 func (f fakeProvider) Generate(context.Context, providers.Request) (*providers.Response, error) {
-	return &providers.Response{Images: []providers.GeneratedImage{{Data: f.data}}}, nil
+	return &providers.Response{Assets: []providers.GeneratedImage{{Data: f.data}}}, nil
 }
 
 func testPNG(t *testing.T) []byte {
@@ -41,7 +41,7 @@ func TestSaveOne_EmbedsMetadataIntoPNG(t *testing.T) {
 		Metadata:     []images.TextTag{{Key: "prompt", Value: "a teal cube"}, {Key: "provider", Value: "openai"}},
 	}
 	res := GenerationResult{Index: 0}
-	saveOne(&res, testPNG(t), params)
+	saveOne(&res, providers.GeneratedAsset{Data: testPNG(t), MimeType: "image/png"}, params)
 	if res.Error != nil {
 		t.Fatalf("saveOne: %v", res.Error)
 	}
@@ -80,7 +80,7 @@ func TestSaveOne_NoMetadataLeavesPNGUntouched(t *testing.T) {
 	dir := t.TempDir()
 	src := testPNG(t)
 	res := GenerationResult{Index: 0}
-	saveOne(&res, src, Params{OutputFolder: dir, NumImages: 1})
+	saveOne(&res, providers.GeneratedAsset{Data: src, MimeType: "image/png"}, Params{OutputFolder: dir, NumImages: 1})
 	if res.Error != nil {
 		t.Fatalf("saveOne: %v", res.Error)
 	}

@@ -75,7 +75,7 @@ func Run(ctx context.Context, resolved []Resolved, maxParallel int) error {
 	_ = os.Stdout.Sync()
 
 	if totalFail > 0 {
-		return fmt.Errorf("%d image(s) failed across batch", totalFail)
+		return fmt.Errorf("%d output(s) failed across batch", totalFail)
 	}
 	return nil
 }
@@ -191,7 +191,7 @@ func printSummary(results []EntryResult, elapsed time.Duration) int {
 			}
 			return tblCellStyle
 		}).
-		Headers("ENTRY", "PROVIDER", "MODEL", "IMAGES", "TIME", "STATUS")
+		Headers("ENTRY", "PROVIDER", "MODEL", "OUTPUT", "TIME", "STATUS")
 
 	for _, r := range rows {
 		t.Row(r.entry, r.provider, r.model, r.images, r.elapsed, r.status)
@@ -214,7 +214,7 @@ func printSummary(results []EntryResult, elapsed time.Duration) int {
 		}
 		fmt.Printf("\n%s — %d failure(s):\n", er.Resolved.DisplayName, len(failures))
 		for _, ir := range failures {
-			fmt.Printf("  Image %d: %v\n", ir.Index+1, ir.Error)
+			fmt.Printf("  Output %d: %v\n", ir.Index+1, ir.Error)
 		}
 	}
 

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -21,44 +22,67 @@ type Reference struct {
 	Data     []byte
 }
 
-// supportedExts maps lowercase file extensions (with dot) to MIME types.
-var supportedExts = map[string]string{
+// supportedMediaExts is the broader image+video+audio table used by the loader.
+// Callers classify a loaded Reference by its MIME prefix (image/ video/ audio/).
+var supportedMediaExts = map[string]string{
 	".jpg":  "image/jpeg",
 	".jpeg": "image/jpeg",
 	".png":  "image/png",
 	".gif":  "image/gif",
 	".webp": "image/webp",
+	".mp4":  "video/mp4",
+	".mov":  "video/quicktime",
+	".mp3":  "audio/mpeg",
+	".wav":  "audio/wav",
 }
 
-// IsSupported reports whether the given path has a supported image extension.
-func IsSupported(path string) bool {
-	_, ok := supportedExts[strings.ToLower(filepath.Ext(path))]
+// IsSupportedMedia reports whether path has a supported image/video/audio extension.
+func IsSupportedMedia(path string) bool {
+	_, ok := supportedMediaExts[strings.ToLower(filepath.Ext(path))]
 	return ok
 }
 
-// MimeType returns the MIME type for a supported extension (with or without dot).
-// Returns ok=false for unsupported extensions.
-func MimeType(ext string) (string, bool) {
-	mt, ok := supportedExts[strings.ToLower(ext)]
+// MediaMimeType returns the MIME type for any supported image/video/audio
+// extension (with or without dot). Returns ok=false for unsupported extensions.
+func MediaMimeType(ext string) (string, bool) {
+	mt, ok := supportedMediaExts[strings.ToLower(ext)]
 	return mt, ok
 }
 
-// Load reads a single image file or a directory of images and returns a slice
-// of References. Directory entries load in parallel with order preserved.
-func Load(path string) ([]Reference, error) {
+// KindOf classifies a MIME type into its top-level prefix ("image", "video",
+// "audio"), or "" when there is no recognizable prefix.
+func KindOf(mimeType string) string {
+	if i := strings.IndexByte(mimeType, '/'); i > 0 {
+		return mimeType[:i]
+	}
+	return ""
+}
+
+// Load reads a single file or a directory of references, filtered to the
+// accepted media classes (default image-only). Directory entries load in
+// parallel with order preserved.
+func Load(path string, accept ...string) ([]Reference, error) {
+	if len(accept) == 0 {
+		accept = []string{"image"}
+	}
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, err
 	}
 	if info.IsDir() {
-		return loadDir(path)
+		return loadDir(path, accept)
 	}
-	return loadFile(path)
+	return loadFile(path, accept)
 }
 
-// CountInDir returns how many supported image files live directly in dirPath
-// (non-recursive).
-func CountInDir(dirPath string) (int, error) {
+// accepts reports whether class is one of the accepted media classes.
+func accepts(accept []string, class string) bool {
+	return slices.Contains(accept, class)
+}
+
+// CountMediaInDir returns how many supported image/video/audio files live
+// directly in dirPath (non-recursive).
+func CountMediaInDir(dirPath string) (int, error) {
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return 0, err
@@ -68,26 +92,29 @@ func CountInDir(dirPath string) (int, error) {
 		if entry.IsDir() {
 			continue
 		}
-		if _, ok := supportedExts[strings.ToLower(filepath.Ext(entry.Name()))]; ok {
+		if _, ok := supportedMediaExts[strings.ToLower(filepath.Ext(entry.Name()))]; ok {
 			count++
 		}
 	}
 	return count, nil
 }
 
-func loadFile(filePath string) ([]Reference, error) {
-	mt, ok := supportedExts[strings.ToLower(filepath.Ext(filePath))]
+func loadFile(filePath string, accept []string) ([]Reference, error) {
+	mt, ok := supportedMediaExts[strings.ToLower(filepath.Ext(filePath))]
 	if !ok {
-		return nil, fmt.Errorf("unsupported image format: %s", filepath.Ext(filePath))
+		return nil, fmt.Errorf("unsupported media format: %s", filepath.Ext(filePath))
+	}
+	if !accepts(accept, KindOf(mt)) {
+		return nil, fmt.Errorf("unsupported reference %q: %s files are not accepted here (accepts: %s)", filePath, KindOf(mt), strings.Join(accept, ", "))
 	}
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read image: %v", err)
+		return nil, fmt.Errorf("failed to read media: %v", err)
 	}
 	return []Reference{{MimeType: mt, Data: data}}, nil
 }
 
-func loadDir(dirPath string) ([]Reference, error) {
+func loadDir(dirPath string, accept []string) ([]Reference, error) {
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return nil, err
@@ -103,8 +130,8 @@ func loadDir(dirPath string) ([]Reference, error) {
 		if entry.IsDir() {
 			continue
 		}
-		mt, ok := supportedExts[strings.ToLower(filepath.Ext(entry.Name()))]
-		if !ok {
+		mt, ok := supportedMediaExts[strings.ToLower(filepath.Ext(entry.Name()))]
+		if !ok || !accepts(accept, KindOf(mt)) {
 			continue
 		}
 		candidates = append(candidates, candidate{

@@ -84,6 +84,11 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 				return err
 			}
 
+			// Per-provider -n cap; reference-kind enforcement now lives in the loader.
+			if err := providers.CheckMaxN(bundle.Info.Name, bundle.Info.Capabilities.MaxN, opts.NumImages); err != nil {
+				return err
+			}
+
 			providerOptions, err = bundle.ReadFlags(cmd)
 			if err != nil {
 				return err
@@ -120,7 +125,7 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 				return err
 			}
 
-			refs, err := loadReferences(opts.RefInputs)
+			refs, err := loadReferences(opts.RefInputs, bundle.Info.Capabilities.RefClasses())
 			if err != nil {
 				return err
 			}

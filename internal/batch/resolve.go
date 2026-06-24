@@ -205,12 +205,12 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 			return Resolved{}, fmt.Errorf("cannot access reference %s: %v", ref, err)
 		}
 		if info.IsDir() {
-			count, _ := images.CountInDir(ref)
+			count, _ := images.CountMediaInDir(ref)
 			if count == 0 {
-				return Resolved{}, fmt.Errorf("no images found in reference directory: %s", ref)
+				return Resolved{}, fmt.Errorf("no supported media found in directory: %s", ref)
 			}
-		} else if !images.IsSupported(ref) {
-			return Resolved{}, fmt.Errorf("unsupported image format: %s", ref)
+		} else if !images.IsSupportedMedia(ref) {
+			return Resolved{}, fmt.Errorf("unsupported media format: %s", ref)
 		}
 	}
 
@@ -294,7 +294,13 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 		providerCache[provName] = providerInst
 	}
 
-	refs, err := loadReferences(effInputs)
+	// Per-provider -n cap; reference-kind enforcement now lives in the loader.
+	caps := providerInst.Info().Capabilities
+	if err := providers.CheckMaxN(providerInst.Info().Name, caps.MaxN, effCount); err != nil {
+		return Resolved{}, err
+	}
+
+	refs, err := loadReferences(effInputs, caps.RefClasses())
 	if err != nil {
 		return Resolved{}, err
 	}
@@ -316,13 +322,16 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 		RefInputPath:     refInputPath,
 	}
 
-	// Effective embed: CLI --embed-metadata, overridable per entry. EmbedPNGText
-	// no-ops for non-PNG output, so this is safe to set regardless of format.
+	// Effective embed: CLI --embed-metadata, overridable per entry. Metadata is an
+	// image-only feature (PNG text chunks), so skip it for video providers —
+	// mirroring the single-shot guard in commands/run.go so batch never emits the
+	// spurious "PNG only" warning for a video entry.
 	effEmbed := rc.CLIOptions.EmbedMetadata
 	if common.embedMetadata != nil {
 		effEmbed = *common.embedMetadata
 	}
-	if effEmbed {
+	isVideo := providerInst.Info().Capabilities.MediaKind == providers.KindVideo
+	if effEmbed && !isVideo {
 		model := requestLabel(providerOpts)
 		if model == "" {
 			model = providerInst.Info().DefaultModel
@@ -489,10 +498,10 @@ func displayName(e Entry) string {
 	return fmt.Sprintf("%d", e.Index+1)
 }
 
-func loadReferences(inputs []string) ([]images.Reference, error) {
+func loadReferences(inputs []string, accept []string) ([]images.Reference, error) {
 	var refs []images.Reference
 	for _, in := range inputs {
-		loaded, err := images.Load(in)
+		loaded, err := images.Load(in, accept...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load references: %w", err)
 		}

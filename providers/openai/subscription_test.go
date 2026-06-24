@@ -285,8 +285,8 @@ func TestParseImageStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseImageStream: %v", err)
 	}
-	if len(out.Images) != 1 || string(out.Images[0].Data) != "foo" || out.Images[0].MimeType != "image/jpeg" {
-		t.Errorf("bad image: %+v", out.Images)
+	if len(out.Assets) != 1 || string(out.Assets[0].Data) != "foo" || out.Assets[0].MimeType != "image/jpeg" {
+		t.Errorf("bad image: %+v", out.Assets)
 	}
 }
 

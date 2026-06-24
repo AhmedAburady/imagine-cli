@@ -341,7 +341,7 @@ func decodeImages(parsed *generationsResponse, outMime string) (*providers.Respo
 	if len(imgs) == 0 {
 		return nil, errors.New("openai returned no images")
 	}
-	return &providers.Response{Images: imgs}, nil
+	return &providers.Response{Assets: imgs}, nil
 }
 
 func emptyToAuto(s string) string {

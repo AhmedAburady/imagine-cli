@@ -11,7 +11,7 @@ nano_banana_pro
 
 # Output of go coverage
 *.out
-
+tmp/
 # Go workspace file
 go.work
 go.work.sum

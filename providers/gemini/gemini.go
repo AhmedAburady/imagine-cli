@@ -147,7 +147,7 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 					return nil, err
 				}
 				return &providers.Response{
-					Images: []providers.GeneratedImage{{Data: data, MimeType: pt.InlineData.MimeType}},
+					Assets: []providers.GeneratedImage{{Data: data, MimeType: pt.InlineData.MimeType}},
 				}, nil
 			}
 		}
