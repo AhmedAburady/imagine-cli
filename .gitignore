@@ -37,7 +37,7 @@ input/
 *.png
 !.assets/*.png
 generations/
-.claude/
+
 /imagine
 /banana
 message.txt
