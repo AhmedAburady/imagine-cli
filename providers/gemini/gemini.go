@@ -17,14 +17,45 @@ import (
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
 
-// Canonical model IDs. The cobra flag accepts aliases "pro" / "flash"
-// (declared in Info().Models[*].Aliases); the provider resolves those.
+// Canonical model IDs — the GA (stable) names. The cobra flag accepts aliases
+// "pro" / "flash" / "flash-lite" (declared in Info().Models[*].Aliases); the
+// provider resolves those.
 const (
-	ModelPro   = "gemini-3-pro-image-preview"
-	ModelFlash = "gemini-3.1-flash-image-preview"
+	ModelPro       = "gemini-3-pro-image"
+	ModelFlash     = "gemini-3.1-flash-image"
+	ModelFlashLite = "gemini-3.1-flash-lite-image"
 
 	baseURL = "https://generativelanguage.googleapis.com/v1beta/models/"
 )
+
+// Retired pre-GA spellings of the two renamed models, kept resolvable so
+// scripts, batch files and configs that pinned them keep working.
+const (
+	legacyModelPro   = "gemini-3-pro-image-preview"
+	legacyModelFlash = "gemini-3.1-flash-image-preview"
+)
+
+// SizesFlashLite returns the sizes Nano Banana 2 Lite renders — the only model
+// in the lineup that doesn't reach 2K/4K. A function, not a var, so the slice
+// Vertex shares can't be mutated.
+func SizesFlashLite() []string { return []string{"1K"} }
+
+// DeprecatedAliasesPro and DeprecatedAliasesFlash feed
+// ModelInfo.DeprecatedAliases. Both providers read them so a pinned preview ID
+// behaves identically on Gemini and Vertex.
+func DeprecatedAliasesPro() []string   { return []string{legacyModelPro} }
+func DeprecatedAliasesFlash() []string { return []string{legacyModelFlash} }
+
+// AspectRatios returns every ratio the Gemini 3 image models accept, in the
+// order the API's own validator reports them. Google's published per-model
+// tables disagree with each other; the API accepts this full set for pro,
+// flash and flash-lite alike. Shared with the Vertex provider.
+func AspectRatios() []string {
+	return []string{
+		"1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1",
+		"4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9",
+	}
+}
 
 // httpClient is shared by all Provider instances via package-level init.
 // transport.NewClient provides pooling defaults.
@@ -73,24 +104,35 @@ func (p *Provider) Info() providers.Info {
 		DefaultModel: ModelPro,
 		Models: []providers.ModelInfo{
 			{
-				ID:          ModelPro,
-				Aliases:     []string{"pro"},
-				Description: "Highest quality; no thinking / image-search flags.",
+				ID:                ModelPro,
+				Aliases:           []string{"pro"},
+				DeprecatedAliases: DeprecatedAliasesPro(),
+				Description:       "Highest quality; no thinking / image-search flags.",
+				SupportedFlags:    []string{"grounding"},
 			},
 			{
-				ID:             ModelFlash,
-				Aliases:        []string{"flash"},
-				Description:    "Faster; supports --thinking and --image-search.",
-				SupportedFlags: []string{"thinking", "image-search"},
+				ID:                ModelFlash,
+				Aliases:           []string{"flash"},
+				DeprecatedAliases: DeprecatedAliasesFlash(),
+				Description:       "Faster; supports --thinking and --image-search.",
+				SupportedFlags:    []string{"grounding", "thinking", "image-search"},
+			},
+			{
+				ID:             ModelFlashLite,
+				Aliases:        []string{"flash-lite", "lite"},
+				Description:    "Fastest and cheapest; 1K only, no grounding.",
+				SupportedFlags: []string{"thinking"},
+				Sizes:          SizesFlashLite(),
 			},
 		},
 		Capabilities: providers.Capabilities{
-			Edit:        true,
-			Grounding:   true,
-			Thinking:    true,
-			ImageSearch: true,
-			MaxBatchN:   1,
-			Sizes:       []string{"1K", "2K", "4K"},
+			Edit:         true,
+			Grounding:    true,
+			Thinking:     true,
+			ImageSearch:  true,
+			MaxBatchN:    1,
+			Sizes:        []string{"1K", "2K", "4K"},
+			AspectRatios: AspectRatios(),
 		},
 	}
 }

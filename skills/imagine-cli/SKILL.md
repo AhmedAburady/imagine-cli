@@ -11,7 +11,7 @@ description: imagine is a multi-provider command-line tool for generating and ed
 
 Use this skill whenever the user:
 
-- Mentions `imagine`, any of its flags, providers (gemini, vertex, openai), or model aliases (`gpt-image-2`, `pro`, `flash`, `1.5`, etc.)
+- Mentions `imagine`, any of its flags, providers (gemini, vertex, openai), or model aliases (`gpt-image-2`, `pro`, `flash`, `flash-lite`, `1.5`, etc.)
 - Wants to generate or edit images from the command line
 - Is setting up the tool, adding an API key, or changing the default provider
 - Runs any `imagine providers …`, `imagine describe`, or `imagine metadata` subcommand
@@ -145,7 +145,7 @@ error: no provider configured
 
 Setting a flag that doesn't belong to the active provider returns `--X is not supported by provider "Y" (supported by: [Z])`. Either drop the flag or switch providers with `--provider Z`.
 
-- **Gemini / Vertex** → [references/gemini.md](references/gemini.md). Flags: `-m pro/flash`, `-s 1K/2K/4K`, `-a <aspect-ratio>`, `-g` (grounding), `-t minimal|high` (flash only), `-I` (image-search, Gemini flash only — Vertex does not support).
+- **Gemini / Vertex** → [references/gemini.md](references/gemini.md). Flags: `-m pro/flash/flash-lite`, `-s 1K/2K/4K` (flash-lite: 1K only), `-a <aspect-ratio>` (14 values: `1:1` `1:4` `1:8` `2:3` `3:2` `3:4` `4:1` `4:3` `4:5` `5:4` `8:1` `9:16` `16:9` `21:9`), `-g` (grounding, not on flash-lite), `-t minimal|high` (flash and flash-lite), `-I` (image-search, Gemini flash only — Vertex does not support).
 - **OpenAI** → [references/openai.md](references/openai.md). Flags: `-m gpt-image-2 family`, `-s shorthand or raw WxH`, `-q quality`, `--compression`, `--moderation`, `--background`. Same flags for both auth methods (API key or ChatGPT subscription). Edit-mode size is restricted to `1024x1024`, `1536x1024`, `1024x1536`, `auto` on the **API-key route only** — the subscription route accepts any size in edit mode.
 
 Provider pick heuristic:
@@ -199,7 +199,7 @@ List form — entries are anonymous; the summary table identifies them by 1-base
 
 Setting a key for the wrong provider errors. Defaults are applied per provider; omit to use them.
 
-**Gemini:** `model` (`pro`/`flash`/full ID, default `pro`), `size` (`1K`/`2K`/`4K`, default `1K`), `aspect-ratio` (string, e.g. `16:9`), `grounding` (bool), `thinking` (`minimal`/`high`, **flash only**), `image-search` (bool, **flash only**).
+**Gemini:** `model` (`pro`/`flash`/`flash-lite`/full ID, default `pro`), `size` (`1K`/`2K`/`4K`, default `1K`; **`flash-lite` accepts `1K` only**), `aspect-ratio` (one of `1:1` `1:4` `1:8` `2:3` `3:2` `3:4` `4:1` `4:3` `4:5` `5:4` `8:1` `9:16` `16:9` `21:9`), `grounding` (bool, **not on `flash-lite`**), `thinking` (`minimal`/`high`, **`flash` and `flash-lite` only**), `image-search` (bool, **`flash` only**).
 
 **Vertex:** same as Gemini but **no `image-search`** (not exposed via Vertex AI).
 
@@ -243,6 +243,8 @@ Summary table at the end with columns `ENTRY` / `PROVIDER` / `MODEL` / `IMAGES` 
 | `entry hero: prompt is required` | Add `prompt:`. |
 | `entry hero: unknown key(s) [...]` | Key not in that provider's schema; cross-check the tables above. |
 | `entry hero: --thinking is not supported by model "pro"` | Set `model: flash` on the entry, or drop `thinking:`. |
+| `entry hero: --size 4K is not supported by model "gemini-3.1-flash-lite-image"` | `flash-lite` renders 1K only. Drop `size:` or switch to `model: flash`. |
+| `entry hero: --grounding is not supported by model "gemini-3.1-flash-lite-image"` | `flash-lite` has no Google Search grounding. Drop `grounding:` or switch to `model: flash`. |
 | `--X is not supported by any provider used in this batch` | Drop the CLI flag, or add an entry whose provider claims it. |
 | `filename collision: entry a and entry b both produce ...` | Set distinct `filename:` per entry. |
 | `--replace is not allowed in batch mode` | Use per-entry `replace: true`. |

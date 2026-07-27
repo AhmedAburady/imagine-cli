@@ -40,9 +40,11 @@ func Contract(t *testing.T, name string) {
 	t.Run("DefaultModelResolvable", func(t *testing.T) { checkDefaultModelResolvable(t, bundle) })
 	t.Run("EmptyInputResolvesToDefault", func(t *testing.T) { checkEmptyResolvesToDefault(t, bundle) })
 	t.Run("AliasesRoundTrip", func(t *testing.T) { checkAliasesRoundTrip(t, bundle) })
+	t.Run("DeprecatedAliasesRoundTrip", func(t *testing.T) { checkDeprecatedAliasesRoundTrip(t, bundle) })
 	t.Run("CanonicalIDsRoundTrip", func(t *testing.T) { checkCanonicalIDsRoundTrip(t, bundle) })
 	t.Run("NoDuplicateModelIDs", func(t *testing.T) { checkNoDuplicateModelIDs(t, bundle) })
 	t.Run("ModelSupportedFlagsSubsetOfBundle", func(t *testing.T) { checkModelFlagsSubset(t, bundle) })
+	t.Run("ModelSizesSubsetOfCapabilities", func(t *testing.T) { checkModelSizesSubset(t, bundle) })
 	t.Run("MaxBatchNValid", func(t *testing.T) { checkMaxBatchN(t, bundle) })
 	t.Run("BindFlagsIdempotent", func(t *testing.T) { checkBindFlagsIdempotent(t, bundle) })
 	t.Run("ReadFlagsDefaultsSucceed", func(t *testing.T) { checkReadFlagsDefaults(t, bundle) })
@@ -112,6 +114,28 @@ func checkAliasesRoundTrip(t *testing.T, b providers.Bundle) {
 	}
 }
 
+// checkDeprecatedAliasesRoundTrip: retired spellings must still resolve, and
+// must not also sit in Aliases where they'd be advertised again.
+func checkDeprecatedAliasesRoundTrip(t *testing.T, b providers.Bundle) {
+	for _, m := range b.Info.Models {
+		for _, alias := range m.DeprecatedAliases {
+			got, err := b.Info.ResolveModel(alias)
+			if err != nil {
+				t.Errorf("ResolveModel(deprecated=%q): %v", alias, err)
+				continue
+			}
+			if got != m.ID {
+				t.Errorf("ResolveModel(%q) = %q, want canonical ID %q", alias, got, m.ID)
+			}
+			for _, live := range m.Aliases {
+				if live == alias {
+					t.Errorf("model %q lists %q in both Aliases and DeprecatedAliases", m.ID, alias)
+				}
+			}
+		}
+	}
+}
+
 func checkCanonicalIDsRoundTrip(t *testing.T, b providers.Bundle) {
 	for _, m := range b.Info.Models {
 		got, err := b.Info.ResolveModel(m.ID)
@@ -145,6 +169,27 @@ func checkModelFlagsSubset(t *testing.T, b providers.Bundle) {
 			if !allowed[f] {
 				t.Errorf("model %q declares flag %q which isn't in Bundle.SupportedFlags %v",
 					m.ID, f, b.SupportedFlags)
+			}
+		}
+	}
+}
+
+// checkModelSizesSubset: ModelInfo.Sizes restricts Capabilities.Sizes, never
+// widens it. A size outside the provider-wide set would clear Info.CheckSize
+// and then be rejected by the flag's enum tag — unreachable either way.
+func checkModelSizesSubset(t *testing.T, b providers.Bundle) {
+	if len(b.Info.Capabilities.Sizes) == 0 {
+		return
+	}
+	allowed := make(map[string]bool, len(b.Info.Capabilities.Sizes))
+	for _, s := range b.Info.Capabilities.Sizes {
+		allowed[s] = true
+	}
+	for _, m := range b.Info.Models {
+		for _, s := range m.Sizes {
+			if !allowed[s] {
+				t.Errorf("model %q declares size %q which isn't in Capabilities.Sizes %v",
+					m.ID, s, b.Info.Capabilities.Sizes)
 			}
 		}
 	}

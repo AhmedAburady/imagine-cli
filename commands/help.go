@@ -82,6 +82,9 @@ func buildExamples(active string) string {
 			sb.WriteString(marker)
 			sb.WriteString(m.ID)
 			sb.WriteString(aliases)
+			if len(m.Sizes) > 0 {
+				sb.WriteString(" [sizes: " + strings.Join(m.Sizes, ", ") + "]")
+			}
 			sb.WriteString("\n")
 		}
 	}
@@ -91,6 +94,13 @@ func buildExamples(active string) string {
 			sb.WriteString("\n")
 			sb.WriteString(ex)
 		}
+	}
+
+	// Read from Capabilities so this listing can't drift from what -a accepts.
+	if ars := b.Info.Capabilities.AspectRatios; len(ars) > 0 {
+		sb.WriteString("\n\n  ASPECT RATIOS:\n    ")
+		sb.WriteString(strings.Join(ars, ", "))
+		sb.WriteString("  (default: Auto)")
 	}
 
 	return sb.String()

@@ -7,9 +7,10 @@ package gemini
 func Examples() string {
 	return `  imagine -p "a sunset" -n 3 -s 2K -a 16:9
   imagine -p "futuristic city" -m flash -t high
+  imagine -p "sticker of an avocado" -m flash-lite -a 1:1
   imagine -p "cat in hoodie" -I
   imagine -p "add rain" -i photo.png -r
 
   SIZES:
-    1K, 2K, 4K  (default: 1K)`
+    1K, 2K, 4K  (default: 1K; flash-lite is 1K only)`
 }

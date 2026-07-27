@@ -8,21 +8,24 @@ Aliases resolve to canonical IDs. Omit `-m` to use the default.
 
 | Alias | Canonical ID | Notes |
 |---|---|---|
-| `pro` | `gemini-3-pro-image-preview` | **Default.** Highest quality. Does NOT support `--thinking` or `--image-search`. |
-| `flash` | `gemini-3.1-flash-image-preview` | Faster. Supports `--thinking` and `--image-search` (Gemini only). |
+| `pro` | `gemini-3-pro-image` | **Default.** Highest quality. Does NOT support `--thinking` or `--image-search`. |
+| `flash` | `gemini-3.1-flash-image` | Faster. Supports `--thinking` and `--image-search` (Gemini only). |
+| `flash-lite`, `lite` | `gemini-3.1-flash-lite-image` | Fastest and cheapest (Nano Banana 2 Lite). **1K only** and no `--grounding` / `--image-search`. Supports `--thinking`. |
 
 `-m` also accepts the full canonical ID directly.
+
+Google renamed `pro` and `flash` at GA by dropping the `-preview` suffix. The retired spellings `gemini-3-pro-image-preview` and `gemini-3.1-flash-image-preview` still resolve to the GA IDs, so pinned scripts and batch files keep working — but they aren't advertised in `--help`, and the results table reports the GA ID that actually ran. Prefer the aliases (`pro`, `flash`) or the GA IDs in new work.
 
 ## Flags
 
 | Flag | Long | Values | Notes |
 |---|---|---|---|
-| `-m` | `--model` | `pro` / `flash` / full ID | Default `pro` |
-| `-s` | `--size` | `1K`, `2K`, `4K` | Default `1K`. Not pixels — Gemini picks resolution within each tier. |
-| `-a` | `--aspect-ratio` | e.g. `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `21:9` | Omit for auto |
-| `-g` | `--grounding` | bool | Google Search grounding — pulls live web context into the prompt |
-| `-t` | `--thinking` | `minimal` / `high` | **Flash only.** Higher thinking = better reasoning, more tokens |
-| `-I` | `--image-search` | bool | **Gemini flash only** (Vertex does NOT support this). Image Search grounding. |
+| `-m` | `--model` | `pro` / `flash` / `flash-lite` / full ID | Default `pro` |
+| `-s` | `--size` | `1K`, `2K`, `4K` | Default `1K`. Not pixels — Gemini picks resolution within each tier. **`flash-lite` accepts `1K` only.** |
+| `-a` | `--aspect-ratio` | 14 values: `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` | Omit for auto. All three models accept the full set; anything else is rejected locally. |
+| `-g` | `--grounding` | bool | Google Search grounding — pulls live web context into the prompt. **Not on `flash-lite`.** |
+| `-t` | `--thinking` | `minimal` / `high` | **`flash` and `flash-lite` only** — pro rejects it. Higher thinking = better reasoning, more tokens |
+| `-I` | `--image-search` | bool | **Gemini `flash` only** (Vertex does NOT support this). Image Search grounding. |
 
 ## Capability matrix
 
@@ -32,9 +35,10 @@ Aliases resolve to canonical IDs. Omit `-m` to use the default.
 | Edit (single ref) | ✅ | ✅ |
 | Edit (multiple refs) | ✅ | ✅ |
 | Edit (folder of refs) | ✅ | ✅ |
-| Grounding (`-g`) | ✅ | ✅ |
-| Thinking (`-t`, flash) | ✅ | ✅ |
+| Grounding (`-g`, pro/flash) | ✅ | ✅ |
+| Thinking (`-t`, flash/flash-lite) | ✅ | ✅ |
 | Image Search (`-I`, flash) | ✅ | ❌ |
+| `flash-lite` model | ✅ | ✅ |
 | MaxBatchN (images per API call) | 1 | 1 |
 
 Because `MaxBatchN=1`, imagine's orchestrator issues `-n` parallel API calls — not one batched call. That's fine for small batches but adds latency for `-n 10+`.
@@ -50,6 +54,9 @@ imagine -p "a cityscape" -n 3 -s 2K -a 16:9 -o ./city
 
 # Flash with high thinking
 imagine -p "intricate diagram of a watch mechanism" -m flash -t high
+
+# Flash-lite: fastest and cheapest, 1K only
+imagine -p "die-cut sticker of an avocado" -m flash-lite -a 1:1
 
 # Grounding (adds live web context)
 imagine -p "the latest design trends in 2026" -g
@@ -79,7 +86,33 @@ Exact dimensions are Gemini's choice — the API picks based on aspect ratio + s
 
 ## Common pitfalls
 
-- **`-t` on `-m pro` does nothing.** Thinking is flash-only. imagine accepts the flag but the pro model ignores it.
+- **`-t` on `-m pro` errors out.** Thinking is gated to `flash` and `flash-lite`; imagine rejects the flag at validation time rather than sending it.
+- **`-s 2K` / `-s 4K` on `-m flash-lite` errors out.** That model renders 1K only. Drop `-s` (1K is the default) or switch to `flash`.
+- **`-g` on `-m flash-lite` errors out.** Nano Banana 2 Lite has no Google Search grounding. Use `flash` when you need live web context.
 - **`-I` with Vertex errors out.** Vertex doesn't expose the image-search tool. imagine rejects the flag at validation time.
 - **Grounding adds latency.** Expect 10–20% longer generation times with `-g`.
 - **No streaming.** imagine always waits for the full image. Some Gemini tiers support streaming but imagine doesn't surface it.
+- **`9:21` is not a valid ratio** even though Google's Vertex model card lists it — the API rejects it, so imagine does too. Use `1:8` or `1:4` for tall formats.
+
+## Aspect ratio reference
+
+All 14 are accepted by `pro`, `flash`, and `flash-lite`. Dimensions shown for the `1K` tier:
+
+| Ratio | 1K dimensions | Shape |
+|---|---|---|
+| `1:1` | 1024x1024 | square |
+| `3:2` | 1264x848 | landscape |
+| `4:3` | 1200x896 | landscape |
+| `5:4` | 1152x928 | landscape |
+| `16:9` | 1376x768 | widescreen |
+| `21:9` | 1584x672 | ultrawide |
+| `4:1` | 2048x512 | banner |
+| `8:1` | 3072x384 | ultra-wide banner |
+| `2:3` | 848x1264 | portrait |
+| `3:4` | 896x1200 | portrait |
+| `4:5` | 928x1152 | portrait |
+| `9:16` | 768x1376 | vertical / story |
+| `1:4` | 512x2048 | tall |
+| `1:8` | 384x3072 | ultra-tall |
+
+`2K` doubles each dimension and `4K` quadruples them, so `pro` and `flash` reach 12288x1536 at `8:1 4K`. `flash-lite` is 1K only — the middle column is its whole range, and it rounds the extreme ratios slightly differently (observed `8:1` → 2928x352, `4:1` → 2064x512). Treat the table as the target, not a guarantee: exact pixels are always the model's choice.

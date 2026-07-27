@@ -29,7 +29,8 @@ If they named a provider that SHOULD exist (like a new one someone added), the b
 
 The `-m` value isn't a valid alias or canonical ID for the active provider.
 
-- For **Gemini/Vertex**: `pro`, `flash`, or full IDs `gemini-3-pro-image-preview` / `gemini-3.1-flash-image-preview`.
+- For **Gemini/Vertex**: `pro`, `flash`, `flash-lite` (or `lite`), or the full IDs `gemini-3-pro-image` / `gemini-3.1-flash-image` / `gemini-3.1-flash-lite-image`.
+- The retired `-preview` spellings (`gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview`) still resolve to the GA IDs above, so pinned scripts and batch files keep working. They're deliberately absent from `--help` and from this error's `accepted:` list — the summary table shows the GA ID that actually ran.
 - For **OpenAI**: `2`, `1.5`, `1`, `mini`, `1-mini`, `latest`, or full canonical IDs.
 
 Run `imagine --help` for the active provider's accepted list (shown under MODELS in the EXAMPLES section).

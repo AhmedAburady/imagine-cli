@@ -47,7 +47,7 @@ The best image models out there — Nano Banana, Nano Banana 2, and gpt-image-2 
 
 I built [banana-cli](https://github.com/AhmedAburady/banana-cli) first — a focused CLI for Google's image models. imagine is the next step: same idea, built to be extensible. One tool that can grow to support whatever good image models come next, across any provider.
 
-- **The models that matter** — Nano Banana (`gemini-3-pro-image-preview`), Nano Banana 2 (`gemini-3.1-flash-image-preview`), and gpt-image-2. Direct API access, no middlemen.
+- **The models that matter** — Nano Banana (`gemini-3-pro-image`), Nano Banana 2 (`gemini-3.1-flash-image`), Nano Banana 2 Lite (`gemini-3.1-flash-lite-image`), and gpt-image-2. Direct API access, no middlemen.
 - **Built for workflows** — pipe into scripts, run inside loops, chain with other CLI tools. Anywhere a command runs, imagine runs.
 - **Concurrent generation** — `-n 10` fires off 10 images in one invocation. No clicking, no waiting for one to finish before starting the next.
 - **Batch runs from a file** — `imagine -p batch.yaml` describes many jobs in one file: different prompts, different providers, different sizes. Every entry runs in parallel; validation is exhaustive before any HTTP fires; results land in a styled summary table. Built for scripts and CI.
@@ -281,7 +281,7 @@ Output:
 │ ENTRY             │ PROVIDER │ MODEL                      │ IMAGES │ TIME  │ STATUS │
 ├───────────────────┼──────────┼────────────────────────────┼────────┼───────┼────────┤
 │ hero              │ openai   │ gpt-image-2                │ 1/1    │ 14.2s │ ok     │
-│ panorama          │ gemini   │ gemini-3-pro-image-preview │ 1/1    │ 18.7s │ ok     │
+│ panorama          │ gemini   │ gemini-3-pro-image         │ 1/1    │ 18.7s │ ok     │
 │ product_iterations│ openai   │ gpt-image-2                │ 3/3    │ 12.1s │ ok     │
 ╰───────────────────┴──────────┴────────────────────────────┴────────┴───────┴────────╯
 
@@ -359,11 +359,11 @@ Models and flags are shared between Gemini (direct REST) and Vertex (Gemini via 
 
 | Flag | Long | Description | Default |
 |---|---|---|---|
-| `-m` | `--model` | `pro` or `flash` (or full ID) | `pro` |
-| `-s` | `--size` | `1K`, `2K`, or `4K` | `1K` |
-| `-a` | `--aspect-ratio` | e.g. `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `21:9` | Auto |
-| `-g` | `--grounding` | Google Search grounding | `false` |
-| `-t` | `--thinking` | `minimal` or `high` (flash only) | Auto |
+| `-m` | `--model` | `pro`, `flash`, or `flash-lite` (aliases; or full ID) | `pro` |
+| `-s` | `--size` | `1K`, `2K`, or `4K` (`flash-lite`: `1K` only) | `1K` |
+| `-a` | `--aspect-ratio` | 14 values: `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` | Auto |
+| `-g` | `--grounding` | Google Search grounding (not on `flash-lite`) | `false` |
+| `-t` | `--thinking` | `minimal` or `high` (`flash` and `flash-lite`) | Auto |
 | `-I` | `--image-search` | Image Search grounding (Gemini flash only) | `false` |
 
 **Examples**
@@ -374,6 +374,12 @@ imagine -p "a sunset" -n 3 -s 2K -a 16:9
 
 # Flash model with high thinking
 imagine -p "futuristic city" -m flash -t high
+
+# Flash-lite: fastest and cheapest, 1K only
+imagine -p "die-cut sticker of an avocado" -m flash-lite -a 1:1
+
+# Ultra-wide banner
+imagine -p "a mountain range panorama" -m flash -a 8:1
 
 # Edit a photo, keep its filename
 imagine -p "add rain" -i photo.png -r

@@ -25,13 +25,62 @@ func (i Info) ResolveModel(raw string) (string, error) {
 		if m.ID == raw {
 			return m.ID, nil
 		}
-		if slices.Contains(m.Aliases, raw) {
+		if slices.Contains(m.Aliases, raw) || slices.Contains(m.DeprecatedAliases, raw) {
 			return m.ID, nil
 		}
 		accepted = append(accepted, m.ID)
 		accepted = append(accepted, m.Aliases...)
 	}
+	// Deprecated spellings resolve but are deliberately absent from `accepted`:
+	// they exist to keep old configs working, not to be recommended.
 	return "", fmt.Errorf("unknown model %q for provider %q (accepted: %v)", raw, i.Name, accepted)
+}
+
+// SizesForModel returns the sizes the given canonical model ID accepts: its own
+// ModelInfo.Sizes when it declares a narrower set, otherwise the provider-wide
+// Capabilities.Sizes. An unknown ID falls back to the provider-wide set — the
+// model gate reports unknown IDs, not this.
+func (i Info) SizesForModel(id string) []string {
+	for _, m := range i.Models {
+		if m.ID == id && len(m.Sizes) > 0 {
+			return m.Sizes
+		}
+	}
+	return i.Capabilities.Sizes
+}
+
+// CheckSize validates a requested size against the resolved model's accepted
+// set. Shared by the provider Validate hooks so the per-model rule has one
+// implementation.
+func (i Info) CheckSize(model, size string) error {
+	if size == "" {
+		return nil
+	}
+	accepted := i.SizesForModel(model)
+	if len(accepted) == 0 {
+		return nil
+	}
+	for _, s := range accepted {
+		if strings.EqualFold(s, size) {
+			return nil
+		}
+	}
+	return fmt.Errorf("--size %s is not supported by model %q (supported: %s)",
+		size, model, strings.Join(accepted, ", "))
+}
+
+// CheckAspectRatio validates a requested aspect ratio against
+// Capabilities.AspectRatios, turning what would be an opaque API 400 into a
+// local error listing the accepted set. Empty means "let the model choose".
+func (i Info) CheckAspectRatio(ratio string) error {
+	if ratio == "" || len(i.Capabilities.AspectRatios) == 0 {
+		return nil
+	}
+	if slices.Contains(i.Capabilities.AspectRatios, ratio) {
+		return nil
+	}
+	return fmt.Errorf("invalid --aspect-ratio %q (valid: %s)",
+		ratio, strings.Join(i.Capabilities.AspectRatios, ", "))
 }
 
 // Info is the static metadata a provider advertises to the CLI: its name,
@@ -46,7 +95,7 @@ type Info struct {
 }
 
 // ModelInfo describes one model a provider exposes. Aliases are CLI-friendly
-// shorthands ("pro" → "gemini-3-pro-image-preview"). SupportedFlags is the
+// shorthands ("pro" → "gemini-3-pro-image"). SupportedFlags is the
 // subset of optional flags this model honours (e.g. Gemini flash supports
 // thinking and image-search; pro does not).
 type ModelInfo struct {
@@ -54,16 +103,26 @@ type ModelInfo struct {
 	Aliases        []string
 	Description    string
 	SupportedFlags []string
+
+	// Sizes narrows Capabilities.Sizes for this model alone (Gemini flash-lite
+	// renders 1K while its siblings reach 4K). Empty means the provider-wide
+	// set applies.
+	Sizes []string
+
+	// DeprecatedAliases still resolve but are advertised nowhere — retired IDs
+	// kept so pinned configs keep working after a vendor rename.
+	DeprecatedAliases []string
 }
 
 // Capabilities tells the CLI what orchestration / validation rules apply.
 type Capabilities struct {
-	Edit        bool     // supports reference images
-	Grounding   bool     // supports Google Search grounding
-	Thinking    bool     // supports thinking level
-	ImageSearch bool     // supports image-search grounding
-	MaxBatchN   int      // images per single Generate call; 1 means orchestrator loops
-	Sizes       []string // accepted values for -s
+	Edit         bool     // supports reference images
+	Grounding    bool     // supports Google Search grounding
+	Thinking     bool     // supports thinking level
+	ImageSearch  bool     // supports image-search grounding
+	MaxBatchN    int      // images per single Generate call; 1 means orchestrator loops
+	Sizes        []string // accepted values for -s
+	AspectRatios []string // accepted values for -a; empty means the provider doesn't gate them
 }
 
 // Request is the per-batch input to a provider's Generate call.
