@@ -11,8 +11,7 @@ import (
 	"github.com/AhmedAburady/imagine-cli/providers/vertex"
 )
 
-// readFlags drives the real Bundle wiring, which is where the per-model size
-// rule is enforced via the Validate hook.
+// readFlags drives the real Bundle wiring, Validate hook included.
 func readFlags(t *testing.T, args ...string) (any, error) {
 	t.Helper()
 	b, ok := providers.Get("vertex")
@@ -59,8 +58,7 @@ func TestFlashLite_DefaultSizeAccepted(t *testing.T) {
 	}
 }
 
-// Vertex reports grounding as unsupported for flash-lite too; --image-search it
-// never offered at all, so that flag isn't on vertex.Options.
+// No --image-search counterpart: that flag isn't on vertex.Options at all.
 func TestFlashLite_GroundingGatedByModel(t *testing.T) {
 	b, _ := providers.Get("vertex")
 

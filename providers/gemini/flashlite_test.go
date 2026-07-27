@@ -10,8 +10,7 @@ import (
 	"github.com/AhmedAburady/imagine-cli/providers/gemini"
 )
 
-// readFlags drives the real Bundle wiring so these tests hit the same path a
-// CLI invocation does, including the Validate hook flagspec calls at the end.
+// readFlags drives the real Bundle wiring, Validate hook included.
 func readFlags(t *testing.T, args ...string) (any, error) {
 	t.Helper()
 	b, ok := providers.Get("gemini")
@@ -45,8 +44,7 @@ func TestFlashLite_DefaultSizeAccepted(t *testing.T) {
 	}
 }
 
-// 2K/4K stay valid for flash-lite's siblings, so the rejection has to come from
-// the per-model set rather than the enum tag.
+// 2K/4K stay valid for the siblings, so the enum tag can't be what rejects this.
 func TestFlashLite_RejectsSizesAboveOneK(t *testing.T) {
 	for _, size := range []string{"2K", "4K"} {
 		_, err := readFlags(t, "--model", "flash-lite", "--size", size)
@@ -68,8 +66,7 @@ func TestFlashLite_SiblingsStillReachFourK(t *testing.T) {
 	}
 }
 
-// Grounding became model-gated once flash-lite joined without Google Search
-// support, so the check runs in providers.CheckModel, not the flag layer.
+// Gated in providers.CheckModel, not the flag layer.
 func TestFlashLite_GroundingGatedByModel(t *testing.T) {
 	b, _ := providers.Get("gemini")
 
@@ -96,9 +93,7 @@ func TestFlashLite_ThinkingAllowedImageSearchNot(t *testing.T) {
 	}
 }
 
-// Google's published per-model tables disagree with each other and with the
-// API, which accepts all 14 for every model. Pinned here so a doc-driven "fix"
-// that narrows the set has to fail a test first.
+// Pinned so a doc-driven narrowing of the set has to fail a test first.
 func TestAspectRatios_MatchesAPIAcceptedSet(t *testing.T) {
 	want := []string{
 		"1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1",
@@ -144,8 +139,7 @@ func TestAspectRatios_EmptyStaysAuto(t *testing.T) {
 	}
 }
 
-// The GA rename dropped the -preview suffix. Configs and scripts pinned the old
-// spellings, so they must keep resolving forward.
+// Pinned configs and scripts must keep resolving after the GA rename.
 func TestLegacyPreviewIDs_ResolveToStableIDs(t *testing.T) {
 	cases := map[string]string{
 		"gemini-3-pro-image-preview":     gemini.ModelPro,

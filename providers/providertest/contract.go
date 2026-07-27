@@ -114,8 +114,6 @@ func checkAliasesRoundTrip(t *testing.T, b providers.Bundle) {
 	}
 }
 
-// checkDeprecatedAliasesRoundTrip: retired spellings must still resolve, and
-// must not also sit in Aliases where they'd be advertised again.
 func checkDeprecatedAliasesRoundTrip(t *testing.T, b providers.Bundle) {
 	for _, m := range b.Info.Models {
 		for _, alias := range m.DeprecatedAliases {
@@ -174,9 +172,7 @@ func checkModelFlagsSubset(t *testing.T, b providers.Bundle) {
 	}
 }
 
-// checkModelSizesSubset: ModelInfo.Sizes restricts Capabilities.Sizes, never
-// widens it. A size outside the provider-wide set would clear Info.CheckSize
-// and then be rejected by the flag's enum tag — unreachable either way.
+// A size outside the provider-wide set is unreachable: the enum tag rejects it.
 func checkModelSizesSubset(t *testing.T, b providers.Bundle) {
 	if len(b.Info.Capabilities.Sizes) == 0 {
 		return

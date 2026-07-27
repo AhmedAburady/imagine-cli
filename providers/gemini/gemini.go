@@ -17,9 +17,7 @@ import (
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
 
-// Canonical model IDs — the GA (stable) names. The cobra flag accepts aliases
-// "pro" / "flash" / "flash-lite" (declared in Info().Models[*].Aliases); the
-// provider resolves those.
+// Canonical model IDs — the GA names, not the retired -preview ones.
 const (
 	ModelPro       = "gemini-3-pro-image"
 	ModelFlash     = "gemini-3.1-flash-image"
@@ -28,28 +26,19 @@ const (
 	baseURL = "https://generativelanguage.googleapis.com/v1beta/models/"
 )
 
-// Retired pre-GA spellings of the two renamed models, kept resolvable so
-// scripts, batch files and configs that pinned them keep working.
 const (
 	legacyModelPro   = "gemini-3-pro-image-preview"
 	legacyModelFlash = "gemini-3.1-flash-image-preview"
 )
 
-// SizesFlashLite returns the sizes Nano Banana 2 Lite renders — the only model
-// in the lineup that doesn't reach 2K/4K. A function, not a var, so the slice
-// Vertex shares can't be mutated.
+// SizesFlashLite is a func, not a var, so the slice Vertex shares is immutable.
 func SizesFlashLite() []string { return []string{"1K"} }
 
-// DeprecatedAliasesPro and DeprecatedAliasesFlash feed
-// ModelInfo.DeprecatedAliases. Both providers read them so a pinned preview ID
-// behaves identically on Gemini and Vertex.
+// Exported so configs pinned to a pre-GA ID resolve the same on Vertex.
 func DeprecatedAliasesPro() []string   { return []string{legacyModelPro} }
 func DeprecatedAliasesFlash() []string { return []string{legacyModelFlash} }
 
-// AspectRatios returns every ratio the Gemini 3 image models accept, in the
-// order the API's own validator reports them. Google's published per-model
-// tables disagree with each other; the API accepts this full set for pro,
-// flash and flash-lite alike. Shared with the Vertex provider.
+// Google's published per-model tables disagree with each other and with this.
 func AspectRatios() []string {
 	return []string{
 		"1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1",

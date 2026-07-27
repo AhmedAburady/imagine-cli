@@ -96,7 +96,6 @@ func buildExamples(active string) string {
 		}
 	}
 
-	// Read from Capabilities so this listing can't drift from what -a accepts.
 	if ars := b.Info.Capabilities.AspectRatios; len(ars) > 0 {
 		sb.WriteString("\n\n  ASPECT RATIOS:\n    ")
 		sb.WriteString(strings.Join(ars, ", "))

@@ -31,15 +31,11 @@ func (i Info) ResolveModel(raw string) (string, error) {
 		accepted = append(accepted, m.ID)
 		accepted = append(accepted, m.Aliases...)
 	}
-	// Deprecated spellings resolve but are deliberately absent from `accepted`:
-	// they exist to keep old configs working, not to be recommended.
+	// Deprecated spellings resolve above but stay out of `accepted` on purpose.
 	return "", fmt.Errorf("unknown model %q for provider %q (accepted: %v)", raw, i.Name, accepted)
 }
 
-// SizesForModel returns the sizes the given canonical model ID accepts: its own
-// ModelInfo.Sizes when it declares a narrower set, otherwise the provider-wide
-// Capabilities.Sizes. An unknown ID falls back to the provider-wide set — the
-// model gate reports unknown IDs, not this.
+// SizesForModel falls back to the provider-wide set for an unknown ID.
 func (i Info) SizesForModel(id string) []string {
 	for _, m := range i.Models {
 		if m.ID == id && len(m.Sizes) > 0 {
@@ -49,9 +45,7 @@ func (i Info) SizesForModel(id string) []string {
 	return i.Capabilities.Sizes
 }
 
-// CheckSize validates a requested size against the resolved model's accepted
-// set. Shared by the provider Validate hooks so the per-model rule has one
-// implementation.
+// CheckSize centralises the per-model size rule for every Validate hook.
 func (i Info) CheckSize(model, size string) error {
 	if size == "" {
 		return nil
@@ -69,9 +63,7 @@ func (i Info) CheckSize(model, size string) error {
 		size, model, strings.Join(accepted, ", "))
 }
 
-// CheckAspectRatio validates a requested aspect ratio against
-// Capabilities.AspectRatios, turning what would be an opaque API 400 into a
-// local error listing the accepted set. Empty means "let the model choose".
+// CheckAspectRatio turns an opaque API 400 into a local error; empty means auto.
 func (i Info) CheckAspectRatio(ratio string) error {
 	if ratio == "" || len(i.Capabilities.AspectRatios) == 0 {
 		return nil
@@ -104,13 +96,10 @@ type ModelInfo struct {
 	Description    string
 	SupportedFlags []string
 
-	// Sizes narrows Capabilities.Sizes for this model alone (Gemini flash-lite
-	// renders 1K while its siblings reach 4K). Empty means the provider-wide
-	// set applies.
+	// Sizes narrows Capabilities.Sizes for one model; empty means the wide set.
 	Sizes []string
 
-	// DeprecatedAliases still resolve but are advertised nowhere — retired IDs
-	// kept so pinned configs keep working after a vendor rename.
+	// DeprecatedAliases resolve but are advertised nowhere; for pinned configs.
 	DeprecatedAliases []string
 }
 

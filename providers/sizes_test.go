@@ -104,8 +104,7 @@ func TestCheckAspectRatio_RejectsUndeclaredRatio(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an undeclared ratio to be rejected")
 	}
-	// The message carries the full list — it's where a user learns what's
-	// accepted without re-running --help.
+	// The message is where a user learns the accepted set without --help.
 	for _, want := range []string{"9:21", "1:1", "16:9", "8:1"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error should mention %q, got %q", want, err)

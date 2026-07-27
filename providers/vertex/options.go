@@ -41,9 +41,7 @@ func (o *Options) Normalize() {
 	o.AspectRatio = strings.TrimSpace(o.AspectRatio)
 }
 
-// Validate enforces what the struct tags can't express: the Size enum covers
-// the provider-wide set, but only the resolved model knows whether it renders
-// that size (flash-lite tops out at 1K).
+// Validate runs on the CLI and batch paths alike.
 func (o *Options) Validate(info providers.Info) error {
 	if err := info.CheckSize(o.Model, o.Size); err != nil {
 		return err
