@@ -1,6 +1,10 @@
 package gemini
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/AhmedAburady/imagine-cli/providers"
+)
 
 // Options is Gemini's private parameter struct. flagspec reflects the tags
 // at registration to bind Cobra flags, and again at PreRunE to populate this
@@ -11,11 +15,11 @@ import "strings"
 // registered idempotently alongside Vertex's own Options; the active
 // provider registers first, so its desc+default text wins in `--help`.
 type Options struct {
-	Model       string `flag:"model,m"        desc:"Model: pro, flash"                        default:"pro" enum:"@models"`
-	Size        string `flag:"size,s"         desc:"Image size: 1K, 2K, 4K"                  default:"1K"  enum:"1K,2K,4K"`
-	AspectRatio string `flag:"aspect-ratio,a" desc:"Aspect ratio (default: Auto)"`
-	Grounding   bool   `flag:"grounding,g"    desc:"Enable Google Search grounding"`
-	Thinking    string `flag:"thinking,t"     desc:"Thinking level: minimal, high (flash only)" enum:"MINIMAL,HIGH"`
+	Model       string `flag:"model,m"        desc:"Model: pro, flash, flash-lite"                       default:"pro" enum:"@models"`
+	Size        string `flag:"size,s"         desc:"Image size: 1K, 2K, 4K (flash-lite: 1K only)"        default:"1K"  enum:"1K,2K,4K"`
+	AspectRatio string `flag:"aspect-ratio,a" desc:"Aspect ratio: 14 options, see ASPECT RATIOS (default: Auto)"`
+	Grounding   bool   `flag:"grounding,g"    desc:"Enable Google Search grounding (not on flash-lite)"`
+	Thinking    string `flag:"thinking,t"     desc:"Thinking level: minimal, high (not on pro)"          enum:"MINIMAL,HIGH"`
 	ImageSearch bool   `flag:"image-search,I" desc:"Enable Image Search grounding (flash only)"`
 }
 
@@ -37,4 +41,12 @@ func (o *Options) ResolvedModel() string {
 // (Thinking) are canonicalised to uppercase by the enum tag itself.
 func (o *Options) Normalize() {
 	o.AspectRatio = strings.TrimSpace(o.AspectRatio)
+}
+
+// Validate is flagspec's hook; it runs on the CLI and batch paths alike.
+func (o *Options) Validate(info providers.Info) error {
+	if err := info.CheckSize(o.Model, o.Size); err != nil {
+		return err
+	}
+	return info.CheckAspectRatio(o.AspectRatio)
 }

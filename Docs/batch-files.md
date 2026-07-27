@@ -66,7 +66,7 @@ Output:
 │ ENTRY         │ PROVIDER │ MODEL                          │ IMAGES │ TIME  │ STATUS │
 ├───────────────┼──────────┼────────────────────────────────┼────────┼───────┼────────┤
 │ hero_shot     │ openai   │ gpt-image-2                    │ 1/1    │ 14.2s │ ok     │
-│ product_photo │ gemini   │ gemini-3-pro-image-preview     │ 3/3    │ 18.7s │ ok     │
+│ product_photo │ gemini   │ gemini-3-pro-image             │ 3/3    │ 18.7s │ ok     │
 ╰───────────────┴──────────┴────────────────────────────────┴────────┴───────┴────────╯
 
 Done: 4 success, 0 failed across 2 entries (18.7s)
@@ -158,22 +158,22 @@ Each provider has its own set. Setting a key for a provider that doesn't claim i
 
 | Key | Type | Default | Notes |
 |---|---|---|---|
-| `model` | string | `pro` | `pro`, `flash`, or full canonical ID |
-| `size` | string | `1K` | `1K` / `2K` / `4K` only |
-| `aspect-ratio` | string | (model picks) | e.g. `16:9`, `4:3`, `1:1` |
-| `grounding` | bool | `false` | Enable Google Search grounding |
-| `thinking` | string | (off) | `minimal` or `high`. **Flash only** — pro rejects |
-| `image-search` | bool | `false` | **Flash only** — pro rejects. Vertex doesn't expose this flag |
+| `model` | string | `pro` | `pro`, `flash`, `flash-lite` (or `lite`), or full canonical ID |
+| `size` | string | `1K` | `1K` / `2K` / `4K` only. **`flash-lite` accepts `1K` only** |
+| `aspect-ratio` | string | (model picks) | One of `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` |
+| `grounding` | bool | `false` | Enable Google Search grounding. **Not on `flash-lite`** |
+| `thinking` | string | (off) | `minimal` or `high`. **`flash` and `flash-lite` only** — pro rejects |
+| `image-search` | bool | `false` | **`flash` only** — pro and flash-lite reject. Vertex doesn't expose this flag |
 
 ### Vertex
 
 | Key | Type | Default | Notes |
 |---|---|---|---|
-| `model` | string | `pro` | `pro`, `flash`, or full canonical ID |
-| `size` | string | `1K` | `1K` / `2K` / `4K` only |
-| `aspect-ratio` | string | (model picks) | e.g. `16:9`, `4:3`, `1:1` |
-| `grounding` | bool | `false` | Enable Google Search grounding |
-| `thinking` | string | (off) | `minimal` or `high`. **Flash only** — pro rejects |
+| `model` | string | `pro` | `pro`, `flash`, `flash-lite` (or `lite`), or full canonical ID |
+| `size` | string | `1K` | `1K` / `2K` / `4K` only. **`flash-lite` accepts `1K` only** |
+| `aspect-ratio` | string | (model picks) | One of `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` |
+| `grounding` | bool | `false` | Enable Google Search grounding. **Not on `flash-lite`** |
+| `thinking` | string | (off) | `minimal` or `high`. **`flash` and `flash-lite` only** — pro rejects |
 
 (No `image-search` — that's a Gemini direct-REST capability not exposed via Vertex AI.)
 
@@ -333,7 +333,7 @@ Per-entry `replace: true` is allowed. The single-input-file rule still applies p
 batch validation:
   - entry hero: prompt is required
   - entry castle: invalid --size "8K" (valid: 1K, 2K, 4K)
-  - entry villa: --thinking is not supported by model "gemini-3-pro-image-preview" (supported by: [flash])
+  - entry villa: --thinking is not supported by model "gemini-3-pro-image" (supported by: [flash flash-lite])
   - filename collision: entry a and entry b both produce /tmp/out/cover.png
 ```
 
@@ -386,7 +386,7 @@ A summary table at the end:
 │ ENTRY         │ PROVIDER │ MODEL                          │ IMAGES │ TIME  │ STATUS │
 ├───────────────┼──────────┼────────────────────────────────┼────────┼───────┼────────┤
 │ hero_shot     │ openai   │ gpt-image-2                    │ 1/1    │ 14.2s │ ok     │
-│ product_photo │ gemini   │ gemini-3-pro-image-preview     │ 2/3    │ 18.7s │ partial│
+│ product_photo │ gemini   │ gemini-3-pro-image             │ 2/3    │ 18.7s │ partial│
 │ failed_one    │ openai   │ gpt-image-2                    │ 0/1    │  3.1s │ failed │
 ╰───────────────┴──────────┴────────────────────────────────┴────────┴───────┴────────╯
 
@@ -562,6 +562,9 @@ YAML `|` preserves newlines; `>` folds them into spaces. Both work; `|` is usual
 | `entry hero: unknown key(s) [bogus]` | Typo in a key name | Check the table for that entry's provider |
 | `entry hero: invalid --size "8K"` | Value not in the enum | Use `1K`/`2K`/`4K` for Gemini/Vertex, or accepted values for OpenAI |
 | `entry hero: --thinking is not supported by model "pro"` | Model-level rule | Set `model: flash` on the entry, or remove `thinking:` |
+| `entry hero: --size 4K is not supported by model "gemini-3.1-flash-lite-image"` | Per-model size rule | `flash-lite` renders 1K only. Drop `size:`, or use `model: flash` |
+| `entry hero: --grounding is not supported by model "gemini-3.1-flash-lite-image"` | Model-level rule | `flash-lite` has no Google Search grounding. Drop `grounding:`, or use `model: flash` |
+| `entry hero: invalid --aspect-ratio "9:21"` | Value not in the accepted set | Use one of the 14 listed ratios |
 | `--thinking is not supported by any provider used in this batch` | CLI flag flowed in but no entry's provider claims it | Drop the CLI flag, or add an entry whose provider claims it |
 | `filename collision: entry a and entry b both produce ...` | Two entries write to the same file | Set distinct `filename:` values, or pick distinct entry keys |
 | `--replace is not allowed in batch mode` | Top-level `-r` with a batch file | Set `replace: true` on individual entries |

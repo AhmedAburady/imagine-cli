@@ -172,6 +172,8 @@ const (
 
     ModelV2     = "example-v2"
     ModelV2Pro  = "example-v2-pro"
+    ModelV2Lite = "example-v2-lite"
+    ModelV3     = "example-v3"
 )
 
 // httpClient is shared — transport.NewClient provides pooling defaults.
@@ -203,11 +205,18 @@ func (p *Provider) Info() providers.Info {
             {ID: ModelV2, Aliases: []string{"v2"}, Description: "Standard quality."},
             {ID: ModelV2Pro, Aliases: []string{"pro"}, Description: "Higher quality; supports fast mode.",
                 SupportedFlags: []string{"fast"}},
+            {ID: ModelV2Lite, Aliases: []string{"lite"}, Description: "Cheapest; 1K only.",
+                Sizes: []string{"1K"}}, // narrows Capabilities.Sizes for this model alone
+            // DeprecatedAliases still resolve but are hidden from --help and
+            // from resolution errors — use them when a vendor renames a model
+            // so pinned configs keep working without advertising the old name.
+            {ID: ModelV3, Aliases: []string{"v3"}, DeprecatedAliases: []string{"example-v3-preview"}},
         },
         Capabilities: providers.Capabilities{
-            Edit:      true,
-            MaxBatchN: 4, // API returns up to 4 images per call
-            Sizes:     []string{"1K", "2K", "4K"},
+            Edit:         true,
+            MaxBatchN:    4, // API returns up to 4 images per call
+            Sizes:        []string{"1K", "2K", "4K"},
+            AspectRatios: []string{"1:1", "16:9", "9:16"}, // omit to leave -a ungated
         },
     }
 }
@@ -584,9 +593,11 @@ One line of code. Runs 12 invariants without any network:
 | `DefaultModelResolvable` | `ResolveModel(DefaultModel)` round-trips |
 | `EmptyInputResolvesToDefault` | `ResolveModel("")` returns `DefaultModel` |
 | `AliasesRoundTrip` | Every alias resolves to its canonical ID |
+| `DeprecatedAliasesRoundTrip` | Every `DeprecatedAliases` entry resolves too, and isn't also listed in `Aliases` |
 | `CanonicalIDsRoundTrip` | Every canonical ID resolves to itself |
 | `NoDuplicateModelIDs` | No two `ModelInfo`s share an ID |
 | `ModelSupportedFlagsSubsetOfBundle` | `ModelInfo.SupportedFlags` ⊆ `Bundle.SupportedFlags` |
+| `ModelSizesSubsetOfCapabilities` | `ModelInfo.Sizes` ⊆ `Capabilities.Sizes` — per-model sizes narrow, never widen |
 | `MaxBatchNValid` | `Capabilities.MaxBatchN >= 1` |
 | `BindFlagsIdempotent` | Calling `BindFlags` twice doesn't duplicate or panic |
 | `ReadFlagsDefaultsSucceed` | Parsing no flags returns no error and non-nil options |
@@ -779,6 +790,15 @@ Single-shot CLI invocations and batch-file invocations route flag validation thr
 | `providers.CheckBundle(setNames, active)` | Every set flag must be in `active.SupportedFlags` |
 | `providers.CheckModel(setNames, active, providerOpts)` | Every set flag that's gated by *some* model in `active.Info.Models[*].SupportedFlags` must be allowed by the *resolved* model. Reads the resolved model via `ResolvedModeler` |
 | `providers.CheckClaimedSomewhere(setNames, bundles)` | Used by batch mode: every set flag must be claimed by at least one entry's provider |
+
+The gate above rules on flag *names*. Two flag *values* are checked from your `Options.Validate(info)` hook instead, because only the resolved model knows the answer:
+
+| Function | Rule |
+|---|---|
+| `info.CheckSize(model, size)` | `size` must be in `ModelInfo.Sizes` for the resolved model, else `Capabilities.Sizes` |
+| `info.CheckAspectRatio(ratio)` | `ratio` must be in `Capabilities.AspectRatios`; declare none to opt out |
+
+Both run on the CLI and batch paths, since `flagspec.Read` and `flagspec.Parse` each call `Validate`. `Capabilities.AspectRatios` also feeds the ASPECT RATIOS block in `--help`, so the accepted set, the check, and the listing can't drift apart.
 
 You don't write code in `gate.go` when adding a provider. Both validation paths read from declarations you already wrote: `Bundle.SupportedFlags` for the bundle-level gate, `Info.Models[*].SupportedFlags` for the model-level gate. New flags or new models become enforced everywhere automatically — single-shot CLI, batch entries, mixed-provider batch runs.
 
