@@ -18,6 +18,11 @@ import (
 // provider. Everything provider-specific lives inside each provider's
 // bundle and ends up in Request.Options.
 type Options struct {
+	// Prompts holds the raw -p values in order: text, file paths, or (alone) a batch file.
+	Prompts []string
+	// Separator is the raw --separator value, normalised by NormalizeSeparator.
+	Separator string
+	// Prompt is what Validate resolves Prompts to: parts read and joined, or the batch path.
 	Prompt           string
 	Output           string
 	OutputFilename   string
@@ -34,7 +39,7 @@ type Options struct {
 	// EmbedMetadata embeds prompt/model/provider into PNG output (--embed-metadata).
 	EmbedMetadata bool
 
-	// IsBatch is set by Validate when -p resolves to a batch file
+	// IsBatch is set by Validate when the single -p resolves to a batch file
 	// (.yaml/.yml/.json). Callers branch on this to call internal/batch
 	// instead of building a single-shot Request.
 	IsBatch bool
@@ -53,6 +58,7 @@ func IsBatchPath(path string) bool {
 // claimed by at least one provider's Bundle.SupportedFlags.
 var CommonFlagNames = map[string]bool{
 	"prompt":         true,
+	"separator":      true,
 	"output":         true,
 	"filename":       true,
 	"count":          true,
@@ -90,28 +96,77 @@ func ResolvePromptText(value, baseDir string) (string, error) {
 	return text, nil
 }
 
+// SeparatorFlagDefault is a blank line in escaped form, so --help prints (default "\n\n") on one line.
+const SeparatorFlagDefault = `\n\n`
+
+var separatorEscapes = strings.NewReplacer(`\n`, "\n", `\t`, "\t", `\r`, "\r", `\\`, `\`)
+
+// NormalizeSeparator rejects an empty separator, expands escapes, and puts an
+// unpadded newline-free token on its own line ("---" → "\n---\n").
+func NormalizeSeparator(raw string) (string, error) {
+	if raw == "" {
+		return "", fmt.Errorf(`separator cannot be empty (a single space " " is the minimum; use \n for a line break)`)
+	}
+	sep := separatorEscapes.Replace(raw)
+	if !strings.Contains(sep, "\n") && strings.TrimSpace(sep) == sep {
+		return "\n" + sep + "\n", nil
+	}
+	return sep, nil
+}
+
+// ResolvePromptParts resolves each part through ResolvePromptText and joins them, dropping empty values.
+func ResolvePromptParts(parts []string, separator, baseDir string) (string, error) {
+	texts := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		text, err := ResolvePromptText(part, baseDir)
+		if err != nil {
+			return "", err
+		}
+		texts = append(texts, text)
+	}
+	if len(texts) < 2 {
+		return strings.Join(texts, ""), nil
+	}
+	sep, err := NormalizeSeparator(separator)
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(texts, sep), nil
+}
+
 // Validate runs provider-agnostic checks:
-//   - -p is required (reading from a file if the value points at a path)
+//   - at least one non-empty -p (reading from a file if the value points at a path)
 //   - tilde expansion in -o, -i
 //   - -n is in range
 //   - -i paths exist and contain supported images
 //   - -f and -r are mutually exclusive (cobra also enforces)
 //   - -r requires exactly one -i pointing at a single file.
 func (opts *Options) Validate() error {
-	if opts.Prompt == "" {
-		return fmt.Errorf("prompt is required (-p flag)")
+	// A batch file describes whole runs, so it can't be one part of a concatenation.
+	batchPath := ""
+	for _, part := range opts.Prompts {
+		p := paths.ExpandTilde(part)
+		if info, err := os.Stat(p); err == nil && !info.IsDir() && IsBatchPath(p) {
+			batchPath = p
+			break
+		}
 	}
-
-	// An existing batch file (.yaml/.yml/.json) goes to the batch loader;
-	// anything else resolves to literal prompt text (a plain file's contents).
-	promptPath := paths.ExpandTilde(opts.Prompt)
-	if info, err := os.Stat(promptPath); err == nil && !info.IsDir() && IsBatchPath(promptPath) {
-		opts.Prompt = promptPath // canonical path for the batch loader
+	switch {
+	case batchPath != "" && len(opts.Prompts) > 1:
+		return fmt.Errorf("batch file %s cannot be combined with other -p values", batchPath)
+	case batchPath != "":
+		opts.Prompt = batchPath // canonical path for the batch loader
 		opts.IsBatch = true
-	} else {
-		text, err := ResolvePromptText(opts.Prompt, "")
+	default:
+		text, err := ResolvePromptParts(opts.Prompts, opts.Separator, "")
 		if err != nil {
 			return err
+		}
+		if text == "" {
+			return fmt.Errorf("prompt is required (-p flag)")
 		}
 		opts.Prompt = text
 	}

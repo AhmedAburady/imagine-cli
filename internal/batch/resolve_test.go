@@ -57,10 +57,12 @@ func stubConfig() *config.Config {
 	}
 }
 
+// defaultCLI mirrors a bare invocation: flag defaults, nothing set by hand.
 func defaultCLI() *cli.Options {
 	return &cli.Options{
 		Output:    ".",
 		NumImages: 1,
+		Separator: cli.SeparatorFlagDefault,
 	}
 }
 
@@ -327,6 +329,115 @@ func TestResolve_EntryPromptRelativeToBatchDir(t *testing.T) {
 	}
 	if got := resolved[0].Request.Prompt; got != "a knight in the rain" {
 		t.Errorf("Prompt: got %q, want file contents resolved against batch dir", got)
+	}
+}
+
+// --- Per-entry prompt concatenation ----------------------------------------
+
+func TestResolve_EntryPromptListConcatenates(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "base.md"), []byte("# Base\nwatercolour\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Mixed parts: a file next to the batch file, then literal text.
+	spec := &batch.Spec{Path: filepath.Join(dir, "batch.yaml"), Entries: []batch.Entry{
+		{Key: "hero", Index: 0, Raw: map[string]any{
+			"prompt":   []any{"base.md", "at night"},
+			"provider": "openai",
+		}},
+	}}
+	resolved, err := batch.Resolve(batch.ResolveContext{
+		Spec:            spec,
+		CLIOptions:      defaultCLI(),
+		Cmd:             stubCmd(t),
+		Config:          stubConfig(),
+		DefaultProvider: "openai",
+	})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	want := "# Base\nwatercolour\n\nat night"
+	if got := resolved[0].Request.Prompt; got != want {
+		t.Errorf("Prompt:\ngot  %q\nwant %q", got, want)
+	}
+}
+
+func TestResolve_EntrySeparatorOverridesCLI(t *testing.T) {
+	spec := &batch.Spec{Entries: []batch.Entry{
+		{Key: "cli_default", Index: 0, Raw: map[string]any{
+			"prompt": []any{"a", "b"}, "provider": "openai",
+		}},
+		{Key: "entry_override", Index: 1, Raw: map[string]any{
+			"prompt": []any{"a", "b"}, "separator": "---", "provider": "openai",
+		}},
+	}}
+	opts := defaultCLI()
+	opts.Separator = " | " // padded → inline, verbatim
+	resolved, err := batch.Resolve(batch.ResolveContext{
+		Spec:            spec,
+		CLIOptions:      opts,
+		Cmd:             stubCmd(t),
+		Config:          stubConfig(),
+		DefaultProvider: "openai",
+	})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got := resolved[0].Request.Prompt; got != "a | b" {
+		t.Errorf("CLI separator: got %q, want %q", got, "a | b")
+	}
+	if got := resolved[1].Request.Prompt; got != "a\n---\nb" {
+		t.Errorf("entry separator: got %q, want %q", got, "a\n---\nb")
+	}
+}
+
+func TestResolve_EntryEmptySeparatorRejected(t *testing.T) {
+	spec := &batch.Spec{Entries: []batch.Entry{
+		{Key: "hero", Index: 0, Raw: map[string]any{
+			"prompt": []any{"a", "b"}, "separator": "", "provider": "openai",
+		}},
+	}}
+	_, err := batch.Resolve(batch.ResolveContext{
+		Spec:            spec,
+		CLIOptions:      defaultCLI(),
+		Cmd:             stubCmd(t),
+		Config:          stubConfig(),
+		DefaultProvider: "openai",
+	})
+	if err == nil || !strings.Contains(err.Error(), "separator cannot be empty") {
+		t.Errorf("expected empty-separator rejection, got %v", err)
+	}
+}
+
+func TestResolve_EntryPromptEmptyListRejected(t *testing.T) {
+	spec := &batch.Spec{Entries: []batch.Entry{
+		{Key: "hero", Index: 0, Raw: map[string]any{"prompt": []any{}, "provider": "openai"}},
+	}}
+	_, err := batch.Resolve(batch.ResolveContext{
+		Spec:            spec,
+		CLIOptions:      defaultCLI(),
+		Cmd:             stubCmd(t),
+		Config:          stubConfig(),
+		DefaultProvider: "openai",
+	})
+	if err == nil || !strings.Contains(err.Error(), "prompt is required") {
+		t.Errorf("expected prompt-is-required error, got %v", err)
+	}
+}
+
+func TestResolve_EntryPromptRejectsNonStringPart(t *testing.T) {
+	spec := &batch.Spec{Entries: []batch.Entry{
+		{Key: "hero", Index: 0, Raw: map[string]any{"prompt": []any{"a", 7}, "provider": "openai"}},
+	}}
+	_, err := batch.Resolve(batch.ResolveContext{
+		Spec:            spec,
+		CLIOptions:      defaultCLI(),
+		Cmd:             stubCmd(t),
+		Config:          stubConfig(),
+		DefaultProvider: "openai",
+	})
+	if err == nil || !strings.Contains(err.Error(), "prompt:") {
+		t.Errorf("expected prompt type error, got %v", err)
 	}
 }
 

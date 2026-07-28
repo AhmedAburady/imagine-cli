@@ -19,6 +19,7 @@ Use this skill whenever the user:
 - Asks which provider to pick for a task
 - References sizes (`1K`, `2K`, `4K`, `1024x1024`, `3840x2160`, etc.)
 - Wants to run multiple jobs in one invocation, mix providers in a single run, or hands you a `.yaml` / `.yml` / `.json` file describing image-generation jobs — that's batch mode (`imagine -p batch.yaml`)
+- Wants one prompt assembled from several files or snippets (style + subject + instruction) — repeat `-p`, see [Composing prompts from parts](#composing-prompts-from-parts)
 
 ## Workflow
 
@@ -130,7 +131,8 @@ error: no provider configured
 
 | Flag | Long | Purpose |
 |---|---|---|
-| `-p` | `--prompt` | Prompt (required). Also accepts a file path. |
+| `-p` | `--prompt` | Prompt (required). Also accepts a file path. **Repeatable** - parts concatenate in order. |
+|   | `--separator` | Text joining repeated `-p` parts (default `\n\n`; `\n`, `\t`, `\r` escapes interpreted) |
 | `-o` | `--output` | Output folder (default `.`) |
 | `-f` | `--filename` | Output filename. Extension (`.png`/`.jpg`/`.webp`) drives format. With `-n >1`, `_1`, `_2`, … suffixes. |
 | `-n` | `--count` | 1–20 images |
@@ -140,6 +142,24 @@ error: no provider configured
 |   | `--provider` | Per-invocation override |
 
 `-f` and `-r` are mutually exclusive. `-r` requires exactly one `-i` pointing at a single file.
+
+### Composing prompts from parts
+
+Repeat `-p` to assemble one prompt from reusable files plus one-off text. Each part resolves independently (existing file path → trimmed contents; anything else → literal text), then parts join in order.
+
+```bash
+imagine -p style.md -p "Make it night time." -p subject.md      # joined by a blank line
+imagine -p style.md -p subject.md --separator "---"             # style.md \n---\n subject.md
+imagine -p "a cat" -p "in space" --separator " | "              # a cat | in space
+```
+
+Rules that matter when scripting this:
+
+- Empty parts are dropped, so `-p "$MAYBE_EMPTY"` is safe; all-empty is `prompt is required`.
+- A separator with no newline and no surrounding whitespace goes on its own line (`---` → `\n---\n`). Pad it or write `\n` yourself for exact placement.
+- `--separator ""` errors; a single space is the minimum.
+- A batch file must be the only `-p`; combining it with other parts errors.
+- A `-p` value that looks like a path but doesn't exist is used as literal text (no error) - check paths before building the command.
 
 ## Provider-specific flags
 
@@ -186,7 +206,8 @@ List form — entries are anonymous; the summary table identifies them by 1-base
 
 | Key | Type | Notes |
 |---|---|---|
-| `prompt` | string | **Required**. Inline text (use YAML `\|` for multi-line), or a path to a file whose contents become the prompt (`~` expanded; relative paths resolve against the batch file's directory; trimmed; must be non-empty). A value that doesn't name an existing file is used literally. |
+| `prompt` | string OR list | **Required**. Inline text (use YAML `\|` for multi-line), or a path to a file whose contents become the prompt (`~` expanded; relative paths resolve against the batch file's directory; trimmed; must be non-empty). A value that doesn't name an existing file is used literally. A list (`[style.md, "at night"]`) concatenates its parts like repeated `-p`. |
+| `separator` | string | Joins a list `prompt:`. Default = CLI `--separator` (`\n\n`). Same escape and own-line rules. |
 | `provider` | string | `gemini` / `vertex` / `openai`. Falls back to `--provider` then config default. |
 | `output` | string | Output folder. `~` expanded. Default = CLI `-o` (or `.`). |
 | `filename` | string | Full filename with extension. Mutually exclusive with `replace`. |
@@ -375,6 +396,9 @@ imagine -p "logo idea" --provider openai -q low
 
 # OpenAI, 4K hero banner as JPEG
 imagine -p "hero banner" --provider openai -s 3840x2160 -q high -f hero.jpg
+
+# Compose a prompt from reusable files plus a one-off instruction
+imagine -p prompts/style.md -p "Make it night time." -p prompts/subject.md
 
 # Edit, keep input filename
 imagine -p "add rain" -i photo.png -r

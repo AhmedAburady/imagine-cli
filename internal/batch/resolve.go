@@ -136,17 +136,19 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 		return Resolved{}, err
 	}
 
-	if common.prompt == "" {
-		return Resolved{}, fmt.Errorf("prompt is required")
-	}
-
 	// A prompt naming a file becomes its contents, resolved against the batch
 	// file's directory; a .yaml/.json path is read literally, never nested.
-	promptText, err := cli.ResolvePromptText(common.prompt, filepath.Dir(rc.Spec.Path))
+	effSeparator := rc.CLIOptions.Separator
+	if common.separator != nil {
+		effSeparator = *common.separator
+	}
+	promptText, err := cli.ResolvePromptParts(common.prompt, effSeparator, filepath.Dir(rc.Spec.Path))
 	if err != nil {
 		return Resolved{}, err
 	}
-	common.prompt = promptText
+	if promptText == "" {
+		return Resolved{}, fmt.Errorf("prompt is required")
+	}
 
 	// Effective provider: entry override → CLI --provider/config default.
 	provName := common.provider
@@ -300,7 +302,7 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 	}
 
 	req := providers.Request{
-		Prompt:     common.prompt,
+		Prompt:     promptText,
 		References: refs,
 		Options:    providerOpts,
 	}
@@ -327,7 +329,7 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 		if model == "" {
 			model = providerInst.Info().DefaultModel
 		}
-		params.Metadata = images.MetadataTags(common.prompt, model, providerInst.Info().Name, effInputs)
+		params.Metadata = images.MetadataTags(promptText, model, providerInst.Info().Name, effInputs)
 	}
 
 	return Resolved{
@@ -345,7 +347,8 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 // commonOverrides holds entry overrides for common flags. Pointers
 // distinguish "key absent" from "key present, value zero".
 type commonOverrides struct {
-	prompt        string
+	prompt        []string // one value, or several to concatenate
+	separator     *string
 	provider      string
 	output        *string
 	filename      *string
@@ -362,11 +365,17 @@ func splitEntryRaw(raw map[string]any) (c commonOverrides, providerKeys map[stri
 	for k, v := range raw {
 		switch k {
 		case "prompt":
-			s, e := asString(v)
+			parts, e := asStringSlice(v)
 			if e != nil {
 				return c, nil, fmt.Errorf("prompt: %v", e)
 			}
-			c.prompt = s
+			c.prompt = parts
+		case "separator":
+			s, e := asString(v)
+			if e != nil {
+				return c, nil, fmt.Errorf("separator: %v", e)
+			}
+			c.separator = &s
 		case "provider":
 			s, e := asString(v)
 			if e != nil {
@@ -548,12 +557,12 @@ func asStringSlice(v any) ([]string, error) {
 		for i, item := range x {
 			s, ok := item.(string)
 			if !ok {
-				return nil, fmt.Errorf("must be a list of strings, item %d is %T", i, item)
+				return nil, fmt.Errorf("must be a string or a list of strings, item %d is %T", i, item)
 			}
 			out[i] = s
 		}
 		return out, nil
 	default:
-		return nil, fmt.Errorf("must be a list of strings (got %T)", v)
+		return nil, fmt.Errorf("must be a string or a list of strings (got %T)", v)
 	}
 }

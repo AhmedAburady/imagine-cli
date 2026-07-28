@@ -27,6 +27,7 @@
 - [Batch runs and automation](#batch-runs-and-automation)
 - [Usage](#usage)
   - [Common flags](#common-flags)
+  - [Composable prompts](#composable-prompts)
   - [Metadata](#metadata)
   - [Gemini and Vertex](#gemini-and-vertex)
   - [OpenAI](#openai)
@@ -52,6 +53,7 @@ I built [banana-cli](https://github.com/AhmedAburady/banana-cli) first — a foc
 - **Concurrent generation** — `-n 10` fires off 10 images in one invocation. No clicking, no waiting for one to finish before starting the next.
 - **Batch runs from a file** — `imagine -p batch.yaml` describes many jobs in one file: different prompts, different providers, different sizes. Every entry runs in parallel; validation is exhaustive before any HTTP fires; results land in a styled summary table. Built for scripts and CI.
 - **Iterate fast** — tweak the prompt, rerun, compare. Generate multiple variations in one shot with `-n` and keep what works. The terminal loop is the creative loop.
+- **Composable prompts** - `-p` is repeatable, so `-p style.md -p "at night" -p subject.md` concatenates reusable prompt files and one-off instructions into a single prompt. Keep a library of style/quality snippets and mix them per run.
 - **Generate and edit in one command** — `-p "..."` generates; add `-i reference.png` and the same command switches to edit mode.
 - **Use your ChatGPT subscription — no API key** — sign in with ChatGPT once (`imagine providers add openai login`) and generate with gpt-image-2 billed to your Plus/Pro plan. Prefer pay-as-you-go? Use a platform API key instead. Same `openai` provider, your choice.
 - **One config file, no env vars** — set your keys once in `~/.config/imagine/config.yaml` and forget about it.
@@ -294,6 +296,7 @@ Output: /abs/path/out
 - **Schema is just CLI flag names** — every key inside an entry is the long name of an `imagine` flag (`prompt`, `provider`, `model`, `size`, `quality`, `count`, `filename`, `input`, `replace`, …). Nothing new to learn.
 - **Up-front, exhaustive validation** — schema errors, model-level rule violations (`thinking` against gemini's `pro` model), missing references, and filename collisions all surface in one report before any HTTP call. No half-run batches.
 - **JSON works too** — same shape, swap `.yaml` for `.json`. List form (`- prompt: "..."`) supported alongside map form.
+- **Composable prompts per entry** - `prompt:` also takes a list (`prompt: [style.md, "at night"]`), concatenated exactly like repeated `-p`. Paths resolve against the batch file's directory; `separator:` overrides `--separator` for that entry.
 
 Full schema, every parameter, error/fix table, and worked examples (mixed providers, edit mode, JSON form, multi-line prompts): **[Docs/batch-files.md](Docs/batch-files.md)**.
 
@@ -309,7 +312,8 @@ These flags work with any provider:
 
 | Flag | Long | Description | Default |
 |---|---|---|---|
-| `-p` | `--prompt` | Prompt text, plain prompt-file path, or YAML/JSON [batch-file](#batch-runs-and-automation) path | *required* |
+| `-p` | `--prompt` | Prompt text, plain prompt-file path, or YAML/JSON [batch-file](#batch-runs-and-automation) path. Repeatable: parts are [concatenated](#composable-prompts) in order | *required* |
+|  | `--separator` | Text joining repeated `-p` parts (`\n`, `\t` escapes interpreted) | `\n\n` |
 | `-o` | `--output` | Output directory | `.` |
 | `-f` | `--filename` | Output filename. Extension (`.png`/`.jpg`/`.webp`) drives the image format. With `-n >1`, filenames get `_N` suffixes. | auto |
 | `-n` | `--count` | Number of images (1–20) | `1` |
@@ -321,6 +325,29 @@ These flags work with any provider:
 | `-h` | `--help` | Show provider-aware help | — |
 
 Provider-specific flags live with each provider below. When you set a flag that the active provider doesn't support, imagine errors out clearly and tells you which provider *does* support it.
+
+### Composable prompts
+
+`-p` is repeatable. Every value is resolved on its own - a file path becomes its trimmed contents, anything else stays literal text - and the results are concatenated in the order given, separated by a blank line.
+
+```bash
+# a reusable style file, a one-off instruction, and the subject
+imagine -p prompts/style.md -p "Make it night time." -p prompts/lighthouse.md
+```
+
+That turns prompt files into building blocks: keep `style.md`, `quality.md`, and `negative.md` in a folder and mix them per run, or have a script assemble the parts. Files and literal text can be mixed freely, and an empty `-p ""` is skipped so `-p "$EXTRA"` is safe in a script.
+
+**`--separator`** controls the joining text. `\n`, `\t`, `\r` escapes are interpreted, so any shell can pass control characters:
+
+```bash
+imagine -p style.md -p subject.md --separator "---"      # style.md \n---\n subject.md
+imagine -p "a cat" -p "in space" --separator " | "       # a cat | in space
+imagine -p a.md -p b.md --separator '\n=== NEXT ===\n'   # exact placement
+```
+
+A separator with no newline of its own and no surrounding whitespace is placed on its own line, since a bare token like `---` reads as a block divider. Pad it (`" | "`) or write the newlines yourself to control placement exactly. An empty `--separator ""` is rejected: a single space is the minimum, so parts never weld together silently.
+
+Batch files can't be concatenated: a `.yaml` / `.yml` / `.json` path describes whole runs, so it has to be the only `-p`. Entries inside a batch file compose the same way - see [Docs/batch-files.md](Docs/batch-files.md).
 
 ### Metadata
 
