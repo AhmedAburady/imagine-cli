@@ -125,7 +125,7 @@ These work for any provider.
 | Key | Type | Required | Notes |
 |---|---|---|---|
 | `prompt` | string OR list of strings | yes | The text prompt, **or a path to a file** whose contents become the prompt (`~` expanded; relative paths resolve against the batch file's directory; trimmed; must be non-empty). A value that doesn't name an existing file is used literally. Multi-line inline prompts OK with YAML's `\|` block scalar. A list [concatenates its parts](#composing-a-prompt-from-parts). |
-| `separator` | string | no | Text joining a list `prompt:`. Defaults to CLI `--separator` (`\n\n`). |
+| `separator` | string | no | Text joining a list `prompt:`. Defaults to CLI `--separator` (`\n\n`). Must be non-empty; a single space is the minimum. |
 | `provider` | string | no | `openai`, `gemini`, or `vertex`. Falls back to `--provider` then config default. |
 | `output` | string | no | Output folder. `~` expanded. Defaults to CLI `-o` (or `.`). |
 | `filename` | string | no | Output filename. Extension picks format (`.png`, `.jpg`, `.webp`). Mutually exclusive with `replace`. |
@@ -169,7 +169,7 @@ dawn:
   separator: "---"              # this entry only
 ```
 
-`separator:` defaults to the CLI `--separator` (`\n\n`, a blank line). `\n`, `\t`, `\r` escapes are interpreted, and a separator with no newline and no surrounding whitespace is placed on its own line (`---` → `\n---\n`) since a bare token reads as a block divider. Pad it (`" | "`) or write the newlines yourself for exact placement.
+`separator:` defaults to the CLI `--separator` (`\n\n`, a blank line). `\n`, `\t`, `\r` escapes are interpreted, and a separator with no newline and no surrounding whitespace is placed on its own line (`---` → `\n---\n`) since a bare token reads as a block divider. Pad it (`" | "`) or write the newlines yourself for exact placement. An empty separator is rejected - a single space is the minimum.
 
 ---
 
@@ -583,6 +583,7 @@ YAML `|` preserves newlines; `>` folds them into spaces. Both work; `|` is usual
 | `entry "foo.png": key must be a bare stem` | Map key has a dot | Rename to `foo:` and add `filename: foo.png` if you want the extension |
 | `entry hero: prompt is required` | Missing `prompt:` field, or a list with no non-empty parts | Add it |
 | `entry hero: prompt: must be a string or a list of strings` | `prompt:` got a number, bool, or nested structure | Quote the value, or use a flat list of strings |
+| `entry hero: separator cannot be empty` | `separator: ""` on an entry, or `--separator ""` on the CLI | Use at least a single space, or drop the key to keep the `\n\n` default |
 | `batch file scenes.yaml cannot be combined with other -p values` | A batch file passed alongside another `-p` | Pass the batch file alone; concatenate inside the entry's `prompt:` list instead |
 | `entry hero: unknown key(s) [bogus]` | Typo in a key name | Check the table for that entry's provider |
 | `entry hero: invalid --size "8K"` | Value not in the enum | Use `1K`/`2K`/`4K` for Gemini/Vertex, or accepted values for OpenAI |

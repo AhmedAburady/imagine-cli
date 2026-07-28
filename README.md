@@ -345,7 +345,7 @@ imagine -p "a cat" -p "in space" --separator " | "       # a cat | in space
 imagine -p a.md -p b.md --separator '\n=== NEXT ===\n'   # exact placement
 ```
 
-A separator with no newline of its own and no surrounding whitespace is placed on its own line, since a bare token like `---` reads as a block divider. Pad it (`" | "`) or write the newlines yourself to control placement exactly.
+A separator with no newline of its own and no surrounding whitespace is placed on its own line, since a bare token like `---` reads as a block divider. Pad it (`" | "`) or write the newlines yourself to control placement exactly. An empty `--separator ""` is rejected: a single space is the minimum, so parts never weld together silently.
 
 Batch files can't be concatenated: a `.yaml` / `.yml` / `.json` path describes whole runs, so it has to be the only `-p`. Entries inside a batch file compose the same way - see [Docs/batch-files.md](Docs/batch-files.md).
 

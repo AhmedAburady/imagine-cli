@@ -157,6 +157,7 @@ Rules that matter when scripting this:
 
 - Empty parts are dropped, so `-p "$MAYBE_EMPTY"` is safe; all-empty is `prompt is required`.
 - A separator with no newline and no surrounding whitespace goes on its own line (`---` → `\n---\n`). Pad it or write `\n` yourself for exact placement.
+- `--separator ""` errors; a single space is the minimum.
 - A batch file must be the only `-p`; combining it with other parts errors.
 - A `-p` value that looks like a path but doesn't exist is used as literal text (no error) - check paths before building the command.
 

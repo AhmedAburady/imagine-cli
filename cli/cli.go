@@ -96,24 +96,22 @@ func ResolvePromptText(value, baseDir string) (string, error) {
 	return text, nil
 }
 
-// DefaultSeparator is a blank line, so concatenated markdown sections don't weld together.
-const DefaultSeparator = "\n\n"
-
-// SeparatorFlagDefault is the escaped form, so --help prints (default "\n\n") on one line.
+// SeparatorFlagDefault is a blank line in escaped form, so --help prints (default "\n\n") on one line.
 const SeparatorFlagDefault = `\n\n`
 
 var separatorEscapes = strings.NewReplacer(`\n`, "\n", `\t`, "\t", `\r`, "\r", `\\`, `\`)
 
-// NormalizeSeparator defaults "" to DefaultSeparator, expands escapes, and puts an unpadded newline-free token on its own line ("---" → "\n---\n").
-func NormalizeSeparator(raw string) string {
+// NormalizeSeparator rejects an empty separator, expands escapes, and puts an
+// unpadded newline-free token on its own line ("---" → "\n---\n").
+func NormalizeSeparator(raw string) (string, error) {
 	if raw == "" {
-		return DefaultSeparator
+		return "", fmt.Errorf(`separator cannot be empty (a single space " " is the minimum; use \n for a line break)`)
 	}
 	sep := separatorEscapes.Replace(raw)
 	if !strings.Contains(sep, "\n") && strings.TrimSpace(sep) == sep {
-		return "\n" + sep + "\n"
+		return "\n" + sep + "\n", nil
 	}
-	return sep
+	return sep, nil
 }
 
 // ResolvePromptParts resolves each part through ResolvePromptText and joins them, dropping empty values.
@@ -129,10 +127,14 @@ func ResolvePromptParts(parts []string, separator, baseDir string) (string, erro
 		}
 		texts = append(texts, text)
 	}
-	if len(texts) == 0 {
-		return "", nil
+	if len(texts) < 2 {
+		return strings.Join(texts, ""), nil
 	}
-	return strings.Join(texts, NormalizeSeparator(separator)), nil
+	sep, err := NormalizeSeparator(separator)
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(texts, sep), nil
 }
 
 // Validate runs provider-agnostic checks:

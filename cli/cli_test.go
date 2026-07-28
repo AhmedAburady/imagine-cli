@@ -83,7 +83,7 @@ func TestValidate_ConcatenatesPartsInOrder(t *testing.T) {
 	style := writePrompt(t, dir, "style.md", "# Style\nwatercolour\n")
 	subject := writePrompt(t, dir, "subject.md", "a lighthouse")
 
-	opts := &Options{Prompts: []string{style, "make it night time", subject}, Output: ".", NumImages: 1}
+	opts := &Options{Prompts: []string{style, "make it night time", subject}, Separator: SeparatorFlagDefault, Output: ".", NumImages: 1}
 	if err := opts.Validate(); err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
@@ -100,6 +100,14 @@ func TestValidate_CustomSeparator(t *testing.T) {
 	}
 	if want := "a\n---\nb"; opts.Prompt != want {
 		t.Errorf("Prompt: got %q, want %q", opts.Prompt, want)
+	}
+}
+
+func TestValidate_EmptySeparatorRejected(t *testing.T) {
+	opts := &Options{Prompts: []string{"a", "b"}, Separator: "", Output: ".", NumImages: 1}
+	err := opts.Validate()
+	if err == nil || !strings.Contains(err.Error(), "separator cannot be empty") {
+		t.Errorf("expected empty-separator rejection, got %v", err)
 	}
 }
 
@@ -125,7 +133,7 @@ func TestValidate_MissingPromptFilePartFails(t *testing.T) {
 	dir := t.TempDir()
 	empty := writePrompt(t, dir, "empty.md", "   \n")
 
-	opts := &Options{Prompts: []string{"a cat", empty}, Output: ".", NumImages: 1}
+	opts := &Options{Prompts: []string{"a cat", empty}, Separator: SeparatorFlagDefault, Output: ".", NumImages: 1}
 	err := opts.Validate()
 	if err == nil || !strings.Contains(err.Error(), "empty") {
 		t.Errorf("expected empty-prompt-file error, got %v", err)
@@ -145,13 +153,19 @@ func TestValidate_BatchFileCannotBeConcatenated(t *testing.T) {
 
 // --- NormalizeSeparator ----------------------------------------------------
 
+func TestNormalizeSeparator_RejectsEmpty(t *testing.T) {
+	if _, err := NormalizeSeparator(""); err == nil {
+		t.Error("expected an empty separator to be rejected")
+	}
+}
+
 func TestNormalizeSeparator(t *testing.T) {
 	cases := []struct {
 		raw  string
 		want string
 	}{
-		{"", DefaultSeparator},               // unset → blank line
 		{SeparatorFlagDefault, "\n\n"},       // flag default is the escaped form
+		{" ", " "},                           // a single space is the minimum
 		{"---", "\n---\n"},                   // bare token → its own line
 		{"### next ###", "\n### next ###\n"}, // internal spaces still a divider
 		{" | ", " | "},                       // padded → verbatim, joins inline
@@ -161,7 +175,12 @@ func TestNormalizeSeparator(t *testing.T) {
 		{`a\\nb`, "\n" + `a\nb` + "\n"},      // escaped backslash stays literal
 	}
 	for _, c := range cases {
-		if got := NormalizeSeparator(c.raw); got != c.want {
+		got, err := NormalizeSeparator(c.raw)
+		if err != nil {
+			t.Errorf("NormalizeSeparator(%q): %v", c.raw, err)
+			continue
+		}
+		if got != c.want {
 			t.Errorf("NormalizeSeparator(%q) = %q, want %q", c.raw, got, c.want)
 		}
 	}

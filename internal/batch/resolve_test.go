@@ -57,10 +57,12 @@ func stubConfig() *config.Config {
 	}
 }
 
+// defaultCLI mirrors a bare invocation: flag defaults, nothing set by hand.
 func defaultCLI() *cli.Options {
 	return &cli.Options{
 		Output:    ".",
 		NumImages: 1,
+		Separator: cli.SeparatorFlagDefault,
 	}
 }
 
@@ -386,6 +388,24 @@ func TestResolve_EntrySeparatorOverridesCLI(t *testing.T) {
 	}
 	if got := resolved[1].Request.Prompt; got != "a\n---\nb" {
 		t.Errorf("entry separator: got %q, want %q", got, "a\n---\nb")
+	}
+}
+
+func TestResolve_EntryEmptySeparatorRejected(t *testing.T) {
+	spec := &batch.Spec{Entries: []batch.Entry{
+		{Key: "hero", Index: 0, Raw: map[string]any{
+			"prompt": []any{"a", "b"}, "separator": "", "provider": "openai",
+		}},
+	}}
+	_, err := batch.Resolve(batch.ResolveContext{
+		Spec:            spec,
+		CLIOptions:      defaultCLI(),
+		Cmd:             stubCmd(t),
+		Config:          stubConfig(),
+		DefaultProvider: "openai",
+	})
+	if err == nil || !strings.Contains(err.Error(), "separator cannot be empty") {
+		t.Errorf("expected empty-separator rejection, got %v", err)
 	}
 }
 
