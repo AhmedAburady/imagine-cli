@@ -60,7 +60,7 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 			// Bare invocation → defer to RunE, which prints help and
 			// exits 0. Short-circuit here to skip provider resolution
 			// and flag reads that would otherwise populate nil options.
-			if opts.Prompt == "" {
+			if len(opts.Prompts) == 0 {
 				return nil
 			}
 
@@ -93,7 +93,7 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Bare invocation (no -p) → print help and exit cleanly.
-			if opts.Prompt == "" {
+			if len(opts.Prompts) == 0 {
 				return cmd.Help()
 			}
 
@@ -146,7 +146,8 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 	root.SetVersionTemplate("imagine {{.Version}}\n")
 
 	f := root.Flags()
-	f.StringVarP(&opts.Prompt, "prompt", "p", "", "Prompt text or path to prompt file")
+	f.StringArrayVarP(&opts.Prompts, "prompt", "p", nil, "Prompt text or path to prompt file; repeatable, parts are concatenated in order")
+	f.StringVar(&opts.Separator, "separator", cli.SeparatorFlagDefault, "Text joining repeated -p parts (\\n, \\t escapes interpreted)")
 	f.StringVarP(&opts.Output, "output", "o", ".", "Output folder")
 	f.StringVarP(&opts.OutputFilename, "filename", "f", "", "Output filename (e.g. image.png); with -n >1 suffixes as image_1.png, image_2.png, ...")
 	f.IntVarP(&opts.NumImages, "count", "n", 1, "Number of images to generate (1-20)")
