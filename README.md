@@ -387,7 +387,7 @@ Models and flags are shared between Gemini (direct REST) and Vertex (Gemini via 
 | Flag | Long | Description | Default |
 |---|---|---|---|
 | `-m` | `--model` | `pro`, `flash`, or `flash-lite` (aliases; or full ID) | `pro` |
-| `-s` | `--size` | `1K`, `2K`, or `4K` (`flash-lite`: `1K` only) | `1K` |
+| `-s` | `--size` | `512`, `1K`, `2K`, or `4K` (`512`: `flash` only; `flash-lite`: `1K` only) | `1K` |
 | `-a` | `--aspect-ratio` | 14 values: `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` | Auto |
 | `-g` | `--grounding` | Google Search grounding (not on `flash-lite`) | `false` |
 | `-t` | `--thinking` | `minimal` or `high` (`flash` and `flash-lite`) | Auto |
@@ -407,6 +407,9 @@ imagine -p "die-cut sticker of an avocado" -m flash-lite -a 1:1
 
 # Ultra-wide banner
 imagine -p "a mountain range panorama" -m flash -a 8:1
+
+# 512px draft, flash only - cheapest Gemini render
+imagine -p "thumbnail of a lighthouse" -m flash -s 512
 
 # Edit a photo, keep its filename
 imagine -p "add rain" -i photo.png -r
