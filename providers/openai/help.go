@@ -9,7 +9,7 @@ func Examples() string {
   imagine -p "a red apple" -q low
   imagine -p "logo" -n 3 -s 1024x1024
   imagine -p "hero banner" -s 3840x2160 -q high -f hero.jpg
-  imagine -p "sticker" -m 1.5 --background transparent -f sticker.png
+  imagine -p "sticker" --background opaque -f sticker.png
   imagine -p "make it winter" -i photo.png
 
   SIZES — shorthand:

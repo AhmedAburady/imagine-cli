@@ -28,15 +28,9 @@ func init() {
 				return nil, err
 			}
 			o := optsAny.(*Options)
-			// OutputFormat is derived from the common -f filename's
-			// extension. ReadFlags reaches into the cobra FlagSet
-			// rather than introducing a new abstraction for one
-			// shared field.
+			// OutputFormat comes from the common -f filename's extension.
 			filename, _ := cmd.Flags().GetString("filename")
 			o.OutputFormat = outputFormatFromFilename(filename)
-			if err := finalizeOptions(o); err != nil {
-				return nil, err
-			}
 			return o, nil
 		},
 		ParseOptions: func(values map[string]any, common providers.Common) (any, error) {
@@ -46,9 +40,6 @@ func init() {
 			}
 			o := optsAny.(*Options)
 			o.OutputFormat = outputFormatFromFilename(common.Filename)
-			if err := finalizeOptions(o); err != nil {
-				return nil, err
-			}
 			return o, nil
 		},
 		SupportedFlags: flagspec.FieldNames(Options{}),

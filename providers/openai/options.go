@@ -23,7 +23,7 @@ type Options struct {
 	Quality     string `flag:"quality,q"   desc:"Rendering quality: low, medium, high, auto (default: auto)" enum:"auto,low,medium,high" default:"auto"`
 	Compression int    `flag:"compression" desc:"Compression 0-100 (jpeg/webp only; 100=best quality)" default:"100" range:"0:100"`
 	Moderation  string `flag:"moderation"  desc:"Content moderation: auto, low (default: auto)" enum:"auto,low"`
-	Background  string `flag:"background"  desc:"Background: auto, opaque, transparent (default: auto)" enum:"auto,opaque,transparent"`
+	Background  string `flag:"background"  desc:"Background: auto, opaque (default: auto)" enum:"auto,opaque"`
 
 	// OutputFormat is derived from the -f filename's extension by the
 	// caller (CLI ReadFlags closure or batch runner) before Generate.
@@ -56,26 +56,9 @@ func (o *Options) Normalize() {
 }
 
 // Validate enforces field-level rules not expressible as enum/range tags.
-// Cross-field rules involving OutputFormat live in finalizeOptions, run
-// by the caller after OutputFormat is set from the -f filename.
 func (o *Options) Validate(_ providers.Info) error {
 	if o.Size != "auto" && !isDimensionString(o.Size) {
 		return fmt.Errorf("invalid --size %q (use 1K, 2K, 4K, auto, or WxH e.g. 1536x1024)", o.Size)
-	}
-	return nil
-}
-
-// finalizeOptions runs cross-field rules that depend on OutputFormat
-// (which is derived from the common -f filename, not the provider's own
-// flags). Caller sets OutputFormat first, then invokes this.
-func finalizeOptions(o *Options) error {
-	if o.Background == "transparent" {
-		if o.OutputFormat == "jpeg" {
-			return fmt.Errorf("--background transparent requires PNG or WebP output (use -f file.png or -f file.webp)")
-		}
-		if o.Model == "gpt-image-2" {
-			return fmt.Errorf("--background transparent is not supported by gpt-image-2; pick a different model (e.g. -m 1.5)")
-		}
 	}
 	return nil
 }
