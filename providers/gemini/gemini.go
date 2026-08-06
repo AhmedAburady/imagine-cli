@@ -158,11 +158,8 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 			},
 		},
 	}
-	if opts.Grounding {
-		body.Tools = append(body.Tools, tool{GoogleSearch: &googleSearch{}})
-	}
-	if opts.ImageSearch {
-		body.Tools = append(body.Tools, tool{ImageSearch: &imageSearch{}})
+	if gs := buildSearchTool(opts.Grounding, opts.ImageSearch); gs != nil {
+		body.Tools = append(body.Tools, tool{GoogleSearch: gs})
 	}
 	if opts.Thinking != "" {
 		body.GenerationConfig.ThinkingConfig = &thinkingConfig{ThinkingLevel: opts.Thinking}
@@ -200,6 +197,22 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 	return nil, errors.New("no image in response")
 }
 
+// buildSearchTool nests image search inside google_search per the current docs.
+// Grounding alone stays a bare googleSearch, which is what it has always sent.
+func buildSearchTool(grounding, images bool) *googleSearch {
+	if !images {
+		if !grounding {
+			return nil
+		}
+		return &googleSearch{}
+	}
+	st := &searchTypes{ImageSearch: &struct{}{}}
+	if grounding {
+		st.WebSearch = &struct{}{}
+	}
+	return &googleSearch{SearchTypes: st}
+}
+
 // -- Wire types (private). -----------------------------------------------------
 
 type inlineData struct {
@@ -231,13 +244,17 @@ type thinkingConfig struct {
 	ThinkingLevel string `json:"thinkingLevel"`
 }
 
-type googleSearch struct{}
+type searchTypes struct {
+	WebSearch   *struct{} `json:"webSearch,omitempty"`
+	ImageSearch *struct{} `json:"imageSearch,omitempty"`
+}
 
-type imageSearch struct{}
+type googleSearch struct {
+	SearchTypes *searchTypes `json:"searchTypes,omitempty"`
+}
 
 type tool struct {
 	GoogleSearch *googleSearch `json:"googleSearch,omitempty"`
-	ImageSearch  *imageSearch  `json:"imageSearch,omitempty"`
 }
 
 type geminiRequest struct {
