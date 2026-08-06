@@ -126,6 +126,17 @@ type Request struct {
 	N          int
 	References []images.Reference
 	Options    any
+
+	// OnProgress, when non-nil, reports mid-generation progress. Providers
+	// that produce nothing before the final image simply never call it.
+	OnProgress func(ProgressEvent)
+}
+
+// ProgressEvent is one mid-generation signal: a preview frame the provider
+// rendered on the way to the final image.
+type ProgressEvent struct {
+	PartialIndex int // 1-based
+	PartialTotal int
 }
 
 // GeneratedImage is a single produced image: raw bytes + MIME type.

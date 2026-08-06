@@ -24,6 +24,12 @@ type resultMsg struct {
 	ok  bool
 }
 
+// partialMsg carries one provider preview; ok=false signals the channel closed.
+type partialMsg struct {
+	ev providers.ProgressEvent
+	ok bool
+}
+
 // tickMsg drives the live elapsed clock so the view never looks frozen.
 type tickMsg time.Time
 
@@ -31,6 +37,13 @@ func waitForResult(ch <-chan api.GenerationResult) tea.Cmd {
 	return func() tea.Msg {
 		r, ok := <-ch
 		return resultMsg{res: r, ok: ok}
+	}
+}
+
+func waitForPartial(ch <-chan providers.ProgressEvent) tea.Cmd {
+	return func() tea.Msg {
+		ev, ok := <-ch
+		return partialMsg{ev: ev, ok: ok}
 	}
 }
 
@@ -44,6 +57,8 @@ type genProgressModel struct {
 	done     int
 	failed   int
 	results  <-chan api.GenerationResult
+	partials <-chan providers.ProgressEvent
+	preview  string
 	spinner  spinner.Model
 	progress progress.Model
 	cancel   context.CancelFunc
@@ -53,7 +68,7 @@ type genProgressModel struct {
 	aborted  bool
 }
 
-func newGenProgressModel(header string, total int, results <-chan api.GenerationResult, cancel context.CancelFunc) genProgressModel {
+func newGenProgressModel(header string, total int, results <-chan api.GenerationResult, partials <-chan providers.ProgressEvent, cancel context.CancelFunc) genProgressModel {
 	s := spinner.New()
 	s.Style = lipgloss.NewStyle().Foreground(uiYellow)
 	p := progress.New(progress.WithDefaultBlend(), progress.WithWidth(28), progress.WithoutPercentage())
@@ -61,6 +76,7 @@ func newGenProgressModel(header string, total int, results <-chan api.Generation
 		header:   header,
 		total:    total,
 		results:  results,
+		partials: partials,
 		spinner:  s,
 		progress: p,
 		cancel:   cancel,
@@ -69,7 +85,11 @@ func newGenProgressModel(header string, total int, results <-chan api.Generation
 }
 
 func (m genProgressModel) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, waitForResult(m.results), tickCmd())
+	cmds := []tea.Cmd{m.spinner.Tick, waitForResult(m.results), tickCmd()}
+	if m.partials != nil {
+		cmds = append(cmds, waitForPartial(m.partials))
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m genProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -97,11 +117,19 @@ func (m genProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.done++
 		}
+		m.preview = ""
 		var pct float64
 		if m.total > 0 {
 			pct = float64(m.done+m.failed) / float64(m.total)
 		}
 		return m, tea.Batch(m.progress.SetPercent(pct), waitForResult(m.results))
+	case partialMsg:
+		if !msg.ok {
+			m.partials = nil
+			return m, nil
+		}
+		m.preview = fmt.Sprintf("preview %d/%d", msg.ev.PartialIndex, msg.ev.PartialTotal)
+		return m, waitForPartial(m.partials)
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -125,6 +153,9 @@ func (m genProgressModel) View() tea.View {
 		paint(uiPill, fmt.Sprintf("%d/%d", completed, m.total)),
 		m.progress.View(),
 		paint(uiPale, fmtDuration(m.elapsed)))
+	if m.preview != "" {
+		line += "  " + paint(uiPale, m.preview)
+	}
 	return tea.NewView(line)
 }
 
@@ -210,7 +241,9 @@ func runWithProgress(ctx context.Context, header string, provider providers.Prov
 	}
 
 	progressCh := make(chan api.GenerationResult, params.NumImages)
+	partialCh := make(chan providers.ProgressEvent, 8)
 	params.Progress = progressCh
+	params.PartialProgress = partialCh
 
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -218,7 +251,7 @@ func runWithProgress(ctx context.Context, header string, provider providers.Prov
 	done := make(chan api.GenerationOutput, 1)
 	go func() { done <- api.RunGeneration(runCtx, provider, req, *params) }()
 
-	m := newGenProgressModel(header, params.NumImages, progressCh, cancel)
+	m := newGenProgressModel(header, params.NumImages, progressCh, partialCh, cancel)
 	finalModel, err := tea.NewProgram(m).Run()
 
 	aborted := ctx.Err() != nil

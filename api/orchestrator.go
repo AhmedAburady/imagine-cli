@@ -40,6 +40,10 @@ type Params struct {
 	// Sends are synchronous: it MUST be buffered to >= NumImages or drained concurrently, else RunGeneration blocks.
 	Progress chan<- GenerationResult
 
+	// PartialProgress, when non-nil, receives provider previews and is closed with the run.
+	// Sends are non-blocking — an undrained channel drops events rather than stalling generation.
+	PartialProgress chan<- providers.ProgressEvent
+
 	// Metadata, when non-empty, is embedded into PNG output (--embed-metadata); a no-op for other formats.
 	Metadata []images.TextTag
 }
@@ -74,6 +78,16 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 
 	if params.Progress != nil {
 		defer close(params.Progress)
+	}
+	if ch := params.PartialProgress; ch != nil {
+		defer close(ch)
+		// Every batch goroutine finishes before the close above runs, so no send races it.
+		request.OnProgress = func(ev providers.ProgressEvent) {
+			select {
+			case ch <- ev:
+			default:
+			}
+		}
 	}
 
 	if err := os.MkdirAll(params.OutputFolder, 0755); err != nil {
