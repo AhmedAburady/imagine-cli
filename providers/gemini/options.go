@@ -16,7 +16,7 @@ import (
 // provider registers first, so its desc+default text wins in `--help`.
 type Options struct {
 	Model       string `flag:"model,m"        desc:"Model: pro, flash, flash-lite"                       default:"pro" enum:"@models"`
-	Size        string `flag:"size,s"         desc:"Image size: 1K, 2K, 4K (flash-lite: 1K only)"        default:"1K"  enum:"1K,2K,4K"`
+	Size        string `flag:"size,s"         desc:"Image size: 512, 1K, 2K, 4K (512: flash only; flash-lite: 1K only)" default:"1K" enum:"512,1K,2K,4K"`
 	AspectRatio string `flag:"aspect-ratio,a" desc:"Aspect ratio: 14 options, see ASPECT RATIOS (default: Auto)"`
 	Grounding   bool   `flag:"grounding,g"    desc:"Enable Google Search grounding (not on flash-lite)"`
 	Thinking    string `flag:"thinking,t"     desc:"Thinking level: minimal, high (not on pro)"          enum:"MINIMAL,HIGH"`
