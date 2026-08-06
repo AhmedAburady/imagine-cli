@@ -23,6 +23,8 @@ const (
 	ModelFlash     = "gemini-3.1-flash-image"
 	ModelFlashLite = "gemini-3.1-flash-lite-image"
 
+	// Stays v1beta: v1 rejects image search as a tool ("not enabled for api
+	// version v1"), though it serves plain generation fine.
 	baseURL = "https://generativelanguage.googleapis.com/v1beta/models/"
 )
 

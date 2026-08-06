@@ -119,15 +119,29 @@ New `input_fidelity` parameter controls how strongly input details are preserved
 - Newer OpenAI text flagship exists: GPT-5.6 family (`gpt-5.6` -> `gpt-5.6-sol`, plus `gpt-5.6-terra`, `gpt-5.6-luna`), vision-capable. Candidates to replace `gpt-5.5` as describe default/subscription driver later; also note the new `reasoning.mode: "pro"` parameter shape appearing in deprecation guidance.
 - OpenAI Responses API now has an `input_image_mask` option on the `image_generation` tool (mask by file_id) - subscription-route only, undocumented for the Codex backend the app uses.
 
-## 6. Suggested priority order
+## 6. Status
 
-1. (2.1) Deprecate/warn on `gpt-image-1`, `gpt-image-1.5`, `gpt-image-1-mini`, `chatgpt-image-latest` - hard shutdowns Oct 23 / Dec 1, 2026.
-2. (2.2) Test `--image-search` on Gemini flash; migrate to nested `searchTypes` if the standalone tool fails.
-3. (2.3) Test `--grounding` on Vertex flash; adjust `SupportedFlags` if it errors.
-4. (3.7) Relax edit-size validation for `gpt-image-2`.
-5. (3.2) Add `512` size for Gemini flash.
-6. (3.6) Optional: `stream`/`partial_images` progress on the OpenAI API-key route.
-7. (3.1) Track Interactions API for a future provider revision.
+| Item | State |
+|---|---|
+| (2.1) `gpt-image-1`, `gpt-image-1.5`, `gpt-image-1-mini`, `chatgpt-image-latest` | Removed outright, not deprecated. `--background transparent` went with them - gpt-image-2 never supported it. |
+| (2.2) Gemini image-search tool shape | Migrated to nested `searchTypes`. **Verified live 2026-08-07**: image-search alone, and combined with grounding, both return images. |
+| (2.3) Vertex flash grounding | **Not actioned.** Grounding leaves no observable signal in the output, so blocking it locally would remove a capability and remove any way to learn the model card was wrong. Passed through unchanged. |
+| (3.7) Edit-size validation | Replaced by one gpt-image-2 envelope enforced at flag-parse time for generate and edit alike. |
+| (3.2) `512` size on Gemini flash | Added, flash-only. Verified live: flash renders it, pro rejects it locally. |
+| (3.6) `stream` / `partial_images` | **Not actioned.** Partial images exist so a UI can paint an image as it resolves; a terminal cannot draw one, so the frames would arrive, be discarded, and be charged for (~100 output tokens each) purely to make a progress counter more granular. Revisit only alongside inline terminal rendering (kitty/iTerm2). |
+| (3.4) `9:21` | **Not actioned.** Verified live 2026-08-07: Vertex returns 400 INVALID_ARGUMENT for `9:21`, so both Vertex model cards are wrong about it, same as the direct Gemini API. |
+| (3.9) `moderation_details` | Parsed; blocked requests now name the stage and categories. |
+| (5) `v1beta` → `v1` | **Reverted.** Verified live 2026-08-07: v1 serves plain generation, but rejects image search with *"Image search as tool is not enabled for api version v1. Use api version v1beta instead."* The base URL stays v1beta. |
+| (3.1) Interactions API | Not adopted. `generateContent` remains fully supported; tracked as the future direction. |
+| (3.3) `responseFormat`, (3.5) video input | Not adopted - optional capability additions, not drift. |
+
+Every doc-derived claim in this report has now been probed against the live APIs (2026-08-07). Three of the four Google items turned out to be wrong in the docs:
+
+- **Shipped:** nested `searchTypes` (image search alone and combined with grounding both return images), and the `512` size on flash.
+- **Reverted:** `v1` base URL - v1 serves plain generation but rejects image search outright.
+- **Dropped before merge:** the Vertex flash grounding removal, and `9:21`.
+
+The pattern worth carrying forward: the Vertex model cards were wrong on both claims tested (grounding on flash, and `9:21`). Treat them as a hint to test, never as a reason to restrict the client.
 
 ## Sources
 
