@@ -44,9 +44,9 @@ func TestFlashLite_DefaultSizeAccepted(t *testing.T) {
 	}
 }
 
-// 2K/4K stay valid for the siblings, so the enum tag can't be what rejects this.
-func TestFlashLite_RejectsSizesAboveOneK(t *testing.T) {
-	for _, size := range []string{"2K", "4K"} {
+// Every other size stays valid somewhere, so the enum tag can't be what rejects this.
+func TestFlashLite_RejectsEverySizeButOneK(t *testing.T) {
+	for _, size := range []string{"512", "2K", "4K"} {
 		_, err := readFlags(t, "--model", "flash-lite", "--size", size)
 		if err == nil {
 			t.Errorf("--size %s on flash-lite should be rejected", size)
@@ -63,6 +63,20 @@ func TestFlashLite_SiblingsStillReachFourK(t *testing.T) {
 		if _, err := readFlags(t, "--model", model, "--size", "4K"); err != nil {
 			t.Errorf("--model %s --size 4K should be accepted: %v", model, err)
 		}
+	}
+}
+
+// 512 is documented for flash alone; pro must not inherit it from the wide set.
+func TestSize512_FlashOnly(t *testing.T) {
+	if _, err := readFlags(t, "--model", "flash", "--size", "512"); err != nil {
+		t.Errorf("--model flash --size 512 should be accepted: %v", err)
+	}
+	_, err := readFlags(t, "--model", "pro", "--size", "512")
+	if err == nil {
+		t.Fatal("--size 512 on pro should be rejected")
+	}
+	if !strings.Contains(err.Error(), gemini.ModelPro) {
+		t.Errorf("error should name the model, got %q", err)
 	}
 }
 

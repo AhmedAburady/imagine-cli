@@ -39,8 +39,8 @@ func TestFlashLite_AliasesResolveToCanonicalID(t *testing.T) {
 	}
 }
 
-func TestFlashLite_RejectsSizesAboveOneK(t *testing.T) {
-	for _, size := range []string{"2K", "4K"} {
+func TestFlashLite_RejectsEverySizeButOneK(t *testing.T) {
+	for _, size := range []string{"512", "2K", "4K"} {
 		_, err := readFlags(t, "--model", "flash-lite", "--size", size)
 		if err == nil {
 			t.Errorf("--size %s on flash-lite should be rejected", size)
@@ -55,6 +55,20 @@ func TestFlashLite_RejectsSizesAboveOneK(t *testing.T) {
 func TestFlashLite_DefaultSizeAccepted(t *testing.T) {
 	if _, err := readFlags(t, "--model", "flash-lite"); err != nil {
 		t.Errorf("flash-lite at the default 1K should parse cleanly: %v", err)
+	}
+}
+
+// 512 is documented for flash alone; pro must not inherit it from the wide set.
+func TestSize512_FlashOnly(t *testing.T) {
+	if _, err := readFlags(t, "--model", "flash", "--size", "512"); err != nil {
+		t.Errorf("--model flash --size 512 should be accepted: %v", err)
+	}
+	_, err := readFlags(t, "--model", "pro", "--size", "512")
+	if err == nil {
+		t.Fatal("--size 512 on pro should be rejected")
+	}
+	if !strings.Contains(err.Error(), gemini.ModelPro) {
+		t.Errorf("error should name the model, got %q", err)
 	}
 }
 

@@ -31,7 +31,10 @@ const (
 	legacyModelFlash = "gemini-3.1-flash-image-preview"
 )
 
-// SizesFlashLite is a func, not a var, so the slice Vertex shares is immutable.
+// Sizes* are funcs, not vars, so the slices Vertex shares stay immutable.
+// Only flash renders 512; pro must say so explicitly or it inherits the wide set.
+func SizesPro() []string       { return []string{"1K", "2K", "4K"} }
+func SizesFlash() []string     { return []string{"512", "1K", "2K", "4K"} }
 func SizesFlashLite() []string { return []string{"1K"} }
 
 // Exported so configs pinned to a pre-GA ID resolve the same on Vertex.
@@ -98,6 +101,7 @@ func (p *Provider) Info() providers.Info {
 				DeprecatedAliases: DeprecatedAliasesPro(),
 				Description:       "Highest quality; no thinking / image-search flags.",
 				SupportedFlags:    []string{"grounding"},
+				Sizes:             SizesPro(),
 			},
 			{
 				ID:                ModelFlash,
@@ -105,6 +109,7 @@ func (p *Provider) Info() providers.Info {
 				DeprecatedAliases: DeprecatedAliasesFlash(),
 				Description:       "Faster; supports --thinking and --image-search.",
 				SupportedFlags:    []string{"grounding", "thinking", "image-search"},
+				Sizes:             SizesFlash(),
 			},
 			{
 				ID:             ModelFlashLite,
@@ -120,7 +125,7 @@ func (p *Provider) Info() providers.Info {
 			Thinking:     true,
 			ImageSearch:  true,
 			MaxBatchN:    1,
-			Sizes:        []string{"1K", "2K", "4K"},
+			Sizes:        SizesFlash(),
 			AspectRatios: AspectRatios(),
 		},
 	}
