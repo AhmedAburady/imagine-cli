@@ -152,43 +152,49 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 func (p *Provider) generateAPIKey(ctx context.Context, opts *Options, req providers.Request) (*providers.Response, error) {
 	if len(req.References) > 0 {
 		return p.edit(ctx, editRequest{
-			Model:        opts.Model,
-			Prompt:       req.Prompt,
-			N:            req.N,
-			Size:         opts.Size,
-			Quality:      opts.Quality,
-			OutputFormat: opts.OutputFormat,
-			Compression:  opts.Compression,
-			Background:   opts.Background,
-			References:   req.References,
+			Model:         opts.Model,
+			Prompt:        req.Prompt,
+			N:             req.N,
+			Size:          opts.Size,
+			Quality:       opts.Quality,
+			OutputFormat:  opts.OutputFormat,
+			Compression:   opts.Compression,
+			Background:    opts.Background,
+			PartialImages: opts.PartialImages,
+			References:    req.References,
+			OnProgress:    req.OnProgress,
 		})
 	}
 
 	return p.generate(ctx, generateRequest{
-		Model:        opts.Model,
-		Prompt:       req.Prompt,
-		N:            req.N,
-		Size:         opts.Size,
-		Quality:      opts.Quality,
-		OutputFormat: opts.OutputFormat,
-		Compression:  opts.Compression,
-		Moderation:   opts.Moderation,
-		Background:   opts.Background,
+		Model:         opts.Model,
+		Prompt:        req.Prompt,
+		N:             req.N,
+		Size:          opts.Size,
+		Quality:       opts.Quality,
+		OutputFormat:  opts.OutputFormat,
+		Compression:   opts.Compression,
+		Moderation:    opts.Moderation,
+		Background:    opts.Background,
+		PartialImages: opts.PartialImages,
+		OnProgress:    req.OnProgress,
 	})
 }
 
 // -- Generate (JSON) ----------------------------------------------------------
 
 type generateRequest struct {
-	Model        string
-	Prompt       string
-	N            int
-	Size         string
-	Quality      string
-	OutputFormat string
-	Compression  int
-	Moderation   string
-	Background   string
+	Model         string
+	Prompt        string
+	N             int
+	Size          string
+	Quality       string
+	OutputFormat  string
+	Compression   int
+	Moderation    string
+	Background    string
+	PartialImages int
+	OnProgress    func(providers.ProgressEvent)
 }
 
 type generationsBody struct {
@@ -201,6 +207,8 @@ type generationsBody struct {
 	OutputCompression *int   `json:"output_compression,omitempty"`
 	Moderation        string `json:"moderation,omitempty"`
 	Background        string `json:"background,omitempty"`
+	Stream            bool   `json:"stream,omitempty"`
+	PartialImages     int    `json:"partial_images,omitempty"`
 }
 
 type generationsResponse struct {
@@ -223,26 +231,39 @@ func (p *Provider) generate(ctx context.Context, r generateRequest) (*providers.
 	if (r.OutputFormat == "jpeg" || r.OutputFormat == "webp") && r.Compression > 0 && r.Compression < 100 {
 		body.OutputCompression = new(r.Compression)
 	}
+	outMime := mimeTypeFor(r.OutputFormat)
+
+	if r.PartialImages > 0 {
+		body.Stream, body.PartialImages = true, r.PartialImages
+		payload, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal request: %w", err)
+		}
+		return p.streamOne(ctx, baseURL+generationsPath, "application/json",
+			bytes.NewReader(payload), max(r.N, 1), r.PartialImages, outMime, r.OnProgress)
+	}
 
 	resp, err := transport.PostJSON[generationsResponse](ctx, httpClient, baseURL+generationsPath, transport.Bearer(p.apiKey), body)
 	if err != nil {
 		return nil, describeAPIError(err)
 	}
-	return decodeImages(resp, mimeTypeFor(r.OutputFormat))
+	return decodeImages(resp, outMime)
 }
 
 // -- Edit (multipart) ---------------------------------------------------------
 
 type editRequest struct {
-	Model        string
-	Prompt       string
-	N            int
-	Size         string
-	Quality      string
-	OutputFormat string
-	Compression  int
-	Background   string
-	References   []images.Reference
+	Model         string
+	Prompt        string
+	N             int
+	Size          string
+	Quality       string
+	OutputFormat  string
+	Compression   int
+	Background    string
+	PartialImages int
+	References    []images.Reference
+	OnProgress    func(providers.ProgressEvent)
 }
 
 func (p *Provider) edit(ctx context.Context, r editRequest) (*providers.Response, error) {
@@ -284,6 +305,14 @@ func (p *Provider) edit(ctx context.Context, r editRequest) (*providers.Response
 			return nil, err
 		}
 	}
+	if r.PartialImages > 0 {
+		if err := write("stream", "true"); err != nil {
+			return nil, err
+		}
+		if err := write("partial_images", fmt.Sprintf("%d", r.PartialImages)); err != nil {
+			return nil, err
+		}
+	}
 
 	for i, ref := range r.References {
 		partHeader := make(textproto.MIMEHeader)
@@ -301,12 +330,18 @@ func (p *Provider) edit(ctx context.Context, r editRequest) (*providers.Response
 	if err := w.Close(); err != nil {
 		return nil, fmt.Errorf("failed to finalize multipart: %w", err)
 	}
+	outMime := mimeTypeFor(r.OutputFormat)
+
+	if r.PartialImages > 0 {
+		return p.streamOne(ctx, baseURL+editsPath, w.FormDataContentType(),
+			&buf, max(r.N, 1), r.PartialImages, outMime, r.OnProgress)
+	}
 
 	resp, err := transport.PostMultipart[generationsResponse](ctx, httpClient, baseURL+editsPath, transport.Bearer(p.apiKey), &buf, w.FormDataContentType())
 	if err != nil {
 		return nil, describeAPIError(err)
 	}
-	return decodeImages(resp, mimeTypeFor(r.OutputFormat))
+	return decodeImages(resp, outMime)
 }
 
 // -- Shared ------------------------------------------------------------------

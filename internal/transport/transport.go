@@ -197,6 +197,10 @@ const (
 	rawBodyMaxLen = 8 << 10
 )
 
+// NewAPIError builds the same error the Post* helpers return, for providers
+// that read a non-2xx body themselves (streaming routes).
+func NewAPIError(status int, raw []byte) *APIError { return parseAPIError(status, raw) }
+
 func parseAPIError(status int, raw []byte) *APIError {
 	kept := raw
 	if len(kept) > rawBodyMaxLen {

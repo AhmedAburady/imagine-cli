@@ -282,7 +282,7 @@ func TestParseImageStream(t *testing.T) {
 		`data: {"type":"response.output_item.done","item":{"type":"image_generation_call","output_format":"jpeg","result":"Zm9v"}}`,
 		`data: [DONE]`,
 	}, "\n")
-	out, err := parseImageStream(strings.NewReader(stream), "png")
+	out, err := parseImageStream(strings.NewReader(stream), "png", 0, nil)
 	if err != nil {
 		t.Fatalf("parseImageStream: %v", err)
 	}
@@ -293,18 +293,18 @@ func TestParseImageStream(t *testing.T) {
 
 func TestParseImageStream_Errors(t *testing.T) {
 	fail := `data: {"type":"response.failed","response":{"error":{"message":"blocked"}}}` + "\n"
-	if _, err := parseImageStream(strings.NewReader(fail), "png"); err == nil || !strings.Contains(err.Error(), "blocked") {
+	if _, err := parseImageStream(strings.NewReader(fail), "png", 0, nil); err == nil || !strings.Contains(err.Error(), "blocked") {
 		t.Fatalf("expected blocked error, got %v", err)
 	}
 	none := `data: {"type":"response.completed","response":{}}` + "\n" + "data: [DONE]\n"
-	if _, err := parseImageStream(strings.NewReader(none), "png"); err == nil {
+	if _, err := parseImageStream(strings.NewReader(none), "png", 0, nil); err == nil {
 		t.Error("expected no-image error")
 	}
 }
 
 func TestParseImageStream_IncompleteSurfacesReason(t *testing.T) {
 	stream := `data: {"type":"response.incomplete","response":{"incomplete_details":{"reason":"content_filter"}}}` + "\n"
-	_, err := parseImageStream(strings.NewReader(stream), "png")
+	_, err := parseImageStream(strings.NewReader(stream), "png", 0, nil)
 	if err == nil || !strings.Contains(err.Error(), "content_filter") {
 		t.Fatalf("expected incomplete reason surfaced, got %v", err)
 	}

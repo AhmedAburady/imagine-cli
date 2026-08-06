@@ -26,6 +26,9 @@ type Options struct {
 	Moderation  string `flag:"moderation"  desc:"Content moderation: auto, low (default: auto)" enum:"auto,low"`
 	Background  string `flag:"background"  desc:"Background: auto, opaque (default: auto)" enum:"auto,opaque"`
 
+	// PartialImages streams preview frames while rendering; each costs ~100 output tokens.
+	PartialImages int `flag:"partial-images" desc:"Stream 1-3 previews while rendering (0 = off)" range:"0:3"`
+
 	// OutputFormat is derived from the -f filename's extension by the
 	// caller (CLI ReadFlags closure or batch runner) before Generate.
 	// Not a CLI flag.

@@ -60,7 +60,7 @@ func (p *Provider) generateSubscription(ctx context.Context, opts *Options, req 
 		ToolChoice:   &toolChoice{Type: "image_generation"},
 		Stream:       true,
 	}
-	return p.doResponses(ctx, auth, body, opts.OutputFormat)
+	return p.doResponses(ctx, auth, body, opts.OutputFormat, opts.PartialImages, req.OnProgress)
 }
 
 func responsesContent(text string, refs []images.Reference) []contentItem {
@@ -75,13 +75,14 @@ func responsesContent(text string, refs []images.Reference) []contentItem {
 // on its auto/default sentinel.
 func buildTool(opts *Options) imageTool {
 	t := imageTool{
-		Type:         "image_generation",
-		Model:        opts.Model,
-		Size:         apiSize(opts.Size),
-		Quality:      apiQuality(opts.Quality),
-		OutputFormat: opts.OutputFormat,
-		Moderation:   opts.Moderation,
-		Background:   opts.Background,
+		Type:          "image_generation",
+		Model:         opts.Model,
+		Size:          apiSize(opts.Size),
+		Quality:       apiQuality(opts.Quality),
+		OutputFormat:  opts.OutputFormat,
+		Moderation:    opts.Moderation,
+		Background:    opts.Background,
+		PartialImages: opts.PartialImages,
 	}
 	if (opts.OutputFormat == "jpeg" || opts.OutputFormat == "webp") && opts.Compression > 0 && opts.Compression < 100 {
 		t.OutputCompression = new(opts.Compression)
@@ -126,6 +127,7 @@ type imageTool struct {
 	Moderation        string `json:"moderation,omitempty"`
 	Background        string `json:"background,omitempty"`
 	OutputCompression *int   `json:"output_compression,omitempty"`
+	PartialImages     int    `json:"partial_images,omitempty"`
 }
 
 type toolChoice struct {
@@ -137,9 +139,10 @@ type toolChoice struct {
 // sseEvent is the subset of each streamed event we inspect: the terminal image
 // item (base64 result), assistant text (describe), and error envelopes.
 type sseEvent struct {
-	Type string `json:"type"`
-	Text string `json:"text"` // response.output_text.done
-	Item *struct {
+	Type              string `json:"type"`
+	Text              string `json:"text"` // response.output_text.done
+	PartialImageIndex int    `json:"partial_image_index"`
+	Item              *struct {
 		Type         string `json:"type"`
 		Status       string `json:"status"`
 		Result       string `json:"result"`
@@ -190,13 +193,14 @@ func (p *Provider) postResponses(ctx context.Context, auth *codexAuth, body resp
 
 // doResponses scans the SSE stream for the rendered image. wantFormat is the
 // MIME fallback when the server doesn't echo an output_format.
-func (p *Provider) doResponses(ctx context.Context, auth *codexAuth, body responsesBody, wantFormat string) (*providers.Response, error) {
+func (p *Provider) doResponses(ctx context.Context, auth *codexAuth, body responsesBody, wantFormat string,
+	partials int, onProgress func(providers.ProgressEvent)) (*providers.Response, error) {
 	resp, err := p.postResponses(ctx, auth, body)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	return parseImageStream(resp.Body, wantFormat)
+	return parseImageStream(resp.Body, wantFormat, partials, onProgress)
 }
 
 // stallReader wraps a streaming body, closing it (which unblocks the read) after its idle duration of silence.
@@ -252,13 +256,13 @@ func (sr *stallReader) Close() error {
 
 // scanSSE invokes fn for every decoded `data:` event. Data lines can be ~1MB of
 // base64, so bufio.Reader.ReadString is used rather than Scanner's capped
-// tokens. fn returns (stop, err); shared by the image and text parsers.
-func scanSSE(r io.Reader, fn func(ev *sseEvent) (stop bool, err error)) error {
+// tokens. E is inferred from fn — the Responses and /v1/images event shapes differ.
+func scanSSE[E any](r io.Reader, fn func(ev *E) (stop bool, err error)) error {
 	br := bufio.NewReaderSize(r, 64*1024)
 	for {
 		line, err := br.ReadString('\n')
 		if data, ok := strings.CutPrefix(strings.TrimRight(line, "\r\n"), "data: "); ok && data != "[DONE]" {
-			var ev sseEvent
+			var ev E
 			if json.Unmarshal([]byte(data), &ev) == nil {
 				stop, ferr := fn(&ev)
 				if ferr != nil {
@@ -278,11 +282,17 @@ func scanSSE(r io.Reader, fn func(ev *sseEvent) (stop bool, err error)) error {
 	}
 }
 
-func parseImageStream(r io.Reader, wantFormat string) (*providers.Response, error) {
+func parseImageStream(r io.Reader, wantFormat string, partials int, onProgress func(providers.ProgressEvent)) (*providers.Response, error) {
 	var out *providers.Response
 	err := scanSSE(r, func(ev *sseEvent) (bool, error) {
 		if msg := eventError(ev); msg != "" {
 			return false, fmt.Errorf("openai subscription: %s", msg)
+		}
+		if ev.Type == "response.image_generation_call.partial_image" {
+			if onProgress != nil {
+				onProgress(providers.ProgressEvent{PartialIndex: ev.PartialImageIndex + 1, PartialTotal: partials})
+			}
+			return false, nil
 		}
 		if ev.Type == "response.output_item.done" && ev.Item != nil &&
 			ev.Item.Type == "image_generation_call" && ev.Item.Result != "" {
