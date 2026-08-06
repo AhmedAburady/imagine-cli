@@ -8,7 +8,9 @@ package openai
 
 import (
 	"bytes"
+	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime/multipart"
@@ -224,7 +226,7 @@ func (p *Provider) generate(ctx context.Context, r generateRequest) (*providers.
 
 	resp, err := transport.PostJSON[generationsResponse](ctx, httpClient, baseURL+generationsPath, transport.Bearer(p.apiKey), body)
 	if err != nil {
-		return nil, err
+		return nil, describeAPIError(err)
 	}
 	return decodeImages(resp, mimeTypeFor(r.OutputFormat))
 }
@@ -302,12 +304,41 @@ func (p *Provider) edit(ctx context.Context, r editRequest) (*providers.Response
 
 	resp, err := transport.PostMultipart[generationsResponse](ctx, httpClient, baseURL+editsPath, transport.Bearer(p.apiKey), &buf, w.FormDataContentType())
 	if err != nil {
-		return nil, err
+		return nil, describeAPIError(err)
 	}
 	return decodeImages(resp, mimeTypeFor(r.OutputFormat))
 }
 
 // -- Shared ------------------------------------------------------------------
+
+// describeAPIError appends the moderation_stage and categories OpenAI attaches
+// to moderation_blocked errors; every other error passes through untouched.
+func describeAPIError(err error) error {
+	var apiErr *transport.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != "moderation_blocked" {
+		return err
+	}
+	var body struct {
+		Error struct {
+			Details struct {
+				Stage      string   `json:"moderation_stage"`
+				Categories []string `json:"categories"`
+			} `json:"moderation_details"`
+		} `json:"error"`
+	}
+	if jsonErr := json.Unmarshal(apiErr.Raw, &body); jsonErr != nil {
+		return err
+	}
+	d := body.Error.Details
+	if d.Stage == "" && len(d.Categories) == 0 {
+		return err
+	}
+	detail := "moderation stage: " + cmp.Or(d.Stage, "unknown")
+	if len(d.Categories) > 0 {
+		detail += "; categories: " + strings.Join(d.Categories, ", ")
+	}
+	return fmt.Errorf("%w (%s)", err, detail)
+}
 
 // decodeImages unpacks /v1/images responses (generations + edits share the
 // same data[].b64_json shape). outMime is applied to every emitted image.
