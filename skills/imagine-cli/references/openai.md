@@ -46,6 +46,7 @@ Aliases resolve to canonical IDs. Omit `-m` to use the default.
 | | `--compression` | 0-100 integer (jpeg/webp only) | `100` |
 | | `--moderation` | `auto`, `low` | `auto` |
 | | `--background` | `auto`, `opaque` | `auto` |
+| | `--partial-images` | 0-3 integer — preview frames streamed while rendering | `0` (off) |
 
 ## Size matrix
 
@@ -95,6 +96,12 @@ Driven by `-f`'s extension:
 | anything else | PNG | none |
 
 This is a win over Gemini — for JPEG, OpenAI's API encodes server-side, avoiding a local re-encode round-trip.
+
+## Live previews
+
+`--partial-images 1-3` sets `stream: true` and `partial_images` on the request, so the progress line shows `preview k/n` as frames arrive instead of a still spinner. Works on generate and edit, and on both the API-key and subscription routes.
+
+Each preview costs roughly 100 output tokens. Leave it at `0` for batch or scripted runs where nobody is watching.
 
 ## Quality
 

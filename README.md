@@ -438,6 +438,7 @@ Uses `gpt-image-2`. The flags below are identical whether you authenticate with 
 |  | `--compression` | 0–100 (jpeg/webp only) | `100` |
 |  | `--moderation` | `auto`, `low` | `auto` |
 |  | `--background` | `auto`, `opaque` | `auto` |
+|  | `--partial-images` | Stream 1-3 previews while rendering (0 = off) | `0` |
 
 **Size shorthand**
 
@@ -461,6 +462,8 @@ Uses `gpt-image-2`. The flags below are identical whether you authenticate with 
 | `2160x3840` | 4K portrait |
 
 Any `WxH` is accepted if: edge ≤ 3840px, both multiples of 16, long:short ≤ 3:1, total pixels 655,360–8,294,400. The same rule applies in edit mode (`-i`); a size outside it is rejected before the API call.
+
+**Live previews** — `--partial-images 1-3` streams preview frames while the image renders, and the progress line shows `preview k/n`. Off by default. Each preview costs roughly 100 output tokens, so it buys visibility during long renders rather than being a free default.
 
 **Output format** — inferred from `-f` extension:
 - `-f cat.png` → API returns PNG
@@ -487,6 +490,9 @@ imagine -p "thumbnail" --provider openai -f thumb.jpg --compression 70
 
 # Less restrictive moderation for legitimate prompts
 imagine -p "medical illustration of a heart" --provider openai --moderation low
+
+# Show preview frames while a slow render is in flight
+imagine -p "detailed cutaway of a submarine" --provider openai --partial-images 3
 ```
 
 ### Describe

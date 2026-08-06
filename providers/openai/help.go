@@ -11,6 +11,7 @@ func Examples() string {
   imagine -p "hero banner" -s 3840x2160 -q high -f hero.jpg
   imagine -p "sticker" --background opaque -f sticker.png
   imagine -p "make it winter" -i photo.png
+  imagine -p "detailed cutaway" --partial-images 3
 
   SIZES — shorthand:
     1K → 1024x1024
