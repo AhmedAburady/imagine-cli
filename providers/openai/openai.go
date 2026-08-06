@@ -111,9 +111,8 @@ func (p *Provider) ConfigSchema() []providers.ConfigField {
 	}
 }
 
-// Info advertises OpenAI's models. MaxBatchN depends on the active method: the
-// API-key /v1/images endpoint packs up to 10 images per call; the subscription
-// Responses tool yields one, so the orchestrator fans -n out as N calls.
+// Info advertises OpenAI's models; gpt-image-2 is the only one not shut down.
+// MaxBatchN is 10 on the API-key endpoint, 1 on the subscription Responses tool.
 func (p *Provider) Info() providers.Info {
 	maxBatch := 10
 	if p.method == methodSubscription {
@@ -125,11 +124,7 @@ func (p *Provider) Info() providers.Info {
 		Summary:      "OpenAI GPT Image models — API key or ChatGPT subscription",
 		DefaultModel: defaultModel,
 		Models: []providers.ModelInfo{
-			{ID: "gpt-image-2", Aliases: []string{"2"}, Description: "Flagship GPT Image model. Flexible sizes, high-fidelity inputs."},
-			{ID: "gpt-image-1.5", Aliases: []string{"1.5"}, Description: "Previous flagship; stable."},
-			{ID: "gpt-image-1", Aliases: []string{"1"}, Description: "First generation."},
-			{ID: "gpt-image-1-mini", Aliases: []string{"mini", "1-mini"}, Description: "Fastest, cheapest."},
-			{ID: "chatgpt-image-latest", Aliases: []string{"latest"}, Description: "ChatGPT-variant latest."},
+			{ID: defaultModel, Aliases: []string{"2"}, Description: "Flagship GPT Image model. Flexible sizes, high-fidelity inputs."},
 		},
 		Capabilities: providers.Capabilities{
 			Edit:      true,
