@@ -31,7 +31,7 @@ The `-m` value isn't a valid alias or canonical ID for the active provider.
 
 - For **Gemini/Vertex**: `pro`, `flash`, `flash-lite` (or `lite`), or the full IDs `gemini-3-pro-image` / `gemini-3.1-flash-image` / `gemini-3.1-flash-lite-image`.
 - The retired `-preview` spellings (`gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview`) still resolve to the GA IDs above, so pinned scripts and batch files keep working. They're deliberately absent from `--help` and from this error's `accepted:` list — the summary table shows the GA ID that actually ran.
-- For **OpenAI**: `2`, `1.5`, `1`, `mini`, `1-mini`, `latest`, or full canonical IDs.
+- For **OpenAI**: `2` or the full canonical ID `gpt-image-2`.
 
 Run `imagine --help` for the active provider's accepted list (shown under MODELS in the EXAMPLES section).
 
@@ -54,23 +54,20 @@ Common cases:
 
 `-n` is out of range. Values 1-20 only. For more than 20, run the command twice with different output folders.
 
-## `--background transparent requires PNG or WebP output`
+## `invalid --size "WxH": ...` (OpenAI)
 
-Transparent backgrounds can't be expressed in JPEG. Change `-f` to `.png` or `.webp`, or drop `--background transparent`.
+gpt-image-2 accepts any `WxH` inside one envelope, and imagine checks it before the API call. The message names the constraint that failed:
 
-## `--background transparent is not supported by gpt-image-2`
+- both edges must be multiples of 16
+- longest edge at most 3840px
+- aspect ratio within 1:3 to 3:1
+- total pixels between 655,360 and 8,294,400
 
-Per the OpenAI docs, gpt-image-2 doesn't currently support transparent backgrounds. Two options:
+The same rule applies to generate and edit (`-i`). `1K` / `2K` / `4K` / `auto` always satisfy it.
 
-- Use `-m 1.5` (or `gpt-image-1.5`) — older model that supports transparency.
-- Drop `--background transparent` and accept an opaque background.
+## `Your request was rejected ... (moderation stage: input; categories: ...)`
 
-## `openai edit endpoint only accepts size 1024x1024, 1536x1024, 1024x1536, or auto`
-
-Edit mode has tighter size constraints than generate. Either:
-
-- Change `-s` to one of the four allowed values.
-- Drop `-i` to switch back to generate mode (if edit wasn't needed).
+OpenAI's moderation blocked the request. The stage says where: `input` means the prompt, `output` means the generated image. Try `--moderation low` for legitimate prompts that trip the default, or rephrase around the named categories.
 
 ## `-f and -r are mutually exclusive`
 
@@ -129,7 +126,7 @@ providers:
 
 ## OpenAI: 403 / "Organization verification required"
 
-OpenAI requires organization verification for GPT Image models. Complete the verification at https://platform.openai.com/settings/organization/general.
+OpenAI requires organization verification for GPT Image models. Complete the verification at https://platform.openai.com/settings/organization/general (API reference: https://developers.openai.com/api/docs).
 
 ## OpenAI subscription: `no ChatGPT subscription session — run imagine providers add openai and choose Subscription`
 

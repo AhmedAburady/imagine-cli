@@ -11,7 +11,7 @@ description: imagine is a multi-provider command-line tool for generating and ed
 
 Use this skill whenever the user:
 
-- Mentions `imagine`, any of its flags, providers (gemini, vertex, openai), or model aliases (`gpt-image-2`, `pro`, `flash`, `flash-lite`, `1.5`, etc.)
+- Mentions `imagine`, any of its flags, providers (gemini, vertex, openai), or model aliases (`gpt-image-2`, `pro`, `flash`, `flash-lite`, etc.)
 - Wants to generate or edit images from the command line
 - Is setting up the tool, adding an API key, or changing the default provider
 - Runs any `imagine providers …`, `imagine describe`, or `imagine metadata` subcommand
@@ -69,7 +69,7 @@ Always pass the credentials as flags. Don't run `imagine providers add <name>` w
 # Gemini (free tier at https://aistudio.google.com/app/apikey)
 imagine providers add gemini --api-key AIza-XXX
 
-# OpenAI — API key (org verification required for GPT Image at platform.openai.com)
+# OpenAI — API key (org verification required for GPT Image at platform.openai.com/settings)
 imagine providers add openai --api-key sk-XXX
 
 # Vertex AI — needs `gcloud auth application-default login` run on the machine first
@@ -224,7 +224,7 @@ Setting a key for the wrong provider errors. Defaults are applied per provider; 
 
 **Vertex:** same as Gemini but **no `image-search`** (not exposed via Vertex AI).
 
-**OpenAI:** `model` (`gpt-image-2` (default) / `1.5` / `1` / `mini` / `1-mini` / `latest`), `size` (`1K`/`2K`/`4K` shorthand, `auto`, or raw `WxH` like `1024x1024`, default `auto`), `quality` (`auto`/`low`/`medium`/`high`, default `auto`), `compression` (0–100 int, default `100`, jpeg/webp only), `moderation` (`auto`/`low`), `background` (`auto`/`opaque`/`transparent`; `transparent` requires PNG/WebP output AND a non-`gpt-image-2` model).
+**OpenAI:** `model` (`gpt-image-2`, alias `2`), `size` (`1K`/`2K`/`4K` shorthand, `auto`, or raw `WxH` like `1024x1024`, default `auto`), `quality` (`auto`/`low`/`medium`/`high`, default `auto`), `compression` (0–100 int, default `100`, jpeg/webp only), `moderation` (`auto`/`low`), `background` (`auto`/`opaque`).
 
 OpenAI edit mode (entry has `input:`) restricts `size:` to `1024x1024` / `1536x1024` / `1024x1536` / `auto`.
 

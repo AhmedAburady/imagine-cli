@@ -425,16 +425,16 @@ Vertex does not support `--image-search`.
 
 ### OpenAI
 
-Uses `gpt-image-2` by default. The flags below are identical whether you authenticate with an API key or a [ChatGPT subscription](#openai-api-key-or-chatgpt-subscription) — only the billing and endpoint differ.
+Uses `gpt-image-2`. The flags below are identical whether you authenticate with an API key or a [ChatGPT subscription](#openai-api-key-or-chatgpt-subscription) — only the billing and endpoint differ.
 
 | Flag | Long | Description | Default |
 |---|---|---|---|
-| `-m` | `--model` | `gpt-image-2`, `1.5`, `1`, `mini`, `1-mini`, `latest` (or full ID) | `gpt-image-2` |
+| `-m` | `--model` | `gpt-image-2` (alias `2`) | `gpt-image-2` |
 | `-s` | `--size` | `1K` / `2K` / `4K` shorthand, `auto`, or raw `WxH` (e.g. `1536x1024`) | `auto` |
 | `-q` | `--quality` | `low`, `medium`, `high`, `auto` | `auto` |
 |  | `--compression` | 0–100 (jpeg/webp only) | `100` |
 |  | `--moderation` | `auto`, `low` | `auto` |
-|  | `--background` | `auto`, `opaque`, `transparent` | `auto` |
+|  | `--background` | `auto`, `opaque` | `auto` |
 
 **Size shorthand**
 
@@ -457,16 +457,12 @@ Uses `gpt-image-2` by default. The flags below are identical whether you authent
 | `3840x2160` | 4K landscape |
 | `2160x3840` | 4K portrait |
 
-Any `WxH` is accepted if: edge ≤ 3840px, both multiples of 16, long:short ≤ 3:1, total pixels 655,360–8,294,400.
-
-**Edit-mode restriction (API-key route)** — OpenAI's `/v1/images/edits` only accepts `1024x1024`, `1536x1024`, `1024x1536`, `auto`. Using `-i` with `-s 2K` / `4K` / larger raw dimensions errors before the API call. The ChatGPT-subscription route has no such limit — any generation size works in edit mode.
+Any `WxH` is accepted if: edge ≤ 3840px, both multiples of 16, long:short ≤ 3:1, total pixels 655,360–8,294,400. The same rule applies in edit mode (`-i`); a size outside it is rejected before the API call.
 
 **Output format** — inferred from `-f` extension:
 - `-f cat.png` → API returns PNG
 - `-f cat.jpg` → API returns JPEG directly (no local re-encode)
 - `-f cat.webp` → API returns WebP
-
-**Transparent background** — requires PNG or WebP output (not JPEG). `gpt-image-2` does not currently support transparent backgrounds per the OpenAI docs; use `-m 1.5` for transparency.
 
 **Examples**
 
@@ -482,9 +478,6 @@ imagine -p "hero banner" --provider openai -s 3840x2160 -q high -f hero.jpg
 
 # Edit with a reference
 imagine -p "make it winter" --provider openai -i photo.png
-
-# Transparent sticker (1.5 only)
-imagine -p "sticker" --provider openai -m 1.5 --background transparent -f sticker.png
 
 # JPEG with reduced file size
 imagine -p "thumbnail" --provider openai -f thumb.jpg --compression 70
@@ -668,8 +661,6 @@ Files you **don't** edit when adding a provider: `commands/`, `cli/`, `api/`, `c
 **`unknown model "xyz" for provider "..."`** — the active provider doesn't know that model. Run `imagine --help` to see the accepted models for the active provider.
 
 **`--X is not supported by provider "Y"`** — you used a flag that belongs to a different provider. The error tells you which providers *do* support it. Example: `--grounding` is Gemini/Vertex-only; swap providers or drop the flag.
-
-**`--background transparent is not supported by gpt-image-2`** — known OpenAI limitation; use `-m 1.5` for transparency.
 
 **Ctrl+C hangs** — it shouldn't. imagine uses context cancellation; in-flight HTTP requests are aborted when you press Ctrl+C. Mid-run cancellations print a graceful summary of what succeeded and exit with code 130.
 
