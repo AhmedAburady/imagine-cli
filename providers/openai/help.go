@@ -28,6 +28,5 @@ func Examples() string {
     2160x3840  (4K portrait)
 
   Any WxH is accepted if: edge ≤ 3840px, both multiples of 16, ratio ≤ 3:1, pixels 655,360–8,294,400
-
-  Edit mode (-i set): only 1024x1024, 1536x1024, 1024x1536, auto`
+  The same rule applies in edit mode (-i set).`
 }

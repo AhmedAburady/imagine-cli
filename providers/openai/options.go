@@ -3,6 +3,7 @@ package openai
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/AhmedAburady/imagine-cli/providers"
@@ -57,8 +58,37 @@ func (o *Options) Normalize() {
 
 // Validate enforces field-level rules not expressible as enum/range tags.
 func (o *Options) Validate(_ providers.Info) error {
-	if o.Size != "auto" && !isDimensionString(o.Size) {
-		return fmt.Errorf("invalid --size %q (use 1K, 2K, 4K, auto, or WxH e.g. 1536x1024)", o.Size)
+	return validateImageSize(o.Size)
+}
+
+// gpt-image-2's documented size envelope, applied to generations and edits
+// alike now that it is the only model.
+const (
+	sizeEdgeMultiple = 16
+	sizeMaxEdge      = 3840
+	sizeMaxRatio     = 3
+	sizeMinPixels    = 655_360
+	sizeMaxPixels    = 8_294_400
+)
+
+func validateImageSize(size string) error {
+	if size == "" || size == "auto" {
+		return nil
+	}
+	w, h, ok := parseDimensions(size)
+	if !ok {
+		return fmt.Errorf("invalid --size %q (use 1K, 2K, 4K, auto, or WxH e.g. 1536x1024)", size)
+	}
+	long, short, pixels := max(w, h), min(w, h), w*h
+	switch {
+	case w%sizeEdgeMultiple != 0 || h%sizeEdgeMultiple != 0:
+		return fmt.Errorf("invalid --size %q: both edges must be multiples of %d", size, sizeEdgeMultiple)
+	case long > sizeMaxEdge:
+		return fmt.Errorf("invalid --size %q: longest edge must be at most %dpx", size, sizeMaxEdge)
+	case long > short*sizeMaxRatio:
+		return fmt.Errorf("invalid --size %q: aspect ratio must be within 1:%d to %d:1", size, sizeMaxRatio, sizeMaxRatio)
+	case pixels < sizeMinPixels || pixels > sizeMaxPixels:
+		return fmt.Errorf("invalid --size %q: total pixels must be between %d and %d (got %d)", size, sizeMinPixels, sizeMaxPixels, pixels)
 	}
 	return nil
 }
@@ -81,23 +111,26 @@ func canonicalSize(raw string) string {
 	return strings.ToLower(s)
 }
 
-// isDimensionString matches a simple "WxH" pattern with positive integers.
-func isDimensionString(s string) bool {
-	parts := strings.Split(strings.ToLower(s), "x")
-	if len(parts) != 2 {
-		return false
+// parseDimensions splits a "WxH" string into its two positive edges.
+func parseDimensions(s string) (int, int, bool) {
+	wRaw, hRaw, found := strings.Cut(strings.ToLower(s), "x")
+	if !found {
+		return 0, 0, false
 	}
-	for _, p := range parts {
-		if len(p) == 0 {
-			return false
-		}
-		for _, r := range p {
-			if r < '0' || r > '9' {
-				return false
-			}
-		}
+	w, wErr := atoiPositive(wRaw)
+	h, hErr := atoiPositive(hRaw)
+	if wErr != nil || hErr != nil {
+		return 0, 0, false
 	}
-	return true
+	return w, h, true
+}
+
+// atoiPositive rejects signs, blanks and overflow that strconv.Atoi tolerates.
+func atoiPositive(s string) (int, error) {
+	if s == "" || strings.ContainsAny(s, "+-") {
+		return 0, strconv.ErrSyntax
+	}
+	return strconv.Atoi(s)
 }
 
 // outputFormatFromFilename inspects -f's extension. Defaults to png.

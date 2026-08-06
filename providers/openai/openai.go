@@ -244,16 +244,6 @@ type editRequest struct {
 }
 
 func (p *Provider) edit(ctx context.Context, r editRequest) (*providers.Response, error) {
-	// Edit endpoint constraint: size must be one of 1024x1024, 1536x1024,
-	// 1024x1536, auto. The flag layer maps 1K etc. to dimensions; reject
-	// anything else client-side.
-	switch r.Size {
-	case "", "auto", "1024x1024", "1536x1024", "1024x1536":
-		// ok
-	default:
-		return nil, fmt.Errorf("openai edit endpoint only accepts size 1024x1024, 1536x1024, 1024x1536, or auto (got %q)", r.Size)
-	}
-
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 
