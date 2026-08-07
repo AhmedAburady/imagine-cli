@@ -150,6 +150,7 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 // generateAPIKey calls /v1/images/generations or /v1/images/edits (edit mode
 // when References are present).
 func (p *Provider) generateAPIKey(ctx context.Context, opts *Options, req providers.Request) (*providers.Response, error) {
+	partials := effectivePartials(opts.PartialImages, req.OnProgress)
 	if len(req.References) > 0 {
 		return p.edit(ctx, editRequest{
 			Model:         opts.Model,
@@ -160,7 +161,7 @@ func (p *Provider) generateAPIKey(ctx context.Context, opts *Options, req provid
 			OutputFormat:  opts.OutputFormat,
 			Compression:   opts.Compression,
 			Background:    opts.Background,
-			PartialImages: opts.PartialImages,
+			PartialImages: partials,
 			References:    req.References,
 			OnProgress:    req.OnProgress,
 		})
@@ -176,9 +177,18 @@ func (p *Provider) generateAPIKey(ctx context.Context, opts *Options, req provid
 		Compression:   opts.Compression,
 		Moderation:    opts.Moderation,
 		Background:    opts.Background,
-		PartialImages: opts.PartialImages,
+		PartialImages: partials,
 		OnProgress:    req.OnProgress,
 	})
+}
+
+// effectivePartials zeroes the preview count when nobody is listening, so a
+// piped or batch run doesn't pay ~100 output tokens per discarded frame.
+func effectivePartials(n int, onProgress func(providers.ProgressEvent)) int {
+	if onProgress == nil {
+		return 0
+	}
+	return n
 }
 
 // -- Generate (JSON) ----------------------------------------------------------

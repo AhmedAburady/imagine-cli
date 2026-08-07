@@ -27,7 +27,7 @@ type Options struct {
 	Background  string `flag:"background"  desc:"Background: auto, opaque (default: auto)" enum:"auto,opaque"`
 
 	// PartialImages streams preview frames while rendering; each costs ~100 output tokens.
-	PartialImages int `flag:"partial-images" desc:"Stream 1-3 previews while rendering (0 = off)" range:"0:3"`
+	PartialImages int `flag:"partial-images" desc:"Stream 1-3 previews while rendering; ignored when piped or batched (0 = off)" range:"0:3"`
 
 	// OutputFormat is derived from the -f filename's extension by the
 	// caller (CLI ReadFlags closure or batch runner) before Generate.

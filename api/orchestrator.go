@@ -41,7 +41,7 @@ type Params struct {
 	Progress chan<- GenerationResult
 
 	// PartialProgress, when non-nil, receives provider previews and is closed with the run.
-	// Sends are non-blocking — an undrained channel drops events rather than stalling generation.
+	// Sends are non-blocking: an undrained channel drops events rather than stalling generation.
 	PartialProgress chan<- providers.ProgressEvent
 
 	// Metadata, when non-empty, is embedded into PNG output (--embed-metadata); a no-op for other formats.

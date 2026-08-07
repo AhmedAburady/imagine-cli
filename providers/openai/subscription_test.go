@@ -254,12 +254,12 @@ func TestApiSizeQuality(t *testing.T) {
 }
 
 func TestBuildTool(t *testing.T) {
-	raw, _ := json.Marshal(buildTool(&Options{Model: "gpt-image-2", Size: "auto", Quality: "auto", OutputFormat: "png", Compression: 100}))
+	raw, _ := json.Marshal(buildTool(&Options{Model: "gpt-image-2", Size: "auto", Quality: "auto", OutputFormat: "png", Compression: 100}, 0))
 	if s := string(raw); strings.Contains(s, "\"size\"") || strings.Contains(s, "output_compression") || !strings.Contains(s, `"output_format":"png"`) {
 		t.Errorf("tool omit/keep wrong: %s", s)
 	}
-	raw2, _ := json.Marshal(buildTool(&Options{Model: "gpt-image-1.5", Size: "1536x1024", Quality: "high", OutputFormat: "jpeg", Compression: 80, Background: "opaque"}))
-	for _, want := range []string{`"size":"1536x1024"`, `"quality":"high"`, `"output_compression":80`, `"background":"opaque"`} {
+	raw2, _ := json.Marshal(buildTool(&Options{Model: "gpt-image-2", Size: "1536x1024", Quality: "high", OutputFormat: "jpeg", Compression: 80, Background: "opaque"}, 2))
+	for _, want := range []string{`"size":"1536x1024"`, `"quality":"high"`, `"output_compression":80`, `"background":"opaque"`, `"partial_images":2`} {
 		if !strings.Contains(string(raw2), want) {
 			t.Errorf("tool missing %s", want)
 		}

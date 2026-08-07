@@ -46,7 +46,7 @@ Aliases resolve to canonical IDs. Omit `-m` to use the default.
 | | `--compression` | 0-100 integer (jpeg/webp only) | `100` |
 | | `--moderation` | `auto`, `low` | `auto` |
 | | `--background` | `auto`, `opaque` | `auto` |
-| | `--partial-images` | 0-3 integer — preview frames streamed while rendering | `0` (off) |
+| | `--partial-images` | 0-3 integer, preview frames streamed while rendering | `0` (off) |
 
 ## Size matrix
 
@@ -82,7 +82,9 @@ ANY `WxH` is accepted if it satisfies all of these:
 - Long-edge / short-edge ratio ≤ 3:1
 - Total pixel count between 655,360 and 8,294,400
 
-imagine enforces all four constraints client-side at flag-parse time, so a bad size errors before any API call. The same envelope applies in edit mode (`-i`) on both the API-key and subscription routes.
+imagine enforces all four constraints client-side at flag-parse time, so a bad size errors before any API call, in edit mode (`-i`) too.
+
+**Subscription route caveat:** the ChatGPT/Codex backend is not observed to honour `size` at all - probing it returns roughly 1536x1024 (~1.6MP) whatever you ask for. The envelope above is validated on both routes, but only the API-key route is known to deliver the size you request.
 
 ## Output format
 
@@ -99,7 +101,9 @@ This is a win over Gemini — for JPEG, OpenAI's API encodes server-side, avoidi
 
 ## Live previews
 
-`--partial-images 1-3` sets `stream: true` and `partial_images` on the request, so the progress line shows `preview k/n` as frames arrive instead of a still spinner. Works on generate and edit, and on both the API-key and subscription routes.
+`--partial-images 1-3` sets `stream: true` and `partial_images` on the request, so the progress line shows `preview k/n` as frames arrive instead of a still spinner. Works on generate and edit. It is sent on both routes, but only the API-key route is confirmed to emit preview events; if a backend ignores the field you simply get no previews and the final image still arrives normally.
+
+Ignored when nothing can display previews - piped output and batch runs suppress the request rather than pay for frames nobody sees.
 
 Each preview costs roughly 100 output tokens. Leave it at `0` for batch or scripted runs where nobody is watching.
 

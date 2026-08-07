@@ -52,15 +52,16 @@ func (p *Provider) generateSubscription(ctx context.Context, opts *Options, req 
 	}
 	auth := &codexAuth{accessToken: access, accountID: account, sessionID: uuid.NewString()}
 
+	partials := effectivePartials(opts.PartialImages, req.OnProgress)
 	body := responsesBody{
 		Model:        driverModel,
 		Instructions: imageInstructions,
 		Input:        []inputMessage{{Role: "user", Content: responsesContent(req.Prompt, req.References)}},
-		Tools:        []imageTool{buildTool(opts)},
+		Tools:        []imageTool{buildTool(opts, partials)},
 		ToolChoice:   &toolChoice{Type: "image_generation"},
 		Stream:       true,
 	}
-	return p.doResponses(ctx, auth, body, opts.OutputFormat, opts.PartialImages, req.OnProgress)
+	return p.doResponses(ctx, auth, body, opts.OutputFormat, partials, req.OnProgress)
 }
 
 func responsesContent(text string, refs []images.Reference) []contentItem {
@@ -73,7 +74,7 @@ func responsesContent(text string, refs []images.Reference) []contentItem {
 
 // buildTool maps Options onto the image_generation tool, omitting anything left
 // on its auto/default sentinel.
-func buildTool(opts *Options) imageTool {
+func buildTool(opts *Options, partials int) imageTool {
 	t := imageTool{
 		Type:          "image_generation",
 		Model:         opts.Model,
@@ -82,7 +83,7 @@ func buildTool(opts *Options) imageTool {
 		OutputFormat:  opts.OutputFormat,
 		Moderation:    opts.Moderation,
 		Background:    opts.Background,
-		PartialImages: opts.PartialImages,
+		PartialImages: partials,
 	}
 	if (opts.OutputFormat == "jpeg" || opts.OutputFormat == "webp") && opts.Compression > 0 && opts.Compression < 100 {
 		t.OutputCompression = new(opts.Compression)
@@ -256,7 +257,7 @@ func (sr *stallReader) Close() error {
 
 // scanSSE invokes fn for every decoded `data:` event. Data lines can be ~1MB of
 // base64, so bufio.Reader.ReadString is used rather than Scanner's capped
-// tokens. E is inferred from fn — the Responses and /v1/images event shapes differ.
+// tokens. E is inferred from fn; the Responses and /v1/images event shapes differ.
 func scanSSE[E any](r io.Reader, fn func(ev *E) (stop bool, err error)) error {
 	br := bufio.NewReaderSize(r, 64*1024)
 	for {

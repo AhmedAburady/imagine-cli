@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -74,6 +75,34 @@ func TestStreamImages_Errors(t *testing.T) {
 	if _, err := streamImages(sse(`data: {"type":"image_generation.partial_image","partial_image_index":0}`),
 		1, 1, "image/png", nil); err == nil {
 		t.Error("expected an error when the stream ends with no completed image")
+	}
+}
+
+// Previews cost ~100 output tokens each, so a run with no listener (piped
+// output, batch mode) must not request them.
+func TestEffectivePartials_ZeroWithoutListener(t *testing.T) {
+	if got := effectivePartials(3, nil); got != 0 {
+		t.Errorf("no listener should suppress previews, got %d", got)
+	}
+	noop := func(providers.ProgressEvent) {}
+	if got := effectivePartials(3, noop); got != 3 {
+		t.Errorf("with a listener the count should pass through, got %d", got)
+	}
+	if got := effectivePartials(0, noop); got != 0 {
+		t.Errorf("flag off should stay off, got %d", got)
+	}
+}
+
+// The default path must stay on the non-streaming call.
+func TestGenerationsBody_OmitsStreamWhenOff(t *testing.T) {
+	raw, err := json.Marshal(generationsBody{Model: "gpt-image-2", Prompt: "x"})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	for _, unwanted := range []string{"stream", "partial_images"} {
+		if strings.Contains(string(raw), unwanted) {
+			t.Errorf("body should omit %q when previews are off: %s", unwanted, raw)
+		}
 	}
 }
 

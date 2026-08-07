@@ -11,9 +11,6 @@ import (
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
 
-// maxPartialImages is the ceiling /v1/images accepts for partial_images.
-const maxPartialImages = 3
-
 // imageStreamEvent is the subset of /v1/images SSE events we act on:
 // image_generation.partial_image and image_generation.completed.
 type imageStreamEvent struct {

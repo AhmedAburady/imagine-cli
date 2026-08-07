@@ -463,7 +463,7 @@ Uses `gpt-image-2`. The flags below are identical whether you authenticate with 
 
 Any `WxH` is accepted if: edge ≤ 3840px, both multiples of 16, long:short ≤ 3:1, total pixels 655,360–8,294,400. The same rule applies in edit mode (`-i`); a size outside it is rejected before the API call.
 
-**Live previews** — `--partial-images 1-3` streams preview frames while the image renders, and the progress line shows `preview k/n`. Off by default. Each preview costs roughly 100 output tokens, so it buys visibility during long renders rather than being a free default.
+**Live previews** - `--partial-images 1-3` streams preview frames while the image renders, and the progress line shows `preview k/n`. Off by default, and skipped entirely when output is piped or the run is a batch, since nothing would display them. Each preview costs roughly 100 output tokens.
 
 **Output format** — inferred from `-f` extension:
 - `-f cat.png` → API returns PNG
