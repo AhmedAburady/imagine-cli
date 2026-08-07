@@ -32,7 +32,7 @@ Aliases resolve to canonical IDs. Omit `-m` to use the default.
 
 | Alias | Canonical ID | Notes |
 |---|---|---|
-| `2` | `gpt-image-2` | Flagship — flexible sizes, high-fidelity inputs. |
+| `2` | `gpt-image-2` | Flagship - flexible sizes, high-fidelity inputs. |
 
 `-m` also accepts the full canonical ID directly.
 
@@ -81,7 +81,9 @@ ANY `WxH` is accepted if it satisfies all of these:
 - Long-edge / short-edge ratio ≤ 3:1
 - Total pixel count between 655,360 and 8,294,400
 
-imagine enforces all four constraints client-side at flag-parse time, so a bad size errors before any API call. The same envelope applies in edit mode (`-i`) on both the API-key and subscription routes.
+imagine enforces all four constraints client-side at flag-parse time, so a bad size errors before any API call, in edit mode (`-i`) too.
+
+**Subscription route caveat:** the ChatGPT/Codex backend is not observed to honour `size` at all - probing it with eleven different values returned roughly 1536x1024 (~1.6MP) every time, including for `1024x1024` and `auto`. The envelope is validated on both routes, but only the API-key route is known to deliver the size you asked for.
 
 ## Output format
 

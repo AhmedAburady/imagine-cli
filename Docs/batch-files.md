@@ -204,14 +204,14 @@ Each provider has its own set. Setting a key for a provider that doesn't claim i
 
 | Key | Type | Default | Notes |
 |---|---|---|---|
-| `model` | string | `gpt-image-2` | `gpt-image-2` (alias `2`), `1.5`, `1`, `mini` (alias `1-mini`), `latest` |
+| `model` | string | `gpt-image-2` | `gpt-image-2` (alias `2`) |
 | `size` | string | `auto` | `1K` / `2K` / `4K` shorthand, `auto`, or raw `WxH` (e.g. `1024x1024`, `1536x1024`) |
 | `quality` | string | `auto` | `auto`, `low`, `medium`, `high` |
 | `compression` | int | `100` | 0–100. Applies only when output format is JPEG or WebP (decided by `filename` extension) |
 | `moderation` | string | `auto` | `auto` or `low` |
-| `background` | string | `auto` | `auto`, `opaque`, `transparent`. **`transparent` requires PNG/WebP output AND a non-`gpt-image-2` model** |
+| `background` | string | `auto` | `auto`, `opaque` |
 
-OpenAI edit mode (when `input:` is set) restricts `size:` to `1024x1024`, `1536x1024`, `1024x1536`, or `auto`.
+`size:` accepts any `WxH` with both edges divisible by 16, longest edge at most 3840, ratio within 1:3 to 3:1, and total pixels between 655,360 and 8,294,400. The same rule applies whether or not `input:` is set.
 
 ---
 
@@ -368,7 +368,7 @@ Then nothing runs. Fix all issues, re-run.
 - **Required fields:** `prompt:` on every entry.
 - **Provider:** must be configured (or set `provider:` per entry), and the resolved provider must support batch invocation.
 - **Model-level rules:** flags must be honoured by the resolved model (`thinking` against `pro` errors out before HTTP).
-- **Cross-field rules:** `filename` + `replace` mutual exclusion; OpenAI's `transparent` + `gpt-image-2` conflict; OpenAI edit-mode size restrictions.
+- **Cross-field rules:** `filename` + `replace` mutual exclusion; OpenAI's `size` envelope.
 - **References:** `input:` paths must exist, must be supported image formats, folders must contain images.
 - **Filename collisions:** across all entries.
 - **Cross-entry CLI flag claim:** every CLI-set provider-private flag must be claimed by at least one entry's provider.

@@ -172,9 +172,8 @@ func doAndDecode[Resp any](c *Client, req *http.Request, auth Auth) (*Resp, erro
 
 // --- Errors ----------------------------------------------------------------
 
-// APIError is a structured non-2xx response. Providers can errors.As into
-// *APIError to inspect StatusCode (e.g. to retry on 429) or Code, or to
-// re-decode provider-specific detail out of Raw.
+// APIError is a structured non-2xx response. Providers errors.As into it to
+// inspect StatusCode or Code, or to re-decode their own detail out of Raw.
 type APIError struct {
 	StatusCode int
 	Message    string
@@ -204,7 +203,7 @@ func parseAPIError(status int, raw []byte) *APIError {
 		kept = kept[:rawBodyMaxLen]
 	}
 	// Both Gemini and OpenAI use {"error": {"message": ...}}, but only
-	// OpenAI's "code" is a string — Gemini's is the numeric status.
+	// OpenAI's "code" is a string; Gemini's is the numeric status.
 	var errResp struct {
 		Error struct {
 			Message string          `json:"message"`
