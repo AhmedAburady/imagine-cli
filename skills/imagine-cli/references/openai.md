@@ -32,7 +32,7 @@ Aliases resolve to canonical IDs. Omit `-m` to use the default.
 
 | Alias | Canonical ID | Notes |
 |---|---|---|
-| `2` | `gpt-image-2` | Flagship — flexible sizes, high-fidelity inputs. |
+| `2` | `gpt-image-2` | Flagship - flexible sizes, high-fidelity inputs. |
 
 `-m` also accepts the full canonical ID directly.
 

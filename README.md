@@ -425,7 +425,7 @@ Vertex does not support `--image-search`.
 
 ### OpenAI
 
-Uses `gpt-image-2`. The flags below are identical whether you authenticate with an API key or a [ChatGPT subscription](#openai-api-key-or-chatgpt-subscription) — only the billing and endpoint differ.
+Uses `gpt-image-2`. The flags below are identical whether you authenticate with an API key or a [ChatGPT subscription](#openai-api-key-or-chatgpt-subscription); only the billing and endpoint differ.
 
 | Flag | Long | Description | Default |
 |---|---|---|---|
