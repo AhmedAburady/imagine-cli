@@ -423,30 +423,18 @@ That's the whole file. `flagspec.Bind`, `Read`, `Parse`, and `FieldNames` all de
 
 ### `register.go` — when a private option depends on a common flag
 
-If one of your private options needs to read a common-flag value, your `ReadFlags` and `ParseOptions` closures do a little more than the one-liner. The OpenAI provider is the canonical example: its `output_format` private field is derived from the extension of `-f` (a common flag), and its `--background transparent` rule has cross-field dependencies on both `Model` and `OutputFormat`.
+If one of your private options needs to read a common-flag value, your `ReadFlags` and `ParseOptions` closures do a little more than the one-liner. The OpenAI provider is the canonical example: its `output_format` private field is derived from the extension of `-f` (a common flag).
 
-The pattern: declare the dependent field as `flag:"-"` on `Options` so flagspec ignores it, then set it inside `ReadFlags` and `ParseOptions` before any cross-field validation that needs it.
+The pattern: declare the dependent field as `flag:"-"` on `Options` so flagspec ignores it, then set it inside `ReadFlags` and `ParseOptions`. Any cross-field rule that reads the derived field also belongs here, since `Validate(Info)` runs before it is populated.
 
 ```go
 type Options struct {
     Model      string `flag:"model,m" enum:"@models"`
-    Background string `flag:"background" enum:"auto,opaque,transparent"`
     // ... other tagged fields ...
 
     // Derived from the common -f filename's extension by the caller
-    // (CLI ReadFlags closure or batch ParseOptions closure) before
-    // Generate. Not a CLI flag.
+    // before Generate. Not a CLI flag.
     OutputFormat string `flag:"-"`
-}
-
-// finalizeOptions runs cross-field rules that depend on OutputFormat —
-// those can't live in Validate(Info) because OutputFormat is set
-// after flagspec.Read / flagspec.Parse return.
-func finalizeOptions(o *Options) error {
-    if o.Background == "transparent" && o.OutputFormat == "jpeg" {
-        return fmt.Errorf("--background transparent requires PNG or WebP output")
-    }
-    return nil
 }
 ```
 
@@ -458,14 +446,9 @@ ReadFlags: func(cmd *cobra.Command) (any, error) {
         return nil, err
     }
     o := optsAny.(*Options)
-    // OutputFormat is derived from the common -f filename's extension.
-    // ReadFlags reaches into the cobra FlagSet rather than introducing
-    // a new abstraction for one shared field.
+    // OutputFormat comes from the common -f filename's extension.
     filename, _ := cmd.Flags().GetString("filename")
     o.OutputFormat = outputFormatFromFilename(filename)
-    if err := finalizeOptions(o); err != nil {
-        return nil, err
-    }
     return o, nil
 },
 ParseOptions: func(values map[string]any, common providers.Common) (any, error) {
@@ -475,14 +458,11 @@ ParseOptions: func(values map[string]any, common providers.Common) (any, error) 
     }
     o := optsAny.(*Options)
     o.OutputFormat = outputFormatFromFilename(common.Filename)
-    if err := finalizeOptions(o); err != nil {
-        return nil, err
-    }
     return o, nil
 },
 ```
 
-The seam is `providers.Common`. `ReadFlags` reads the common flag from cobra; `ParseOptions` reads the same value from `Common.Filename`. Both produce the same `*Options`, both run the same `finalizeOptions`. `Generate` is unaware of which path populated it.
+The seam is `providers.Common`. `ReadFlags` reads the common flag from cobra; `ParseOptions` reads the same value from `Common.Filename`. Both produce the same `*Options`, and `Generate` is unaware of which path populated it.
 
 ### `providers.Common` reference
 

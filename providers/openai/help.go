@@ -9,7 +9,7 @@ func Examples() string {
   imagine -p "a red apple" -q low
   imagine -p "logo" -n 3 -s 1024x1024
   imagine -p "hero banner" -s 3840x2160 -q high -f hero.jpg
-  imagine -p "sticker" -m 1.5 --background transparent -f sticker.png
+  imagine -p "sticker" --background opaque -f sticker.png
   imagine -p "make it winter" -i photo.png
 
   SIZES — shorthand:
@@ -28,6 +28,5 @@ func Examples() string {
     2160x3840  (4K portrait)
 
   Any WxH is accepted if: edge ≤ 3840px, both multiples of 16, ratio ≤ 3:1, pixels 655,360–8,294,400
-
-  Edit mode (-i set): only 1024x1024, 1536x1024, 1024x1536, auto`
+  The same rule applies in edit mode (-i set).`
 }

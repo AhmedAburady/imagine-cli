@@ -129,6 +129,48 @@ func TestPostJSON_ErrorWithMessage(t *testing.T) {
 	}
 }
 
+func TestPostJSON_ErrorCodeAndRaw(t *testing.T) {
+	body := `{"error":{"message":"blocked","code":"moderation_blocked"}}`
+	srv := newServer(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = io.WriteString(w, body)
+	})
+	defer srv.Close()
+
+	_, err := transport.PostJSON[echoResp](context.Background(), transport.NewClient(5*time.Second), srv.URL, transport.NoAuth(), echoReq{})
+	var apiErr *transport.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T: %v", err, err)
+	}
+	if apiErr.Code != "moderation_blocked" {
+		t.Errorf("Code: got %q, want 'moderation_blocked'", apiErr.Code)
+	}
+	if string(apiErr.Raw) != body {
+		t.Errorf("Raw: got %q, want the verbatim body", apiErr.Raw)
+	}
+}
+
+// Gemini reports error.code as the numeric status; that must not cost us the message.
+func TestPostJSON_NumericErrorCodeKeepsMessage(t *testing.T) {
+	srv := newServer(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = io.WriteString(w, `{"error":{"code":400,"message":"bad prompt","status":"INVALID_ARGUMENT"}}`)
+	})
+	defer srv.Close()
+
+	_, err := transport.PostJSON[echoResp](context.Background(), transport.NewClient(5*time.Second), srv.URL, transport.NoAuth(), echoReq{})
+	var apiErr *transport.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T: %v", err, err)
+	}
+	if apiErr.Message != "bad prompt" {
+		t.Errorf("Message: got %q, want 'bad prompt'", apiErr.Message)
+	}
+	if apiErr.Code != "" {
+		t.Errorf("Code should stay empty for a non-string code, got %q", apiErr.Code)
+	}
+}
+
 func TestPostJSON_ErrorWithoutParseableBody(t *testing.T) {
 	srv := newServer(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)

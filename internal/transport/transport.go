@@ -172,11 +172,13 @@ func doAndDecode[Resp any](c *Client, req *http.Request, auth Auth) (*Resp, erro
 
 // --- Errors ----------------------------------------------------------------
 
-// APIError is a structured non-2xx response. Providers can errors.As into
-// *APIError when they need to inspect StatusCode (e.g. to retry on 429).
+// APIError is a structured non-2xx response. Providers errors.As into it to
+// inspect StatusCode or Code, or to re-decode their own detail out of Raw.
 type APIError struct {
 	StatusCode int
 	Message    string
+	Code       string
+	Raw        []byte
 }
 
 // Error satisfies the error interface. When Message is empty (unparseable
@@ -188,28 +190,38 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("API error (status %d)", e.StatusCode)
 }
 
-// errBodyMaxLen is the ceiling on the extracted error.message string.
-// Unified across providers — Gemini used 100 and OpenAI 200 before;
-// 200 loses nothing and gives Gemini users slightly fuller errors.
-const errBodyMaxLen = 200
+const (
+	// errBodyMaxLen caps the extracted error.message string.
+	errBodyMaxLen = 200
+	// rawBodyMaxLen caps the body kept for provider-specific re-decoding.
+	rawBodyMaxLen = 8 << 10
+)
 
 func parseAPIError(status int, raw []byte) *APIError {
-	// Both Gemini and OpenAI use {"error": {"message": "..."}}. If a future
-	// provider uses a different shape, it can still surface a useful error
-	// via APIError.StatusCode (the message will be empty).
+	kept := raw
+	if len(kept) > rawBodyMaxLen {
+		kept = kept[:rawBodyMaxLen]
+	}
+	// Both Gemini and OpenAI use {"error": {"message": ...}}, but only
+	// OpenAI's "code" is a string; Gemini's is the numeric status.
 	var errResp struct {
 		Error struct {
-			Message string `json:"message"`
+			Message string          `json:"message"`
+			Code    json.RawMessage `json:"code"`
 		} `json:"error"`
 	}
-	if err := json.Unmarshal(raw, &errResp); err == nil && errResp.Error.Message != "" {
-		msg := errResp.Error.Message
+	out := &APIError{StatusCode: status, Raw: kept}
+	if err := json.Unmarshal(raw, &errResp); err != nil {
+		return out
+	}
+	_ = json.Unmarshal(errResp.Error.Code, &out.Code)
+	if msg := errResp.Error.Message; msg != "" {
 		if len(msg) > errBodyMaxLen {
 			msg = msg[:errBodyMaxLen-3] + "..."
 		}
-		return &APIError{StatusCode: status, Message: msg}
+		out.Message = msg
 	}
-	return &APIError{StatusCode: status}
+	return out
 }
 
 // --- Image helpers ---------------------------------------------------------

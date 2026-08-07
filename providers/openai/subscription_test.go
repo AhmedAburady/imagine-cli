@@ -16,6 +16,7 @@ import (
 
 	"github.com/AhmedAburady/imagine-cli/internal/images"
 	"github.com/AhmedAburady/imagine-cli/providers"
+	"github.com/AhmedAburady/imagine-cli/providers/flagspec"
 )
 
 var _ providers.Describer = (*Provider)(nil)
@@ -376,7 +377,17 @@ func TestOptionsValidateNormalize(t *testing.T) {
 	if o.Size != "1024x1024" || o.Background != "" {
 		t.Errorf("normalize wrong: %+v", o)
 	}
-	if err := finalizeOptions(&Options{Model: "gpt-image-2", Background: "transparent", OutputFormat: "png"}); err == nil {
-		t.Error("expected transparent+gpt-image-2 error")
+}
+
+// gpt-image-2 has no transparent background and it is the only model left,
+// so the value is gone from the enum rather than guarded after the fact.
+func TestBackgroundRejectsTransparent(t *testing.T) {
+	info := (&Provider{}).Info()
+	_, err := flagspec.Parse(Options{}, map[string]any{"background": "transparent"}, info)
+	if err == nil {
+		t.Fatal("expected --background transparent to be rejected")
+	}
+	if !strings.Contains(err.Error(), "auto, opaque") {
+		t.Errorf("error should list the accepted values, got: %v", err)
 	}
 }

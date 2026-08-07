@@ -11,13 +11,13 @@ description: imagine is a multi-provider command-line tool for generating and ed
 
 Use this skill whenever the user:
 
-- Mentions `imagine`, any of its flags, providers (gemini, vertex, openai), or model aliases (`gpt-image-2`, `pro`, `flash`, `flash-lite`, `1.5`, etc.)
+- Mentions `imagine`, any of its flags, providers (gemini, vertex, openai), or model aliases (`gpt-image-2`, `pro`, `flash`, `flash-lite`, etc.)
 - Wants to generate or edit images from the command line
 - Is setting up the tool, adding an API key, or changing the default provider
 - Runs any `imagine providers …`, `imagine describe`, or `imagine metadata` subcommand
 - Hits an error — fixes live in [references/troubleshooting.md](references/troubleshooting.md)
 - Asks which provider to pick for a task
-- References sizes (`1K`, `2K`, `4K`, `1024x1024`, `3840x2160`, etc.)
+- References sizes (`512`, `1K`, `2K`, `4K`, `1024x1024`, `3840x2160`, etc.)
 - Wants to run multiple jobs in one invocation, mix providers in a single run, or hands you a `.yaml` / `.yml` / `.json` file describing image-generation jobs — that's batch mode (`imagine -p batch.yaml`)
 - Wants one prompt assembled from several files or snippets (style + subject + instruction) — repeat `-p`, see [Composing prompts from parts](#composing-prompts-from-parts)
 
@@ -69,7 +69,7 @@ Always pass the credentials as flags. Don't run `imagine providers add <name>` w
 # Gemini (free tier at https://aistudio.google.com/app/apikey)
 imagine providers add gemini --api-key AIza-XXX
 
-# OpenAI — API key (org verification required for GPT Image at platform.openai.com)
+# OpenAI - API key (org verification required for GPT Image at platform.openai.com/settings)
 imagine providers add openai --api-key sk-XXX
 
 # Vertex AI — needs `gcloud auth application-default login` run on the machine first
@@ -165,8 +165,8 @@ Rules that matter when scripting this:
 
 Setting a flag that doesn't belong to the active provider returns `--X is not supported by provider "Y" (supported by: [Z])`. Either drop the flag or switch providers with `--provider Z`.
 
-- **Gemini / Vertex** → [references/gemini.md](references/gemini.md). Flags: `-m pro/flash/flash-lite`, `-s 1K/2K/4K` (flash-lite: 1K only), `-a <aspect-ratio>` (14 values: `1:1` `1:4` `1:8` `2:3` `3:2` `3:4` `4:1` `4:3` `4:5` `5:4` `8:1` `9:16` `16:9` `21:9`), `-g` (grounding, not on flash-lite), `-t minimal|high` (flash and flash-lite), `-I` (image-search, Gemini flash only — Vertex does not support).
-- **OpenAI** → [references/openai.md](references/openai.md). Flags: `-m gpt-image-2 family`, `-s shorthand or raw WxH`, `-q quality`, `--compression`, `--moderation`, `--background`. Same flags for both auth methods (API key or ChatGPT subscription). Edit-mode size is restricted to `1024x1024`, `1536x1024`, `1024x1536`, `auto` on the **API-key route only** — the subscription route accepts any size in edit mode.
+- **Gemini / Vertex** → [references/gemini.md](references/gemini.md). Flags: `-m pro/flash/flash-lite`, `-s 512/1K/2K/4K` (512: flash only; flash-lite: 1K only), `-a <aspect-ratio>` (14 values: `1:1` `1:4` `1:8` `2:3` `3:2` `3:4` `4:1` `4:3` `4:5` `5:4` `8:1` `9:16` `16:9` `21:9`), `-g` (grounding, not on flash-lite), `-t minimal|high` (flash and flash-lite), `-I` (image-search, Gemini flash only; Vertex does not support).
+- **OpenAI** → [references/openai.md](references/openai.md). Flags: `-m gpt-image-2 family`, `-s shorthand or raw WxH`, `-q quality`, `--compression`, `--moderation`, `--background`. Same flags for both auth methods (API key or ChatGPT subscription). `-s` accepts any `WxH` inside the gpt-image-2 envelope (edges divisible by 16, longest edge <= 3840, ratio within 1:3 to 3:1, 655,360-8,294,400 pixels), in edit mode too.
 
 Provider pick heuristic:
 
@@ -220,13 +220,13 @@ List form — entries are anonymous; the summary table identifies them by 1-base
 
 Setting a key for the wrong provider errors. Defaults are applied per provider; omit to use them.
 
-**Gemini:** `model` (`pro`/`flash`/`flash-lite`/full ID, default `pro`), `size` (`1K`/`2K`/`4K`, default `1K`; **`flash-lite` accepts `1K` only**), `aspect-ratio` (one of `1:1` `1:4` `1:8` `2:3` `3:2` `3:4` `4:1` `4:3` `4:5` `5:4` `8:1` `9:16` `16:9` `21:9`), `grounding` (bool, **not on `flash-lite`**), `thinking` (`minimal`/`high`, **`flash` and `flash-lite` only**), `image-search` (bool, **`flash` only**).
+**Gemini:** `model` (`pro`/`flash`/`flash-lite`/full ID, default `pro`), `size` (`512`/`1K`/`2K`/`4K`, default `1K`; **`512` is `flash` only, `flash-lite` accepts `1K` only**), `aspect-ratio` (one of `1:1` `1:4` `1:8` `2:3` `3:2` `3:4` `4:1` `4:3` `4:5` `5:4` `8:1` `9:16` `16:9` `21:9`), `grounding` (bool, **not on `flash-lite`**), `thinking` (`minimal`/`high`, **`flash` and `flash-lite` only**), `image-search` (bool, **`flash` only**).
 
 **Vertex:** same as Gemini but **no `image-search`** (not exposed via Vertex AI).
 
-**OpenAI:** `model` (`gpt-image-2` (default) / `1.5` / `1` / `mini` / `1-mini` / `latest`), `size` (`1K`/`2K`/`4K` shorthand, `auto`, or raw `WxH` like `1024x1024`, default `auto`), `quality` (`auto`/`low`/`medium`/`high`, default `auto`), `compression` (0–100 int, default `100`, jpeg/webp only), `moderation` (`auto`/`low`), `background` (`auto`/`opaque`/`transparent`; `transparent` requires PNG/WebP output AND a non-`gpt-image-2` model).
+**OpenAI:** `model` (`gpt-image-2`, alias `2`), `size` (`1K`/`2K`/`4K` shorthand, `auto`, or raw `WxH` like `1024x1024`, default `auto`), `quality` (`auto`/`low`/`medium`/`high`, default `auto`), `compression` (0–100 int, default `100`, jpeg/webp only), `moderation` (`auto`/`low`), `background` (`auto`/`opaque`).
 
-OpenAI edit mode (entry has `input:`) restricts `size:` to `1024x1024` / `1536x1024` / `1024x1536` / `auto`.
+OpenAI `size:` must sit inside the gpt-image-2 envelope, whether or not the entry has `input:`.
 
 ### CLI flag interaction
 
@@ -265,6 +265,7 @@ Summary table at the end with columns `ENTRY` / `PROVIDER` / `MODEL` / `IMAGES` 
 | `entry hero: unknown key(s) [...]` | Key not in that provider's schema; cross-check the tables above. |
 | `entry hero: --thinking is not supported by model "pro"` | Set `model: flash` on the entry, or drop `thinking:`. |
 | `entry hero: --size 4K is not supported by model "gemini-3.1-flash-lite-image"` | `flash-lite` renders 1K only. Drop `size:` or switch to `model: flash`. |
+| `--size 512 is not supported by model "gemini-3-pro-image"` | Only `flash` documents the 512 tier. Switch to `model: flash`. |
 | `entry hero: --grounding is not supported by model "gemini-3.1-flash-lite-image"` | `flash-lite` has no Google Search grounding. Drop `grounding:` or switch to `model: flash`. |
 | `--X is not supported by any provider used in this batch` | Drop the CLI flag, or add an entry whose provider claims it. |
 | `filename collision: entry a and entry b both produce ...` | Set distinct `filename:` per entry. |

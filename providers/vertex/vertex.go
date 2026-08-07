@@ -77,6 +77,7 @@ func (p *Provider) Info() providers.Info {
 				DeprecatedAliases: gemini.DeprecatedAliasesPro(),
 				Description:       "Highest quality; no thinking flags.",
 				SupportedFlags:    []string{"grounding"},
+				Sizes:             gemini.SizesPro(),
 			},
 			{
 				ID:                gemini.ModelFlash,
@@ -84,6 +85,7 @@ func (p *Provider) Info() providers.Info {
 				DeprecatedAliases: gemini.DeprecatedAliasesFlash(),
 				Description:       "Faster; supports --thinking.",
 				SupportedFlags:    []string{"grounding", "thinking"},
+				Sizes:             gemini.SizesFlash(),
 			},
 			{
 				ID:             gemini.ModelFlashLite,
@@ -99,7 +101,7 @@ func (p *Provider) Info() providers.Info {
 			Thinking:     true,
 			ImageSearch:  false,
 			MaxBatchN:    1,
-			Sizes:        []string{"1K", "2K", "4K"},
+			Sizes:        gemini.SizesFlash(),
 			AspectRatios: gemini.AspectRatios(),
 		},
 	}

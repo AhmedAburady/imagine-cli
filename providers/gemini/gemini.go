@@ -23,6 +23,8 @@ const (
 	ModelFlash     = "gemini-3.1-flash-image"
 	ModelFlashLite = "gemini-3.1-flash-lite-image"
 
+	// Stays v1beta: v1 rejects image search as a tool ("not enabled for api
+	// version v1"), though it serves plain generation fine.
 	baseURL = "https://generativelanguage.googleapis.com/v1beta/models/"
 )
 
@@ -31,7 +33,10 @@ const (
 	legacyModelFlash = "gemini-3.1-flash-image-preview"
 )
 
-// SizesFlashLite is a func, not a var, so the slice Vertex shares is immutable.
+// Sizes* are funcs, not vars, so the slices Vertex shares stay immutable.
+// Only flash renders 512; pro must say so explicitly or it inherits the wide set.
+func SizesPro() []string       { return []string{"1K", "2K", "4K"} }
+func SizesFlash() []string     { return []string{"512", "1K", "2K", "4K"} }
 func SizesFlashLite() []string { return []string{"1K"} }
 
 // Exported so configs pinned to a pre-GA ID resolve the same on Vertex.
@@ -98,6 +103,7 @@ func (p *Provider) Info() providers.Info {
 				DeprecatedAliases: DeprecatedAliasesPro(),
 				Description:       "Highest quality; no thinking / image-search flags.",
 				SupportedFlags:    []string{"grounding"},
+				Sizes:             SizesPro(),
 			},
 			{
 				ID:                ModelFlash,
@@ -105,6 +111,7 @@ func (p *Provider) Info() providers.Info {
 				DeprecatedAliases: DeprecatedAliasesFlash(),
 				Description:       "Faster; supports --thinking and --image-search.",
 				SupportedFlags:    []string{"grounding", "thinking", "image-search"},
+				Sizes:             SizesFlash(),
 			},
 			{
 				ID:             ModelFlashLite,
@@ -120,7 +127,7 @@ func (p *Provider) Info() providers.Info {
 			Thinking:     true,
 			ImageSearch:  true,
 			MaxBatchN:    1,
-			Sizes:        []string{"1K", "2K", "4K"},
+			Sizes:        SizesFlash(),
 			AspectRatios: AspectRatios(),
 		},
 	}
@@ -153,11 +160,8 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 			},
 		},
 	}
-	if opts.Grounding {
-		body.Tools = append(body.Tools, tool{GoogleSearch: &googleSearch{}})
-	}
-	if opts.ImageSearch {
-		body.Tools = append(body.Tools, tool{ImageSearch: &imageSearch{}})
+	if gs := buildSearchTool(opts.Grounding, opts.ImageSearch); gs != nil {
+		body.Tools = append(body.Tools, tool{GoogleSearch: gs})
 	}
 	if opts.Thinking != "" {
 		body.GenerationConfig.ThinkingConfig = &thinkingConfig{ThinkingLevel: opts.Thinking}
@@ -195,6 +199,22 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 	return nil, errors.New("no image in response")
 }
 
+// buildSearchTool nests image search inside google_search per the current docs.
+// Grounding alone stays a bare googleSearch, which is what it has always sent.
+func buildSearchTool(grounding, images bool) *googleSearch {
+	if !images {
+		if !grounding {
+			return nil
+		}
+		return &googleSearch{}
+	}
+	st := &searchTypes{ImageSearch: &struct{}{}}
+	if grounding {
+		st.WebSearch = &struct{}{}
+	}
+	return &googleSearch{SearchTypes: st}
+}
+
 // -- Wire types (private). -----------------------------------------------------
 
 type inlineData struct {
@@ -226,13 +246,17 @@ type thinkingConfig struct {
 	ThinkingLevel string `json:"thinkingLevel"`
 }
 
-type googleSearch struct{}
+type searchTypes struct {
+	WebSearch   *struct{} `json:"webSearch,omitempty"`
+	ImageSearch *struct{} `json:"imageSearch,omitempty"`
+}
 
-type imageSearch struct{}
+type googleSearch struct {
+	SearchTypes *searchTypes `json:"searchTypes,omitempty"`
+}
 
 type tool struct {
 	GoogleSearch *googleSearch `json:"googleSearch,omitempty"`
-	ImageSearch  *imageSearch  `json:"imageSearch,omitempty"`
 }
 
 type geminiRequest struct {

@@ -8,7 +8,9 @@ package openai
 
 import (
 	"bytes"
+	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime/multipart"
@@ -111,9 +113,8 @@ func (p *Provider) ConfigSchema() []providers.ConfigField {
 	}
 }
 
-// Info advertises OpenAI's models. MaxBatchN depends on the active method: the
-// API-key /v1/images endpoint packs up to 10 images per call; the subscription
-// Responses tool yields one, so the orchestrator fans -n out as N calls.
+// Info advertises OpenAI's models; gpt-image-2 is the only one not shut down.
+// MaxBatchN is 10 on the API-key endpoint, 1 on the subscription Responses tool.
 func (p *Provider) Info() providers.Info {
 	maxBatch := 10
 	if p.method == methodSubscription {
@@ -125,11 +126,7 @@ func (p *Provider) Info() providers.Info {
 		Summary:      "OpenAI GPT Image models — API key or ChatGPT subscription",
 		DefaultModel: defaultModel,
 		Models: []providers.ModelInfo{
-			{ID: "gpt-image-2", Aliases: []string{"2"}, Description: "Flagship GPT Image model. Flexible sizes, high-fidelity inputs."},
-			{ID: "gpt-image-1.5", Aliases: []string{"1.5"}, Description: "Previous flagship; stable."},
-			{ID: "gpt-image-1", Aliases: []string{"1"}, Description: "First generation."},
-			{ID: "gpt-image-1-mini", Aliases: []string{"mini", "1-mini"}, Description: "Fastest, cheapest."},
-			{ID: "chatgpt-image-latest", Aliases: []string{"latest"}, Description: "ChatGPT-variant latest."},
+			{ID: defaultModel, Aliases: []string{"2"}, Description: "Flagship GPT Image model. Flexible sizes, high-fidelity inputs."},
 		},
 		Capabilities: providers.Capabilities{
 			Edit:      true,
@@ -229,7 +226,7 @@ func (p *Provider) generate(ctx context.Context, r generateRequest) (*providers.
 
 	resp, err := transport.PostJSON[generationsResponse](ctx, httpClient, baseURL+generationsPath, transport.Bearer(p.apiKey), body)
 	if err != nil {
-		return nil, err
+		return nil, describeAPIError(err)
 	}
 	return decodeImages(resp, mimeTypeFor(r.OutputFormat))
 }
@@ -249,16 +246,6 @@ type editRequest struct {
 }
 
 func (p *Provider) edit(ctx context.Context, r editRequest) (*providers.Response, error) {
-	// Edit endpoint constraint: size must be one of 1024x1024, 1536x1024,
-	// 1024x1536, auto. The flag layer maps 1K etc. to dimensions; reject
-	// anything else client-side.
-	switch r.Size {
-	case "", "auto", "1024x1024", "1536x1024", "1024x1536":
-		// ok
-	default:
-		return nil, fmt.Errorf("openai edit endpoint only accepts size 1024x1024, 1536x1024, 1024x1536, or auto (got %q)", r.Size)
-	}
-
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 
@@ -317,12 +304,41 @@ func (p *Provider) edit(ctx context.Context, r editRequest) (*providers.Response
 
 	resp, err := transport.PostMultipart[generationsResponse](ctx, httpClient, baseURL+editsPath, transport.Bearer(p.apiKey), &buf, w.FormDataContentType())
 	if err != nil {
-		return nil, err
+		return nil, describeAPIError(err)
 	}
 	return decodeImages(resp, mimeTypeFor(r.OutputFormat))
 }
 
 // -- Shared ------------------------------------------------------------------
+
+// describeAPIError appends the moderation_stage and categories OpenAI attaches
+// to moderation_blocked errors; every other error passes through untouched.
+func describeAPIError(err error) error {
+	var apiErr *transport.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != "moderation_blocked" {
+		return err
+	}
+	var body struct {
+		Error struct {
+			Details struct {
+				Stage      string   `json:"moderation_stage"`
+				Categories []string `json:"categories"`
+			} `json:"moderation_details"`
+		} `json:"error"`
+	}
+	if jsonErr := json.Unmarshal(apiErr.Raw, &body); jsonErr != nil {
+		return err
+	}
+	d := body.Error.Details
+	if d.Stage == "" && len(d.Categories) == 0 {
+		return err
+	}
+	detail := "moderation stage: " + cmp.Or(d.Stage, "unknown")
+	if len(d.Categories) > 0 {
+		detail += "; categories: " + strings.Join(d.Categories, ", ")
+	}
+	return fmt.Errorf("%w (%s)", err, detail)
+}
 
 // decodeImages unpacks /v1/images responses (generations + edits share the
 // same data[].b64_json shape). outMime is applied to every emitted image.
