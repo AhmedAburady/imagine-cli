@@ -32,17 +32,21 @@ Aliases resolve to canonical IDs. Omit `-m` to use the default.
 
 | Alias | Canonical ID | Notes |
 |---|---|---|
-| `2` | `gpt-image-2` | Flagship - flexible sizes, high-fidelity inputs. |
+| `flare`, `2.5` | `gpt-image-2.5-flare` | Default. Fast, high-quality everyday generation and editing. |
+| `sunburst` | `gpt-image-2.5-sunburst` | Most capable; tighter editing precision, longer generation times. |
+| `image2`, `2` | `gpt-image-2` | Previous flagship. The only model the ChatGPT subscription route serves. |
 
 `-m` also accepts the full canonical ID directly.
+
+**Subscription route:** it still serves `gpt-image-2`. Omitting `-m` there uses `gpt-image-2`; an explicit `-m flare` / `-m sunburst` is refused with a message pointing at `-m image2` or an API key.
 
 ## Flags (OpenAI-private — rejected by Gemini/Vertex)
 
 | Flag | Long | Values | Default |
 |---|---|---|---|
-| `-m` | `--model` | See models above | `gpt-image-2` |
+| `-m` | `--model` | See models above | `flare` (`gpt-image-2.5-flare`) |
 | `-s` | `--size` | Shorthand / raw / auto — see size matrix below | `auto` |
-| `-q` | `--quality` | `low`, `medium`, `high`, `auto` | `auto` |
+| `-q` | `--quality` | `low`, `medium`, `high`, `auto`; `xhigh`, `max` on the 2.5 models only | `auto` |
 | | `--compression` | 0-100 integer (jpeg/webp only) | `100` |
 | | `--moderation` | `auto`, `low` | `auto` |
 | | `--background` | `auto`, `opaque` | `auto` |

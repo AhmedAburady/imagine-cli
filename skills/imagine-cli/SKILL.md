@@ -166,11 +166,11 @@ Rules that matter when scripting this:
 Setting a flag that doesn't belong to the active provider returns `--X is not supported by provider "Y" (supported by: [Z])`. Either drop the flag or switch providers with `--provider Z`.
 
 - **Gemini / Vertex** → [references/gemini.md](references/gemini.md). Flags: `-m pro/flash/flash-lite`, `-s 512/1K/2K/4K` (512: flash only; flash-lite: 1K only), `-a <aspect-ratio>` (14 values: `1:1` `1:4` `1:8` `2:3` `3:2` `3:4` `4:1` `4:3` `4:5` `5:4` `8:1` `9:16` `16:9` `21:9`), `-g` (grounding, not on flash-lite), `-t minimal|high` (flash and flash-lite), `-I` (image-search, Gemini flash only; Vertex does not support).
-- **OpenAI** → [references/openai.md](references/openai.md). Flags: `-m gpt-image-2 family`, `-s shorthand or raw WxH`, `-q quality`, `--compression`, `--moderation`, `--background`. Same flags for both auth methods (API key or ChatGPT subscription). `-s` accepts any `WxH` inside the gpt-image-2 envelope (edges divisible by 16, longest edge <= 3840, ratio within 1:3 to 3:1, 655,360-8,294,400 pixels), in edit mode too.
+- **OpenAI** → [references/openai.md](references/openai.md). Flags: `-m flare / sunburst / image2`, `-s shorthand or raw WxH`, `-q quality`, `--compression`, `--moderation`, `--background`. Same flags for both auth methods (API key or ChatGPT subscription). `-s` accepts any `WxH` inside the gpt-image-2 envelope (edges divisible by 16, longest edge <= 3840, ratio within 1:3 to 3:1, 655,360-8,294,400 pixels), in edit mode too.
 
 Provider pick heuristic:
 
-- Photorealism, text rendering, intricate prompts → **OpenAI `gpt-image-2`**
+- Photorealism, text rendering, intricate prompts → **OpenAI `gpt-image-2.5-flare`** (default); precision edits and campaign-grade output → **`-m sunburst`**
 - Fast iteration, Google ecosystem, live-search grounding → **Gemini**
 - GCP-native auth / enterprise quotas → **Vertex**
 
@@ -224,7 +224,7 @@ Setting a key for the wrong provider errors. Defaults are applied per provider; 
 
 **Vertex:** same as Gemini but **no `image-search`** (not exposed via Vertex AI).
 
-**OpenAI:** `model` (`gpt-image-2`, alias `2`), `size` (`1K`/`2K`/`4K` shorthand, `auto`, or raw `WxH` like `1024x1024`, default `auto`), `quality` (`auto`/`low`/`medium`/`high`, default `auto`), `compression` (0–100 int, default `100`, jpeg/webp only), `moderation` (`auto`/`low`), `background` (`auto`/`opaque`).
+**OpenAI:** `model` (`flare` / `gpt-image-2.5-flare` default, `sunburst`, `image2` / `2`), `size` (`1K`/`2K`/`4K` shorthand, `auto`, or raw `WxH` like `1024x1024`, default `auto`), `quality` (`auto`/`low`/`medium`/`high`, plus `xhigh`/`max` on the 2.5 models, default `auto`), `compression` (0–100 int, default `100`, jpeg/webp only), `moderation` (`auto`/`low`), `background` (`auto`/`opaque`).
 
 OpenAI `size:` must sit inside the gpt-image-2 envelope, whether or not the entry has `input:`.
 

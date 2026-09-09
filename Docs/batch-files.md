@@ -204,9 +204,9 @@ Each provider has its own set. Setting a key for a provider that doesn't claim i
 
 | Key | Type | Default | Notes |
 |---|---|---|---|
-| `model` | string | `gpt-image-2` | `gpt-image-2` (alias `2`) |
+| `model` | string | `gpt-image-2.5-flare` | `flare` / `2.5`, `sunburst`, `image2` / `2`, or a full ID |
 | `size` | string | `auto` | `1K` / `2K` / `4K` shorthand, `auto`, or raw `WxH` (e.g. `1024x1024`, `1536x1024`) |
-| `quality` | string | `auto` | `auto`, `low`, `medium`, `high` |
+| `quality` | string | `auto` | `auto`, `low`, `medium`, `high`; `xhigh`, `max` on the 2.5 models |
 | `compression` | int | `100` | 0–100. Applies only when output format is JPEG or WebP (decided by `filename` extension) |
 | `moderation` | string | `auto` | `auto` or `low` |
 | `background` | string | `auto` | `auto`, `opaque` |

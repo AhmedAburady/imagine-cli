@@ -44,11 +44,11 @@
 
 ## Why imagine
 
-The best image models out there — Nano Banana, Nano Banana 2, and gpt-image-2 — are stuck behind web UIs. There's no official way to reach them from a terminal.
+The best image models out there — Nano Banana, Nano Banana 2, and GPT-Image-2.5 — are stuck behind web UIs. There's no official way to reach them from a terminal.
 
 I built [banana-cli](https://github.com/AhmedAburady/banana-cli) first — a focused CLI for Google's image models. imagine is the next step: same idea, built to be extensible. One tool that can grow to support whatever good image models come next, across any provider.
 
-- **The models that matter** — Nano Banana (`gemini-3-pro-image`), Nano Banana 2 (`gemini-3.1-flash-image`), Nano Banana 2 Lite (`gemini-3.1-flash-lite-image`), and gpt-image-2. Direct API access, no middlemen.
+- **The models that matter** — Nano Banana (`gemini-3-pro-image`), Nano Banana 2 (`gemini-3.1-flash-image`), Nano Banana 2 Lite (`gemini-3.1-flash-lite-image`), GPT-Image-2.5 Flare and Sunburst (`gpt-image-2.5-flare`, `gpt-image-2.5-sunburst`), and gpt-image-2. Direct API access, no middlemen.
 - **Built for workflows** — pipe into scripts, run inside loops, chain with other CLI tools. Anywhere a command runs, imagine runs.
 - **Concurrent generation** — `-n 10` fires off 10 images in one invocation. No clicking, no waiting for one to finish before starting the next.
 - **Batch runs from a file** — `imagine -p batch.yaml` describes many jobs in one file: different prompts, different providers, different sizes. Every entry runs in parallel; validation is exhaustive before any HTTP fires; results land in a styled summary table. Built for scripts and CI.
@@ -428,13 +428,13 @@ Vertex does not support `--image-search`.
 
 ### OpenAI
 
-Uses `gpt-image-2`. The flags below are identical whether you authenticate with an API key or a [ChatGPT subscription](#openai-api-key-or-chatgpt-subscription); only the billing and endpoint differ.
+Defaults to `gpt-image-2.5-flare`. The flags below are identical whether you authenticate with an API key or a [ChatGPT subscription](#openai-api-key-or-chatgpt-subscription); only the billing and endpoint differ. The subscription route serves `gpt-image-2` only: omit `-m` (or pass `-m image2`) there, since the 2.5 models are refused on that route until OpenAI exposes them to Codex.
 
 | Flag | Long | Description | Default |
 |---|---|---|---|
-| `-m` | `--model` | `gpt-image-2` (alias `2`) | `gpt-image-2` |
+| `-m` | `--model` | `flare` (`gpt-image-2.5-flare`), `sunburst` (`gpt-image-2.5-sunburst`), `image2` (`gpt-image-2`) | `flare` |
 | `-s` | `--size` | `1K` / `2K` / `4K` shorthand, `auto`, or raw `WxH` (e.g. `1536x1024`) | `auto` |
-| `-q` | `--quality` | `low`, `medium`, `high`, `auto` | `auto` |
+| `-q` | `--quality` | `low`, `medium`, `high`, `auto`; plus `xhigh`, `max` on the 2.5 models | `auto` |
 |  | `--compression` | 0–100 (jpeg/webp only) | `100` |
 |  | `--moderation` | `auto`, `low` | `auto` |
 |  | `--background` | `auto`, `opaque` | `auto` |
