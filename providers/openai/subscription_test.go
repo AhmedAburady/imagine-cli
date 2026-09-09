@@ -391,3 +391,53 @@ func TestBackgroundRejectsTransparent(t *testing.T) {
 		t.Errorf("error should list the accepted values, got: %v", err)
 	}
 }
+
+// The Codex route still serves gpt-image-2: an unset -m falls back to it and
+// an explicit 2.5 pick is refused instead of being sent blind.
+func TestResolveSubscriptionModel(t *testing.T) {
+	cases := []struct {
+		name    string
+		opts    Options
+		want    string
+		wantErr string
+	}{
+		{"default falls back", Options{Model: "gpt-image-2.5-flare"}, "gpt-image-2", ""},
+		{"explicit image2", Options{Model: "gpt-image-2", ModelExplicit: true}, "gpt-image-2", ""},
+		{"explicit flare", Options{Model: "gpt-image-2.5-flare", ModelExplicit: true}, "", "subscription route"},
+		{"explicit sunburst", Options{Model: "gpt-image-2.5-sunburst", ModelExplicit: true}, "", "subscription route"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := resolveSubscriptionModel(&c.opts)
+			if c.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), c.wantErr) {
+					t.Fatalf("err = %v, want containing %q", err, c.wantErr)
+				}
+				return
+			}
+			if err != nil || got != c.want {
+				t.Fatalf("got %q, %v; want %q", got, err, c.want)
+			}
+		})
+	}
+}
+
+func TestSubscriptionBody_ToolCarriesRouteModel(t *testing.T) {
+	opts := &Options{Model: "gpt-image-2.5-flare", Size: "auto", Quality: "high", OutputFormat: "png", Compression: 100}
+	body, err := subscriptionBody(opts, providers.Request{Prompt: "a mug"})
+	if err != nil {
+		t.Fatalf("subscriptionBody: %v", err)
+	}
+	raw, _ := json.Marshal(body)
+	for _, want := range []string{`"model":"gpt-5.5"`, `"type":"image_generation"`, `"model":"gpt-image-2"`, `"quality":"high"`} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("wire body missing %s: %s", want, raw)
+		}
+	}
+	if strings.Contains(string(raw), "gpt-image-2.5") {
+		t.Errorf("wire body must not carry a 2.5 model on the subscription route: %s", raw)
+	}
+	if _, err := subscriptionBody(&Options{Model: "gpt-image-2.5-sunburst", ModelExplicit: true}, providers.Request{Prompt: "x"}); err == nil {
+		t.Error("explicit sunburst should be refused on the subscription route")
+	}
+}

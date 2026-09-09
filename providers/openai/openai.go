@@ -25,11 +25,13 @@ import (
 )
 
 const (
-	baseURL         = "https://api.openai.com/v1"
-	defaultModel    = "gpt-image-2"
+	defaultModel    = "gpt-image-2.5-flare"
 	generationsPath = "/images/generations"
 	editsPath       = "/images/edits"
 )
+
+// baseURL is a var so tests can point the API-key route at an httptest server.
+var baseURL = "https://api.openai.com/v1"
 
 // authMethod selects the credential type / transport for one Provider instance.
 type authMethod string
@@ -113,7 +115,7 @@ func (p *Provider) ConfigSchema() []providers.ConfigField {
 	}
 }
 
-// Info advertises OpenAI's models; gpt-image-2 is the only one not shut down.
+// Info advertises OpenAI's models from the modelSpecs table.
 // MaxBatchN is 10 on the API-key endpoint, 1 on the subscription Responses tool.
 func (p *Provider) Info() providers.Info {
 	maxBatch := 10
@@ -125,9 +127,7 @@ func (p *Provider) Info() providers.Info {
 		DisplayName:  "OpenAI",
 		Summary:      "OpenAI GPT Image models — API key or ChatGPT subscription",
 		DefaultModel: defaultModel,
-		Models: []providers.ModelInfo{
-			{ID: defaultModel, Aliases: []string{"2"}, Description: "Flagship GPT Image model. Flexible sizes, high-fidelity inputs."},
-		},
+		Models:       infoModels(),
 		Capabilities: providers.Capabilities{
 			Edit:      true,
 			MaxBatchN: maxBatch,
