@@ -30,22 +30,15 @@ type Options struct {
 	// caller (CLI ReadFlags closure or batch runner) before Generate.
 	// Not a CLI flag.
 	OutputFormat string `flag:"-"`
-
-	// ModelExplicit records whether the user chose -m (or a batch `model:`)
-	// rather than inheriting the default. The subscription route uses it to
-	// fall back to its own default instead of a model that route cannot reach.
-	ModelExplicit bool `flag:"-"`
 }
 
-// modelSpec is the single per-model table. Info.Models, the quality gate and
-// the subscription-route availability all derive from it, so adding a model
-// touches this table only.
+// modelSpec is the single per-model table. Info.Models and the quality gate
+// derive from it, so adding a model touches this table only.
 type modelSpec struct {
-	ID           string
-	Aliases      []string
-	Description  string
-	Qualities    []string // accepted -q values besides auto
-	Subscription bool     // reachable through the Codex Responses route
+	ID          string
+	Aliases     []string
+	Description string
+	Qualities   []string // accepted -q values besides auto
 }
 
 var (
@@ -67,11 +60,10 @@ var modelSpecs = []modelSpec{
 		Qualities:   qualities25,
 	},
 	{
-		ID:           "gpt-image-2",
-		Aliases:      []string{"image2", "2"},
-		Description:  "Previous flagship. The only model on the ChatGPT subscription route.",
-		Qualities:    qualities2,
-		Subscription: true,
+		ID:          "gpt-image-2",
+		Aliases:     []string{"image2", "2"},
+		Description: "Previous flagship.",
+		Qualities:   qualities2,
 	},
 }
 

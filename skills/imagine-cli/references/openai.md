@@ -34,11 +34,9 @@ Aliases resolve to canonical IDs. Omit `-m` to use the default.
 |---|---|---|
 | `flare`, `2.5` | `gpt-image-2.5-flare` | Default. Fast, high-quality everyday generation and editing. |
 | `sunburst` | `gpt-image-2.5-sunburst` | Most capable; tighter editing precision, longer generation times. |
-| `image2`, `2` | `gpt-image-2` | Previous flagship. The only model the ChatGPT subscription route serves. |
+| `image2`, `2` | `gpt-image-2` | Previous flagship. |
 
 `-m` also accepts the full canonical ID directly.
-
-**Subscription route:** it still serves `gpt-image-2`. Omitting `-m` there uses `gpt-image-2`; an explicit `-m flare` / `-m sunburst` is refused with a message pointing at `-m image2` or an API key.
 
 ## Flags (OpenAI-private — rejected by Gemini/Vertex)
 

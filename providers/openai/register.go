@@ -1,9 +1,6 @@
 package openai
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/spf13/cobra"
 
 	"github.com/AhmedAburady/imagine-cli/providers"
@@ -31,7 +28,6 @@ func init() {
 				return nil, err
 			}
 			o := optsAny.(*Options)
-			o.ModelExplicit = cmd.Flags().Changed("model")
 			// OutputFormat comes from the common -f filename's extension.
 			filename, _ := cmd.Flags().GetString("filename")
 			o.OutputFormat = outputFormatFromFilename(filename)
@@ -43,7 +39,6 @@ func init() {
 				return nil, err
 			}
 			o := optsAny.(*Options)
-			o.ModelExplicit = modelSet(values)
 			o.OutputFormat = outputFormatFromFilename(common.Filename)
 			return o, nil
 		},
@@ -78,11 +73,4 @@ func init() {
 			},
 		},
 	})
-}
-
-// modelSet reports whether a batch entry (or the CLI layer above it) named a
-// model rather than leaving it to the default.
-func modelSet(values map[string]any) bool {
-	v, ok := values["model"]
-	return ok && strings.TrimSpace(fmt.Sprint(v)) != ""
 }

@@ -35,12 +35,6 @@ const (
 	// itself travels inside the tool object.
 	driverModel = "gpt-5.5"
 
-	// subscriptionModel is the route's own default. Probed 2026-09-09: the
-	// Codex backend rewrites the tool to model "gpt-image-2-codex" whatever
-	// is sent (a bogus ID succeeds too), so the 2.5 models are refused here
-	// rather than silently served by a different model.
-	subscriptionModel = "gpt-image-2"
-
 	// imageInstructions is the minimal system prompt the endpoint needs to
 	// reliably invoke the tool (it misbehaves with none).
 	imageInstructions = "You are an image generation assistant. Generate exactly one image for the user's request using the image_generation tool."
@@ -58,43 +52,20 @@ func (p *Provider) generateSubscription(ctx context.Context, opts *Options, req 
 	}
 	auth := &codexAuth{accessToken: access, accountID: account, sessionID: uuid.NewString()}
 
-	body, err := subscriptionBody(opts, req)
-	if err != nil {
-		return nil, err
-	}
-	return p.doResponses(ctx, auth, body, opts.OutputFormat)
+	return p.doResponses(ctx, auth, subscriptionBody(opts, req), opts.OutputFormat)
 }
 
 // subscriptionBody assembles the Responses request: the driver model hosting
-// one image_generation tool call whose model is whatever the route can serve.
-func subscriptionBody(opts *Options, req providers.Request) (responsesBody, error) {
-	model, err := resolveSubscriptionModel(opts)
-	if err != nil {
-		return responsesBody{}, err
-	}
-	tool := buildTool(opts)
-	tool.Model = model
+// one image_generation tool call.
+func subscriptionBody(opts *Options, req providers.Request) responsesBody {
 	return responsesBody{
 		Model:        driverModel,
 		Instructions: imageInstructions,
 		Input:        []inputMessage{{Role: "user", Content: responsesContent(req.Prompt, req.References)}},
-		Tools:        []imageTool{tool},
+		Tools:        []imageTool{buildTool(opts)},
 		ToolChoice:   &toolChoice{Type: "image_generation"},
 		Stream:       true,
-	}, nil
-}
-
-// resolveSubscriptionModel picks the image model for the Codex route: the
-// route's own default unless the user named one, and only models the spec
-// table marks as reachable here.
-func resolveSubscriptionModel(opts *Options) (string, error) {
-	if !opts.ModelExplicit {
-		return subscriptionModel, nil
 	}
-	if spec, ok := specFor(opts.Model); ok && spec.Subscription {
-		return opts.Model, nil
-	}
-	return "", fmt.Errorf("model %q is not available on the ChatGPT subscription route (the Codex backend serves its own gpt-image-2 regardless of the model requested); use `-m image2` here, or an API key for the gpt-image-2.5 models", opts.Model)
 }
 
 func responsesContent(text string, refs []images.Reference) []contentItem {

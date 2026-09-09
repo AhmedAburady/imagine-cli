@@ -45,19 +45,3 @@ func TestQualityError_NamesSupportedLevels(t *testing.T) {
 		t.Fatalf("error should list gpt-image-2's levels, got: %v", err)
 	}
 }
-
-func TestModelExplicit_FromBatchValues(t *testing.T) {
-	for _, c := range []struct {
-		values map[string]any
-		want   bool
-	}{
-		{map[string]any{}, false},
-		{map[string]any{"model": ""}, false},
-		{map[string]any{"model": "  "}, false},
-		{map[string]any{"model": "image2"}, true},
-	} {
-		if got := modelSet(c.values); got != c.want {
-			t.Errorf("modelSet(%v) = %v, want %v", c.values, got, c.want)
-		}
-	}
-}

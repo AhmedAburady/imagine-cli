@@ -428,7 +428,7 @@ Vertex does not support `--image-search`.
 
 ### OpenAI
 
-Defaults to `gpt-image-2.5-flare`. The flags below are identical whether you authenticate with an API key or a [ChatGPT subscription](#openai-api-key-or-chatgpt-subscription); only the billing and endpoint differ. The subscription route serves `gpt-image-2` only: omit `-m` (or pass `-m image2`) there, since the 2.5 models are refused on that route until OpenAI exposes them to Codex.
+Defaults to `gpt-image-2.5-flare`. The flags below are identical whether you authenticate with an API key or a [ChatGPT subscription](#openai-api-key-or-chatgpt-subscription); only the billing and endpoint differ.
 
 | Flag | Long | Description | Default |
 |---|---|---|---|

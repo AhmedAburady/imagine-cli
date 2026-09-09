@@ -12,7 +12,7 @@ func Examples() string {
   imagine -p "campaign key visual" -m sunburst -q max
   imagine -p "sticker" --background opaque -f sticker.png
   imagine -p "make it winter" -i photo.png
-  imagine -p "product shot" -m image2        # previous flagship; the subscription route's model
+  imagine -p "product shot" -m image2
 
   QUALITY: low, medium, high, auto on every model; xhigh and max on the 2.5 models only.
 
