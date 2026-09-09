@@ -35,9 +35,10 @@ const (
 	// itself travels inside the tool object.
 	driverModel = "gpt-5.5"
 
-	// subscriptionModel is the route's own default. Codex still pins
-	// gpt-image-2 on this backend and nothing published says the 2.5 models
-	// are reachable here, so they are refused rather than sent blind.
+	// subscriptionModel is the route's own default. Probed 2026-09-09: the
+	// Codex backend rewrites the tool to model "gpt-image-2-codex" whatever
+	// is sent (a bogus ID succeeds too), so the 2.5 models are refused here
+	// rather than silently served by a different model.
 	subscriptionModel = "gpt-image-2"
 
 	// imageInstructions is the minimal system prompt the endpoint needs to
@@ -93,7 +94,7 @@ func resolveSubscriptionModel(opts *Options) (string, error) {
 	if spec, ok := specFor(opts.Model); ok && spec.Subscription {
 		return opts.Model, nil
 	}
-	return "", fmt.Errorf("model %q is not available on the ChatGPT subscription route (it still serves %s); use `-m image2` here, or an API key for the gpt-image-2.5 models", opts.Model, subscriptionModel)
+	return "", fmt.Errorf("model %q is not available on the ChatGPT subscription route (the Codex backend serves its own gpt-image-2 regardless of the model requested); use `-m image2` here, or an API key for the gpt-image-2.5 models", opts.Model)
 }
 
 func responsesContent(text string, refs []images.Reference) []contentItem {
