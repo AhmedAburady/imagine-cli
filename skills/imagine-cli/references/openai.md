@@ -36,7 +36,7 @@ Aliases resolve to canonical IDs. Omit `-m` to use the default.
 | `sunburst` | `gpt-image-2.5-sunburst` | Most capable; tighter editing precision, longer generation times. |
 | `image2`, `2` | `gpt-image-2` | Previous flagship. |
 
-`-m` also accepts the full canonical ID directly.
+`-m` also accepts the full canonical ID directly, and the dated snapshots `gpt-image-2.5-flare-2026-09-08`, `gpt-image-2.5-sunburst-2026-09-08` and `gpt-image-2-2026-04-21`. A snapshot is sent as written, so the run stays pinned to that version, and it follows the same rules as its base model.
 
 ## Flags (OpenAI-private — rejected by Gemini/Vertex)
 

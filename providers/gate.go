@@ -58,14 +58,8 @@ func CheckModel(setNames []string, active Bundle, providerOpts any) []error {
 		return nil
 	}
 
-	var modelInfo *ModelInfo
-	for i, m := range active.Info.Models {
-		if m.ID == resolved {
-			modelInfo = &active.Info.Models[i]
-			break
-		}
-	}
-	if modelInfo == nil {
+	modelInfo, ok := active.Info.Model(resolved)
+	if !ok {
 		return nil
 	}
 

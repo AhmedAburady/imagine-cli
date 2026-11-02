@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -40,6 +41,7 @@ type modelSpec struct {
 	Aliases     []string
 	Description string
 	Qualities   []string // accepted -q values besides auto
+	Snapshots   []string // dated IDs, sent as written
 }
 
 var (
@@ -53,24 +55,28 @@ var modelSpecs = []modelSpec{
 		Aliases:     []string{"flare", "2.5"},
 		Description: "Fast, high-quality everyday generation and editing.",
 		Qualities:   qualities25,
+		Snapshots:   []string{"gpt-image-2.5-flare-2026-09-08"},
 	},
 	{
 		ID:          "gpt-image-2.5-sunburst",
 		Aliases:     []string{"sunburst"},
 		Description: "Most capable; tighter editing precision, longer generation times.",
 		Qualities:   qualities25,
+		Snapshots:   []string{"gpt-image-2.5-sunburst-2026-09-08"},
 	},
 	{
 		ID:          "gpt-image-2",
 		Aliases:     []string{"image2", "2"},
 		Description: "Previous flagship.",
 		Qualities:   qualities2,
+		Snapshots:   []string{"gpt-image-2-2026-04-21"},
 	},
 }
 
+// specFor finds the spec for a resolved ID, a dated snapshot included.
 func specFor(id string) (modelSpec, bool) {
 	for _, m := range modelSpecs {
-		if m.ID == id {
+		if m.ID == id || slices.Contains(m.Snapshots, id) {
 			return m, true
 		}
 	}
@@ -81,7 +87,7 @@ func specFor(id string) (modelSpec, bool) {
 func infoModels() []providers.ModelInfo {
 	out := make([]providers.ModelInfo, 0, len(modelSpecs))
 	for _, m := range modelSpecs {
-		out = append(out, providers.ModelInfo{ID: m.ID, Aliases: m.Aliases, Description: m.Description})
+		out = append(out, providers.ModelInfo{ID: m.ID, Aliases: m.Aliases, Description: m.Description, Snapshots: m.Snapshots})
 	}
 	return out
 }
