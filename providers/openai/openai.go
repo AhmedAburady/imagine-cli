@@ -131,6 +131,7 @@ func (p *Provider) Info() providers.Info {
 		Capabilities: providers.Capabilities{
 			Edit:      true,
 			MaxBatchN: maxBatch,
+			WebP:      true,
 		},
 	}
 }

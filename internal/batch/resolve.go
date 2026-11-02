@@ -267,6 +267,9 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 	if errs := providers.CheckModel(mapKeys(pvtMap), bundle, providerOpts); len(errs) > 0 {
 		return Resolved{}, errs[0]
 	}
+	if err := providers.CheckOutputFormat(effFilename, bundle); err != nil {
+		return Resolved{}, err
+	}
 
 	// Auth + Provider construction. Cached by provider name — entries
 	// sharing a provider reuse one instance. Missing credentials still

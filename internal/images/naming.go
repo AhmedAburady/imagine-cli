@@ -60,7 +60,9 @@ func ResolveFilename(p FilenameParams) string {
 
 // MatchExt swaps a filename's image extension for the one its bytes call for,
 // so a provider that cannot honour the requested format (Gemini has no WebP)
-// never writes PNG data under .webp, nor WebP data under .png.
+// never writes PNG data under .webp, nor WebP data under .png. A .webp name
+// for a provider without WebP is rejected up front (CheckOutputFormat), so
+// this is a safety net.
 func MatchExt(filename string, data []byte) string {
 	var want string
 	switch http.DetectContentType(data) {

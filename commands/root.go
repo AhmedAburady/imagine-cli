@@ -89,7 +89,11 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 				return err
 			}
 
-			return enforceModelSupport(cmd, bundle, providerOptions)
+			if err := enforceModelSupport(cmd, bundle, providerOptions); err != nil {
+				return err
+			}
+			filename, _ := cmd.Flags().GetString("filename")
+			return providers.CheckOutputFormat(filename, bundle)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Bare invocation (no -p) → print help and exit cleanly.

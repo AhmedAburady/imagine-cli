@@ -218,8 +218,8 @@ func saveOne(res *GenerationResult, data []byte, params Params) {
 	})
 
 	// Make the bytes match the requested extension where the standard
-	// library can; MatchExt then fixes the name for what it cannot (no WebP
-	// encoder, so Gemini output asked for as .webp is saved as .png).
+	// library can; MatchExt then fixes the name for anything left (there is
+	// no WebP encoder; CheckOutputFormat already rejects .webp where needed).
 	switch strings.ToLower(filepath.Ext(filename)) {
 	case ".jpg", ".jpeg":
 		converted, err := images.ConvertToJPEG(data)

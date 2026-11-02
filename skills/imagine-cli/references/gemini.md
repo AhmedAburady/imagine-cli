@@ -76,7 +76,7 @@ imagine -p "a cat" --provider vertex -n 3
 
 ## Output
 
-- **Format:** PNG by default; the Gemini API returns JPEG for some models and imagine converts it so `.png` always holds PNG data. If `-f` ends in `.jpg`/`.jpeg`, the file is JPEG (PNG converted locally at quality 95). `-f x.webp` is saved as `x.png`: neither provider returns WebP.
+- **Format:** PNG by default; the Gemini API returns JPEG for some models and imagine converts it so `.png` always holds PNG data. If `-f` ends in `.jpg`/`.jpeg`, the file is JPEG (PNG converted locally at quality 95). `-f x.webp` is rejected before any API call: neither provider returns WebP.
 - **Resolution:** determined by `-s` tier and `-a`. Approximate:
   - `1K` → ~1024px on the long edge
   - `2K` → ~2048px

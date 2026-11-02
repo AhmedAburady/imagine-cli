@@ -125,6 +125,7 @@ type Capabilities struct {
 	Grounding    bool     // supports Google Search grounding
 	Thinking     bool     // supports thinking level
 	ImageSearch  bool     // supports image-search grounding
+	WebP         bool     // returns WebP data when -f ends in .webp
 	MaxBatchN    int      // images per single Generate call; 1 means orchestrator loops
 	Sizes        []string // accepted values for -s
 	AspectRatios []string // accepted values for -a; empty means the provider doesn't gate them

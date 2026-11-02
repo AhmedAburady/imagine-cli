@@ -2,7 +2,9 @@ package providers
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
+	"strings"
 )
 
 // Gate is the single source of truth for "is this flag valid here?"
@@ -156,4 +158,14 @@ func ModelsSupportingFlag(info Info, flagName string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// CheckOutputFormat rejects a .webp filename for a provider that cannot
+// return WebP, before any paid call. Saving would otherwise have to write
+// the file under another extension, which can also collide with a sibling.
+func CheckOutputFormat(filename string, active Bundle) error {
+	if !strings.EqualFold(filepath.Ext(filename), ".webp") || active.Info.Capabilities.WebP {
+		return nil
+	}
+	return fmt.Errorf("filename %q: provider %q cannot write WebP; use .png or .jpg", filename, active.Info.Name)
 }
