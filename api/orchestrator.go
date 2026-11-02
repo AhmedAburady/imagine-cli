@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -205,7 +206,7 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 }
 
 // saveOne resolves the output filename (honouring -f, -r, and default rules),
-// converts to JPEG when the extension requests it, and writes the file.
+// converts the bytes to the format the extension asks for, and writes the file.
 // Mutates res.Filename on success or res.Error on failure.
 func saveOne(res *GenerationResult, data []byte, params Params) {
 	filename := images.ResolveFilename(images.FilenameParams{
@@ -216,14 +217,26 @@ func saveOne(res *GenerationResult, data []byte, params Params) {
 		Total:        params.NumImages,
 	})
 
-	if images.HasJPEGExt(filename) {
+	// Make the bytes match the requested extension where the standard
+	// library can; MatchExt then fixes the name for what it cannot (no WebP
+	// encoder, so Gemini output asked for as .webp is saved as .png).
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".jpg", ".jpeg":
 		converted, err := images.ConvertToJPEG(data)
 		if err != nil {
 			res.Error = fmt.Errorf("failed to convert to JPEG: %v", err)
 			return
 		}
 		data = converted
+	case ".png", ".webp":
+		converted, err := images.ConvertToPNG(data)
+		if err != nil {
+			res.Error = fmt.Errorf("failed to convert to PNG: %v", err)
+			return
+		}
+		data = converted
 	}
+	filename = images.MatchExt(filename, data)
 
 	embedded := false
 	if len(params.Metadata) > 0 {

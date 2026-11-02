@@ -604,9 +604,9 @@ OpenAI is multi-auth: `imagine providers add openai` opens an API-key / ChatGPT-
 **Input** (reference images for edit mode): `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`
 
 **Output** — driven by the `-f` filename extension:
-- `.png` (default)
-- `.jpg` / `.jpeg` — For Gemini/Vertex, imagine converts locally at quality 95. For OpenAI, the API returns JPEG directly.
-- `.webp` — OpenAI only.
+- `.png` (default). The Gemini API returns JPEG for some models; imagine converts it so a `.png` file always holds PNG data.
+- `.jpg` / `.jpeg`: for Gemini/Vertex, imagine converts PNG locally at quality 95 (JPEG passes through as is). For OpenAI, the API returns JPEG directly.
+- `.webp`: OpenAI only. On Gemini/Vertex the file is saved as `.png` instead.
 
 [↑ Back to top](#table-of-contents)
 

@@ -2,6 +2,7 @@ package images
 
 import (
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"strings"
 	"time"
@@ -23,7 +24,8 @@ type FilenameParams struct {
 //
 // Rules:
 //   - -f "image.png":   single → "image.png"; multi → "image_1.png", "image_2.png", …
-//     Only .jpg/.jpeg extensions are honoured; anything else falls back to .png.
+//     .jpg/.jpeg and .webp are honoured; anything else falls back to .png.
+//     MatchExt corrects the result once the provider's bytes are known.
 //   - -r with RefInputPath "photo.jpg": single → "photo.png"; multi → "photo_1.png", …
 //   - Neither: default "generated_{index+1}_{YYYYMMDD_HHMMSS}.png".
 func ResolveFilename(p FilenameParams) string {
@@ -32,8 +34,11 @@ func ResolveFilename(p FilenameParams) string {
 		rawExt := strings.ToLower(filepath.Ext(p.Custom))
 		stem := strings.TrimSuffix(p.Custom, filepath.Ext(p.Custom))
 		ext := ".png"
-		if rawExt == ".jpg" || rawExt == ".jpeg" {
+		switch rawExt {
+		case ".jpg", ".jpeg":
 			ext = ".jpg"
+		case ".webp":
+			ext = ".webp"
 		}
 		if p.Total > 1 {
 			return fmt.Sprintf("%s_%d%s", stem, p.Index+1, ext)
@@ -51,6 +56,28 @@ func ResolveFilename(p FilenameParams) string {
 	default:
 		return fmt.Sprintf("generated_%d_%s.png", p.Index+1, time.Now().Format("20060102_150405"))
 	}
+}
+
+// MatchExt swaps a filename's image extension for the one its bytes call for,
+// so a provider that cannot honour the requested format (Gemini has no WebP)
+// never writes PNG data under .webp, nor WebP data under .png.
+func MatchExt(filename string, data []byte) string {
+	var want string
+	switch http.DetectContentType(data) {
+	case "image/png":
+		want = ".png"
+	case "image/jpeg":
+		want = ".jpg"
+	case "image/webp":
+		want = ".webp"
+	default:
+		return filename
+	}
+	ext := filepath.Ext(filename)
+	if strings.EqualFold(ext, want) || (want == ".jpg" && strings.EqualFold(ext, ".jpeg")) {
+		return filename
+	}
+	return strings.TrimSuffix(filename, ext) + want
 }
 
 // OutputPath places a resolved filename: an absolute -f is used as written,
