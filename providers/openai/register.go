@@ -64,8 +64,8 @@ func init() {
 				// describe reads it on this route as well; declaring it keeps the
 				// resolver from skipping it as an "api_key-only" field.
 				Fields: []providers.ConfigField{{
-					Key:         "vision_model",
-					Title:       "Vision Model",
+					Key:   "vision_model",
+					Title: "Vision Model",
 					// No Default: the sign-in default follows the ChatGPT plan
 					// (driverFor), so a fixed value here would be wrong for some.
 					Description: "Model for `imagine describe` (default: picked by ChatGPT plan)",
