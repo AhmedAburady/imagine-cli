@@ -76,14 +76,28 @@ func RunGeneration(ctx context.Context, provider providers.Provider, request pro
 		defer close(params.Progress)
 	}
 
-	if err := os.MkdirAll(params.OutputFolder, 0755); err != nil {
-		return GenerationOutput{
-			Results: []GenerationResult{{
-				Index: 0,
-				Error: fmt.Errorf("failed to create output folder: %v", err),
-			}},
-			OutputFolder: params.OutputFolder,
-			Elapsed:      time.Since(startTime),
+	// An absolute -f names its own folder; split it so the results table
+	// shows the file name and the folder line shows where it went.
+	if filepath.IsAbs(params.OutputFilename) {
+		params.OutputFolder, params.OutputFilename = filepath.Dir(params.OutputFilename), filepath.Base(params.OutputFilename)
+	}
+
+	// Create every target directory before any paid call: a relative -f may
+	// nest a directory under -o.
+	dirs := []string{params.OutputFolder}
+	if params.OutputFilename != "" {
+		dirs = append(dirs, filepath.Dir(images.OutputPath(params.OutputFolder, params.OutputFilename)))
+	}
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return GenerationOutput{
+				Results: []GenerationResult{{
+					Index: 0,
+					Error: fmt.Errorf("failed to create output folder: %v", err),
+				}},
+				OutputFolder: params.OutputFolder,
+				Elapsed:      time.Since(startTime),
+			}
 		}
 	}
 
@@ -216,7 +230,7 @@ func saveOne(res *GenerationResult, data []byte, params Params) {
 		data, embedded = images.EmbedPNGText(data, params.Metadata) // no-op for non-PNG
 	}
 
-	outputFile := filepath.Join(params.OutputFolder, filename)
+	outputFile := images.OutputPath(params.OutputFolder, filename)
 	if err := os.WriteFile(outputFile, data, 0644); err != nil {
 		res.Error = fmt.Errorf("failed to save: %v", err)
 		return

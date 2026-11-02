@@ -475,7 +475,7 @@ func detectCollisions(resolved []Resolved) []string {
 				Index:        i,
 				Total:        r.Params.NumImages,
 			})
-			full := filepath.Join(r.Params.OutputFolder, name)
+			full := images.OutputPath(r.Params.OutputFolder, name)
 			if prev, ok := seen[full]; ok {
 				collisions = append(collisions, fmt.Sprintf("filename collision: entry %s and entry %s both produce %s", prev, r.DisplayName, full))
 				continue

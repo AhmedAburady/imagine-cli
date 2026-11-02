@@ -53,6 +53,15 @@ func ResolveFilename(p FilenameParams) string {
 	}
 }
 
+// OutputPath places a resolved filename: an absolute -f is used as written,
+// anything else lands under the output folder.
+func OutputPath(folder, filename string) string {
+	if filepath.IsAbs(filename) {
+		return filename
+	}
+	return filepath.Join(folder, filename)
+}
+
 // HasJPEGExt reports whether a filename's extension is .jpg or .jpeg.
 func HasJPEGExt(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
