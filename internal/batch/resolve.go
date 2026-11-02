@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -251,6 +252,10 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 	}
 	maps.Copy(pvtMap, providerKeys)
 
+	if err := checkEntryKeys(providerKeys, bundle); err != nil {
+		return Resolved{}, err
+	}
+
 	providerOpts, err := bundle.ParseOptions(pvtMap, providers.Common{Filename: effFilename})
 	if err != nil {
 		return Resolved{}, err
@@ -356,6 +361,31 @@ type commonOverrides struct {
 	input         []string
 	replace       *bool
 	embedMetadata *bool
+}
+
+// commonKeys are the entry keys every provider accepts, in splitEntryRaw order.
+var commonKeys = []string{"prompt", "separator", "provider", "output", "filename", "count", "input", "replace", "embed-metadata"}
+
+// checkEntryKeys rejects keys neither common nor claimed by the entry's
+// provider, listing both sets. "name" gets its own hint: the entry key is
+// already the name and the filename stem.
+func checkEntryKeys(providerKeys map[string]any, bundle providers.Bundle) error {
+	var unknown []string
+	for k := range providerKeys {
+		if !slices.Contains(bundle.SupportedFlags, k) {
+			unknown = append(unknown, k)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	sort.Strings(unknown)
+	if slices.Contains(unknown, "name") {
+		return fmt.Errorf("unknown key \"name\": the entry key is the name and the filename stem (image1: -> image1.png); use filename: to pick another file name")
+	}
+	own := slices.Clone(bundle.SupportedFlags)
+	sort.Strings(own)
+	return fmt.Errorf("unknown key(s) %v (common: %v; %s: %v)", unknown, commonKeys, bundle.Info.Name, own)
 }
 
 // splitEntryRaw walks raw and partitions common-flag keys into c.
