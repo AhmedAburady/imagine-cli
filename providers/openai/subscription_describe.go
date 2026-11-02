@@ -7,7 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"os"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -17,6 +20,25 @@ import (
 
 const describeSystem = "You are an expert image style analyst. Follow the user's instruction exactly and output only what it asks for, with no preamble."
 
+// signInVisionModel picks the describe model on the sign-in route: an
+// explicit -m, else the configured vision_model, else the plan's model.
+// Older versions saved their default (gpt-5.5) into config.yaml; a
+// configured model Codex no longer serves on sign-in is skipped and
+// returned as retired so the caller can say so. An explicit -m is never
+// replaced.
+func signInVisionModel(requested, configured, accessToken string) (model, retired string) {
+	if requested != "" {
+		return requested, ""
+	}
+	if slices.Contains(retiredOnSignIn, configured) {
+		return driverFor(accessToken), configured
+	}
+	if configured != "" {
+		return configured, ""
+	}
+	return driverFor(accessToken), ""
+}
+
 func (p *Provider) describeSubscription(ctx context.Context, req providers.DescribeRequest) (*providers.ImageDescription, error) {
 	access, account, err := p.ensureFreshToken(ctx)
 	if err != nil {
@@ -24,12 +46,9 @@ func (p *Provider) describeSubscription(ctx context.Context, req providers.Descr
 	}
 	auth := &codexAuth{accessToken: access, accountID: account, sessionID: uuid.NewString()}
 
-	model := req.Model
-	if model == "" {
-		model = p.visionModel
-	}
-	if model == "" {
-		model = driverFor(access) // the plan's model; gpt-6.1-sol on paid plans
+	model, retired := signInVisionModel(req.Model, p.visionModel, access)
+	if retired != "" {
+		fmt.Fprintf(os.Stderr, "note: vision_model %s is retired for ChatGPT sign-in; using %s. Remove vision_model from providers.openai in config.yaml.\n", retired, model)
 	}
 
 	instruction := providers.PickInstruction(req, TextInstruction, JSONInstruction)

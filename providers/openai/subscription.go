@@ -37,7 +37,14 @@ const (
 	// Plus, Pro, Business, Enterprise and Edu, gpt-6-luna on Free and Go.
 	driverModel     = "gpt-6.1-sol"
 	driverModelLite = "gpt-6-luna"
+)
 
+// retiredOnSignIn are models Codex no longer serves to ChatGPT sign-in
+// (still available with an API key). A config that saved one of them as
+// vision_model falls back to the plan's model on this route.
+var retiredOnSignIn = []string{"gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex-spark"}
+
+const (
 	// imageInstructions is the minimal system prompt the endpoint needs to
 	// reliably invoke the tool (it misbehaves with none).
 	imageInstructions = "You are an image generation assistant. Generate exactly one image for the user's request using the image_generation tool."
