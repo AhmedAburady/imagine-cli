@@ -6,10 +6,10 @@ Research date: 2026-11-02. Method: Firecrawl scrapes of the OpenAI developer and
 
 | Area | Change | Live-verified |
 |---|---|---|
-| SDKs | `google.golang.org/genai` v1.43.0 -> v1.77.0; adk-go v0.3.0 -> `google.golang.org/adk/v2` v2.6.0 | describe on the Gemini API |
+| SDKs | `google.golang.org/genai` v1.43.0 -> v1.77.0; adk-go v0.3.0 -> `google.golang.org/adk/v2` v2.6.0 | describe on both platforms |
 | OpenAI text model | `gpt-6.1-sol` replaces the retired `gpt-5.5` as the describe default (both routes) and the ChatGPT sign-in driver model. Efforts `low, medium, high, xhigh` | describe on both routes; sign-in image path not yet |
-| Gemini/Vertex describe | default `gemini-3.8-flash` on both; Vertex drops `minimal`; `gemini-4-argon` via `-m` | Gemini API |
-| Gemini/Vertex image | `flash` = `gemini-nano-banana-2.1`; 3.1 Flash Image IDs resolve to it; `512` gone; `--thinking medium` (flash only); Vertex 2.1 checked for `global` | Gemini API (`-t medium`, `-I -g`) |
+| Gemini/Vertex describe | default `gemini-3.8-flash` on both; Vertex drops `minimal`; `gemini-4-argon` via `-m` | both platforms |
+| Gemini/Vertex image | `flash` = `gemini-nano-banana-2.1`; 3.1 Flash Image IDs resolve to it; `512` gone; `--thinking medium` (flash only); Vertex 2.1 checked for `global`; `-I` on Vertex `flash` | both platforms (`-t medium`, `-g`, `-I -g`) |
 | OpenAI image | `--background transparent` (png/webp only); dated snapshots accepted and sent as written | API-key route |
 | Gemini API | optional `providers.gemini.store: false` | generate and describe |
 | CLI | absolute `-f` saves where it points; error text keeps flag names as written | end to end |
@@ -33,12 +33,11 @@ Research date: 2026-11-02. Method: Firecrawl scrapes of the OpenAI developer and
 2. **`gemini-3.1-flash-image`** has no shutdown date on the Gemini API; Vertex keeps it to "May 28, 2027 or later".
 3. **Text models.** `gemini-3.8-flash` (GA 2026-09-02; Vertex to 2027-09 or later) and `gemini-4-argon` (GA 2026-10-13, flagship) both reject `minimal` thinking. `gemini-3.7-flash` and `gemini-3.5-flash` are deprecated; `gemini-3.6-flash` retires on Vertex on 2026-11-19.
 4. **Request storage.** Since 2026-10-26 new paid Gemini API projects store generateContent requests by default; `store=false` opts a request out (https://ai.google.dev/gemini-api/docs/changelog). Vertex rejects the field.
-5. **Imagen** is shut down on both platforms. Not used by the repo.
-6. **SDKs.** go-genai v1.44 to v1.77 list no breaking changes; v1.76 added `store`. adk-go's current line is v2 (v2.6.0 adds resume of long Gemini 4 answers); v1.9.0 is a maintenance branch.
+5. **Vertex image search on 2.1 works** (verified live, 2026-11-02). The Vertex model card lists it; the Vertex image guide is silent. With `searchTypes{webSearch, imageSearch}` Vertex returned `imageSearchQueries` and 6 to 7 grounding chunks in two of two calls, matching the Gemini API. With `imageSearch` alone neither platform returned grounding metadata for the test prompt. A 429 `RESOURCE_EXHAUSTED` on 2.1 cleared on retry (shared quota).
+6. **Imagen** is shut down on both platforms. Not used by the repo.
+7. **SDKs.** go-genai v1.44 to v1.77 list no breaking changes; v1.76 added `store`. adk-go's current line is v2 (v2.6.0 adds resume of long Gemini 4 answers); v1.9.0 is a maintenance branch.
 
 ## Open items
 
-1. **Vertex live tests** (ADC login expired during this work): Nano Banana 2.1 generation with `-t medium`, the `global` check, `describe` on `gemini-3.8-flash`.
-2. **Vertex image search on 2.1.** The Vertex model card says it is supported; the Vertex image guide is silent, and earlier cards were wrong. `-I` stays off on Vertex until a live call passes.
-3. **ChatGPT sign-in route.** Live-test image generation with the `gpt-6.1-sol` driver, then re-probe whether the backend serves 2.5 or still swaps in `gpt-image-2-codex`.
-4. **`markup` edit parameter** (OpenAI) is not implemented.
+1. **ChatGPT sign-in route.** Live-test image generation with the `gpt-6.1-sol` driver, then re-probe whether the backend serves 2.5 or still swaps in `gpt-image-2-codex`.
+2. **`markup` edit parameter** (OpenAI) is not implemented.

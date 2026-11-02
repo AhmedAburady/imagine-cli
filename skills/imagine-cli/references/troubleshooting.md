@@ -44,7 +44,7 @@ User set a flag that belongs to a different provider. Two fixes:
 
 Common cases:
 - `--grounding` / `-g` → Gemini / Vertex only.
-- `--image-search` / `-I` → Gemini only (not Vertex).
+- `--image-search` / `-I` → Gemini / Vertex, `flash` only.
 - `--thinking` / `-t` → Gemini / Vertex only.
 - `--quality` / `-q` → OpenAI only.
 - `--compression` / `--moderation` / `--background` → OpenAI only.

@@ -9,7 +9,7 @@ Aliases resolve to canonical IDs. Omit `-m` to use the default.
 | Alias | Canonical ID | Notes |
 |---|---|---|
 | `pro` | `gemini-3-pro-image` | **Default.** Highest quality. Does NOT support `--thinking` or `--image-search`. |
-| `flash` | `gemini-nano-banana-2.1` | Nano Banana 2.1: fast and low-cost. Supports `--thinking` (`minimal`/`medium`/`high`, server default `medium`) and `--image-search` (Gemini only). On Vertex it runs in the `global` location only. |
+| `flash` | `gemini-nano-banana-2.1` | Nano Banana 2.1: fast and low-cost. Supports `--thinking` (`minimal`/`medium`/`high`, server default `medium`) and `--image-search`. On Vertex it runs in the `global` location only. |
 | `flash-lite`, `lite` | `gemini-3.1-flash-lite-image` | Fastest and cheapest (Nano Banana 2 Lite). **1K only** and no `--grounding` / `--image-search`. Supports `--thinking`. |
 
 `-m` also accepts the full canonical ID directly.
@@ -25,7 +25,7 @@ Older IDs still resolve so pinned scripts and batch files keep working: `gemini-
 | `-a` | `--aspect-ratio` | 14 values: `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` | Omit for auto. All three models accept the full set; anything else is rejected locally. |
 | `-g` | `--grounding` | bool | Google Search grounding, pulling live web context into the prompt. **Not on `flash-lite`.** |
 | `-t` | `--thinking` | `minimal` / `medium` / `high` | **`flash` and `flash-lite` only** — pro rejects it. `medium` is `flash` only. Higher thinking = better reasoning, more tokens |
-| `-I` | `--image-search` | bool | **Gemini `flash` only** (Vertex does NOT support this). Image Search grounding. |
+| `-I` | `--image-search` | bool | **`flash` only.** Image Search grounding. Add `-g` to search the web too. |
 
 ## Capability matrix
 
@@ -37,7 +37,7 @@ Older IDs still resolve so pinned scripts and batch files keep working: `gemini-
 | Edit (folder of refs) | ✅ | ✅ |
 | Grounding (`-g`, pro/flash) | ✅ | ✅ |
 | Thinking (`-t`, flash/flash-lite) | ✅ | ✅ |
-| Image Search (`-I`, flash) | ✅ | ❌ |
+| Image Search (`-I`, flash) | ✅ | ✅ |
 | `flash-lite` model | ✅ | ✅ |
 | MaxBatchN (images per API call) | 1 | 1 |
 
@@ -61,7 +61,7 @@ imagine -p "die-cut sticker of an avocado" -m flash-lite -a 1:1
 # Grounding (adds live web context)
 imagine -p "the latest design trends in 2026" -g
 
-# Image search (Gemini flash only)
+# Image search (flash only)
 imagine -p "cat wearing a Supreme hoodie" -m flash -I
 
 # Edit, keep the input filename
@@ -92,7 +92,7 @@ Exact dimensions are Gemini's choice — the API picks based on aspect ratio + s
 - **`-t medium` on `-m flash-lite` errors out.** flash-lite takes `minimal` or `high`.
 - **Vertex `flash` outside `global` errors out.** Nano Banana 2.1 is served from the `global` location only; set `providers.vertex.location: global`.
 - **`-g` on `-m flash-lite` errors out** on both providers.
-- **`-I` with Vertex errors out.** Vertex doesn't expose the image-search tool. imagine rejects the flag at validation time.
+- **`-I` on `-m pro` or `-m flash-lite` errors out** on both providers. Image search is `flash` only.
 - **Grounding adds latency.** Expect 10–20% longer generation times with `-g`.
 - **No streaming.** imagine always waits for the full image. Some Gemini tiers support streaming but imagine doesn't surface it.
 - **`9:21` is not a valid ratio on either provider**, despite both Vertex model cards listing it - Vertex returns 400 INVALID_ARGUMENT (verified 2026-08-07), same as the direct Gemini API. Use `1:8` or `1:4` for tall formats.

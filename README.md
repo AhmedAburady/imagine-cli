@@ -392,7 +392,7 @@ Models and flags are shared between Gemini (direct REST) and Vertex (Gemini via 
 | `-a` | `--aspect-ratio` | 14 values: `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` | Auto |
 | `-g` | `--grounding` | Google Search grounding (not on `flash-lite`) | `false` |
 | `-t` | `--thinking` | `minimal`, `medium` or `high` (`flash` and `flash-lite`; `medium`: `flash` only) | Auto |
-| `-I` | `--image-search` | Image Search grounding (Gemini flash only) | `false` |
+| `-I` | `--image-search` | Image Search grounding (`flash` only) | `false` |
 
 **Examples**
 
@@ -412,7 +412,7 @@ imagine -p "a mountain range panorama" -m flash -a 8:1
 # Edit a photo, keep its filename
 imagine -p "add rain" -i photo.png -r
 
-# Image Search grounding (Gemini flash only)
+# Image Search grounding (flash only)
 imagine -p "cat wearing a hoodie" -m flash -I
 ```
 
@@ -422,7 +422,7 @@ imagine -p "cat wearing a hoodie" -m flash -I
 imagine -p "a sunset" --provider vertex -n 3
 ```
 
-Vertex does not support `--image-search`.
+Vertex `flash` (Nano Banana 2.1) runs only in the `global` location.
 
 ### OpenAI
 

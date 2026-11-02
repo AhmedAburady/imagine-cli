@@ -86,7 +86,6 @@ func TestThinking_MediumFlashOnly(t *testing.T) {
 	}
 }
 
-// No --image-search counterpart: that flag isn't on vertex.Options at all.
 func TestFlashLite_GroundingGatedByModel(t *testing.T) {
 	b, _ := providers.Get("vertex")
 
@@ -106,5 +105,18 @@ func TestFlashLite_ThinkingAllowed(t *testing.T) {
 	opts := &vertex.Options{Model: gemini.ModelFlashLite}
 	if errs := providers.CheckModel([]string{"thinking"}, b, opts); len(errs) != 0 {
 		t.Errorf("flash-lite supports thinking (minimal and high), got %v", errs)
+	}
+}
+
+// Image search is flash-only on Vertex, as on the Gemini API.
+func TestImageSearch_FlashOnly(t *testing.T) {
+	b, _ := providers.Get("vertex")
+	if errs := providers.CheckModel([]string{"image-search"}, b, &vertex.Options{Model: gemini.ModelFlash}); len(errs) != 0 {
+		t.Errorf("--image-search on flash should be accepted, got %v", errs)
+	}
+	for _, model := range []string{gemini.ModelPro, gemini.ModelFlashLite} {
+		if errs := providers.CheckModel([]string{"image-search"}, b, &vertex.Options{Model: model}); len(errs) != 1 {
+			t.Errorf("--image-search on %s should be rejected, got %v", model, errs)
+		}
 	}
 }
