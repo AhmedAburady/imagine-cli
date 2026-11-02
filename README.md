@@ -55,7 +55,7 @@ I built [banana-cli](https://github.com/AhmedAburady/banana-cli) first — a foc
 - **Iterate fast** — tweak the prompt, rerun, compare. Generate multiple variations in one shot with `-n` and keep what works. The terminal loop is the creative loop.
 - **Composable prompts** - `-p` is repeatable, so `-p style.md -p "at night" -p subject.md` concatenates reusable prompt files and one-off instructions into a single prompt. Keep a library of style/quality snippets and mix them per run.
 - **Generate and edit in one command** — `-p "..."` generates; add `-i reference.png` and the same command switches to edit mode.
-- **Use your ChatGPT subscription — no API key** — sign in with ChatGPT once (`imagine providers add openai login`) and generate with gpt-image-2 billed to your Plus/Pro plan. Prefer pay-as-you-go? Use a platform API key instead. Same `openai` provider, your choice.
+- **Use your ChatGPT subscription — no API key** — sign in with ChatGPT once (`imagine providers add openai login`) and generate on your ChatGPT plan (the backend runs its own `gpt-image-2-codex`). Prefer pay-as-you-go? Use a platform API key instead. Same `openai` provider, your choice.
 - **One config file, no env vars** — set your keys once in `~/.config/imagine/config.yaml` and forget about it.
 - **Extensible by design** — adding a new provider is one directory under `providers/` and one import line. As new models ship, imagine can keep up.
 
@@ -203,12 +203,12 @@ Run `imagine providers add openai` with no arguments for an interactive picker:
 ```
 How do you want to authenticate?
   › API key
-    ChatGPT Plus/Pro (Codex Subscription)
+    ChatGPT plan (Codex sign-in)
 ```
 
 - **`login`** runs a one-time browser sign-in (OAuth/PKCE on a `localhost` callback). The tokens are cached in a separate `0600` file — `~/.config/imagine/openai-subscription-auth.json` — never in `config.yaml`, and refreshed silently. Your config stanza is just `auth_method: subscription`.
 - Switch methods anytime by re-running `imagine providers add openai` (or editing `auth_method:`). You can keep both credentials in the stanza; only the active method's is ever read.
-- The subscription route reaches gpt-image-2 through OpenAI's ChatGPT backend rather than the public `/v1/images` API. It rides an endpoint OpenAI hasn't published for third parties, so treat it as **best-effort** — if it ever stops working, the API-key method is the stable fallback.
+- The subscription route reaches `gpt-image-2-codex` through OpenAI's ChatGPT backend, whatever `-m` says, and often picks its own size rather than the public `/v1/images` API. It rides an endpoint OpenAI hasn't published for third parties, so treat it as **best-effort** — if it ever stops working, the API-key method is the stable fallback.
 
 #### Secret references — keep plaintext out of `config.yaml`
 
