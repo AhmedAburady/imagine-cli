@@ -9,8 +9,12 @@ func Examples() string {
   imagine -p "a red apple" -q low
   imagine -p "logo" -n 3 -s 1024x1024
   imagine -p "hero banner" -s 3840x2160 -q high -f hero.jpg
+  imagine -p "campaign key visual" -m sunburst -q max
   imagine -p "sticker" --background opaque -f sticker.png
   imagine -p "make it winter" -i photo.png
+  imagine -p "product shot" -m image2
+
+  QUALITY: low, medium, high, auto on every model; xhigh and max on the 2.5 models only.
 
   SIZES — shorthand:
     1K → 1024x1024

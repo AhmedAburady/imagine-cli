@@ -1,8 +1,10 @@
 package openai
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -19,17 +21,94 @@ import (
 // other providers' Options; the active provider registers first, so its
 // desc text wins in `--help`.
 type Options struct {
-	Model       string `flag:"model,m"     desc:"Model: gpt-image-2 (default)" enum:"@models"`
+	Model       string `flag:"model,m"     desc:"Model: flare (default), sunburst, image2" enum:"@models"`
 	Size        string `flag:"size,s"      desc:"Image size: 1K, 2K, 4K, auto, or WxH (default: auto)"`
-	Quality     string `flag:"quality,q"   desc:"Rendering quality: low, medium, high, auto (default: auto)" enum:"auto,low,medium,high" default:"auto"`
+	Quality     string `flag:"quality,q"   desc:"Rendering quality: low, medium, high, xhigh, max, auto (xhigh/max: 2.5 models only; default: auto)" enum:"auto,low,medium,high,xhigh,max" default:"auto"`
 	Compression int    `flag:"compression" desc:"Compression 0-100 (jpeg/webp only; 100=best quality)" default:"100" range:"0:100"`
 	Moderation  string `flag:"moderation"  desc:"Content moderation: auto, low (default: auto)" enum:"auto,low"`
-	Background  string `flag:"background"  desc:"Background: auto, opaque (default: auto)" enum:"auto,opaque"`
+	Background  string `flag:"background"  desc:"Background: auto, opaque, transparent (transparent: png/webp output only; default: auto)" enum:"auto,opaque,transparent"`
 
 	// OutputFormat is derived from the -f filename's extension by the
 	// caller (CLI ReadFlags closure or batch runner) before Generate.
 	// Not a CLI flag.
 	OutputFormat string `flag:"-"`
+}
+
+// modelSpec is the single per-model table. Info.Models and the quality gate
+// derive from it, so adding a model touches this table only.
+type modelSpec struct {
+	ID          string
+	Aliases     []string
+	Description string
+	Qualities   []string // accepted -q values besides auto
+	Snapshots   []string // dated IDs, sent as written
+}
+
+var (
+	qualities25 = []string{"low", "medium", "high", "xhigh", "max"}
+	qualities2  = []string{"low", "medium", "high"}
+)
+
+var modelSpecs = []modelSpec{
+	{
+		ID:          "gpt-image-2.5-flare",
+		Aliases:     []string{"flare", "2.5"},
+		Description: "Fast, high-quality everyday generation and editing.",
+		Qualities:   qualities25,
+		Snapshots:   []string{"gpt-image-2.5-flare-2026-09-08"},
+	},
+	{
+		ID:          "gpt-image-2.5-sunburst",
+		Aliases:     []string{"sunburst"},
+		Description: "Most capable; tighter editing precision, longer generation times.",
+		Qualities:   qualities25,
+		Snapshots:   []string{"gpt-image-2.5-sunburst-2026-09-08"},
+	},
+	{
+		ID:          "gpt-image-2",
+		Aliases:     []string{"image2", "2"},
+		Description: "Previous flagship.",
+		Qualities:   qualities2,
+		Snapshots:   []string{"gpt-image-2-2026-04-21"},
+	},
+}
+
+// specFor finds the spec for a resolved ID, a dated snapshot included.
+func specFor(id string) (modelSpec, bool) {
+	for _, m := range modelSpecs {
+		if m.ID == id || slices.Contains(m.Snapshots, id) {
+			return m, true
+		}
+	}
+	return modelSpec{}, false
+}
+
+// infoModels projects the spec table onto providers.ModelInfo for Info().
+func infoModels() []providers.ModelInfo {
+	out := make([]providers.ModelInfo, 0, len(modelSpecs))
+	for _, m := range modelSpecs {
+		out = append(out, providers.ModelInfo{ID: m.ID, Aliases: m.Aliases, Description: m.Description, Snapshots: m.Snapshots})
+	}
+	return out
+}
+
+// validateQuality rejects quality levels the resolved model does not offer;
+// auto (or empty) is accepted everywhere.
+func validateQuality(model, quality string) error {
+	if quality == "" || strings.EqualFold(quality, "auto") {
+		return nil
+	}
+	spec, ok := specFor(model)
+	if !ok {
+		return nil
+	}
+	for _, q := range spec.Qualities {
+		if strings.EqualFold(q, quality) {
+			return nil
+		}
+	}
+	return fmt.Errorf("--quality %s is not supported by model %q (supported: %s, auto)",
+		quality, model, strings.Join(spec.Qualities, ", "))
 }
 
 // RequestLabel implements providers.RequestLabeler for status output.
@@ -58,11 +137,24 @@ func (o *Options) Normalize() {
 
 // Validate enforces field-level rules not expressible as enum/range tags.
 func (o *Options) Validate(_ providers.Info) error {
+	if err := validateQuality(o.Model, o.Quality); err != nil {
+		return err
+	}
 	return validateImageSize(o.Size)
 }
 
-// gpt-image-2's documented size envelope, applied to generations and edits
-// alike now that it is the only model.
+// validateOutput runs once OutputFormat is known, which is after flagspec's
+// Validate hook: a transparent background needs an alpha channel, and jpeg
+// has none.
+func (o *Options) validateOutput() error {
+	if o.Background == "transparent" && o.OutputFormat == "jpeg" {
+		return errors.New("--background transparent needs a png or webp output (-f ends in .jpg/.jpeg)")
+	}
+	return nil
+}
+
+// The documented size envelope shared by gpt-image-2 and both gpt-image-2.5
+// models, applied to generations and edits alike.
 const (
 	sizeEdgeMultiple = 16
 	sizeMaxEdge      = 3840

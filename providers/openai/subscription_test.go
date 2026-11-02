@@ -16,7 +16,6 @@ import (
 
 	"github.com/AhmedAburady/imagine-cli/internal/images"
 	"github.com/AhmedAburady/imagine-cli/providers"
-	"github.com/AhmedAburady/imagine-cli/providers/flagspec"
 )
 
 var _ providers.Describer = (*Provider)(nil)
@@ -329,7 +328,7 @@ func TestStallReader_StallsOnCustomIdleAfterData(t *testing.T) {
 
 func TestStallReader_PassesDataThrough(t *testing.T) {
 	sr := newStallReader(io.NopCloser(strings.NewReader("hello")), time.Second)
-	defer sr.Close()
+	defer func() { _ = sr.Close() }()
 	if got, err := io.ReadAll(sr); err != nil || string(got) != "hello" {
 		t.Fatalf("got %q, %v", got, err)
 	}
@@ -379,15 +378,12 @@ func TestOptionsValidateNormalize(t *testing.T) {
 	}
 }
 
-// gpt-image-2 has no transparent background and it is the only model left,
-// so the value is gone from the enum rather than guarded after the fact.
-func TestBackgroundRejectsTransparent(t *testing.T) {
-	info := (&Provider{}).Info()
-	_, err := flagspec.Parse(Options{}, map[string]any{"background": "transparent"}, info)
-	if err == nil {
-		t.Fatal("expected --background transparent to be rejected")
-	}
-	if !strings.Contains(err.Error(), "auto, opaque") {
-		t.Errorf("error should list the accepted values, got: %v", err)
+func TestSubscriptionBody_ToolCarriesModel(t *testing.T) {
+	opts := &Options{Model: "gpt-image-2.5-sunburst", Size: "auto", Quality: "max", OutputFormat: "png", Compression: 100}
+	raw, _ := json.Marshal(subscriptionBody(opts, providers.Request{Prompt: "a mug"}, driverModel))
+	for _, want := range []string{`"model":"gpt-6.1-sol"`, `"type":"image_generation"`, `"model":"gpt-image-2.5-sunburst"`, `"quality":"max"`} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("wire body missing %s: %s", want, raw)
+		}
 	}
 }

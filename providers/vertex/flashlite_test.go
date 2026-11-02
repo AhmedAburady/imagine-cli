@@ -40,7 +40,7 @@ func TestFlashLite_AliasesResolveToCanonicalID(t *testing.T) {
 }
 
 func TestFlashLite_RejectsEverySizeButOneK(t *testing.T) {
-	for _, size := range []string{"512", "2K", "4K"} {
+	for _, size := range []string{"2K", "4K"} {
 		_, err := readFlags(t, "--model", "flash-lite", "--size", size)
 		if err == nil {
 			t.Errorf("--size %s on flash-lite should be rejected", size)
@@ -58,21 +58,34 @@ func TestFlashLite_DefaultSizeAccepted(t *testing.T) {
 	}
 }
 
-// 512 is documented for flash alone; pro must not inherit it from the wide set.
-func TestSize512_FlashOnly(t *testing.T) {
-	if _, err := readFlags(t, "--model", "flash", "--size", "512"); err != nil {
-		t.Errorf("--model flash --size 512 should be accepted: %v", err)
-	}
-	_, err := readFlags(t, "--model", "pro", "--size", "512")
-	if err == nil {
-		t.Fatal("--size 512 on pro should be rejected")
-	}
-	if !strings.Contains(err.Error(), gemini.ModelPro) {
-		t.Errorf("error should name the model, got %q", err)
+// No current model renders 512, so the enum itself rejects it everywhere.
+func TestSize512_RejectedOnEveryModel(t *testing.T) {
+	for _, model := range []string{"pro", "flash", "flash-lite"} {
+		if _, err := readFlags(t, "--model", model, "--size", "512"); err == nil {
+			t.Errorf("--model %s --size 512 should be rejected", model)
+		}
 	}
 }
 
-// No --image-search counterpart: that flag isn't on vertex.Options at all.
+// medium is documented for Nano Banana 2.1 only; flash-lite takes minimal and high.
+func TestThinking_MediumFlashOnly(t *testing.T) {
+	for _, level := range []string{"minimal", "medium", "high"} {
+		if _, err := readFlags(t, "--model", "flash", "--thinking", level); err != nil {
+			t.Errorf("--model flash --thinking %s should be accepted: %v", level, err)
+		}
+	}
+	_, err := readFlags(t, "--model", "flash-lite", "--thinking", "medium")
+	if err == nil {
+		t.Fatal("--thinking medium on flash-lite should be rejected")
+	}
+	if !strings.Contains(err.Error(), gemini.ModelFlashLite) {
+		t.Errorf("error should name the model, got %q", err)
+	}
+	if _, err := readFlags(t, "--model", "flash-lite", "--thinking", "high"); err != nil {
+		t.Errorf("--model flash-lite --thinking high should be accepted: %v", err)
+	}
+}
+
 func TestFlashLite_GroundingGatedByModel(t *testing.T) {
 	b, _ := providers.Get("vertex")
 
@@ -92,5 +105,18 @@ func TestFlashLite_ThinkingAllowed(t *testing.T) {
 	opts := &vertex.Options{Model: gemini.ModelFlashLite}
 	if errs := providers.CheckModel([]string{"thinking"}, b, opts); len(errs) != 0 {
 		t.Errorf("flash-lite supports thinking (minimal and high), got %v", errs)
+	}
+}
+
+// Image search is flash-only on Vertex, as on the Gemini API.
+func TestImageSearch_FlashOnly(t *testing.T) {
+	b, _ := providers.Get("vertex")
+	if errs := providers.CheckModel([]string{"image-search"}, b, &vertex.Options{Model: gemini.ModelFlash}); len(errs) != 0 {
+		t.Errorf("--image-search on flash should be accepted, got %v", errs)
+	}
+	for _, model := range []string{gemini.ModelPro, gemini.ModelFlashLite} {
+		if errs := providers.CheckModel([]string{"image-search"}, b, &vertex.Options{Model: model}); len(errs) != 1 {
+			t.Errorf("--image-search on %s should be rejected, got %v", model, errs)
+		}
 	}
 }

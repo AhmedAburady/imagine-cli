@@ -144,3 +144,19 @@ func TestCheckClaimedSomewhere_RejectsIfNoBundleClaims(t *testing.T) {
 		t.Fatalf("expected 1 error, got %d: %v", len(errs), errs)
 	}
 }
+
+func TestCheckOutputFormat(t *testing.T) {
+	noWebP := providers.Bundle{Info: providers.Info{Name: "gemini"}}
+	webP := providers.Bundle{Info: providers.Info{Name: "openai", Capabilities: providers.Capabilities{WebP: true}}}
+	if err := providers.CheckOutputFormat("cover.webp", noWebP); err == nil {
+		t.Error(".webp on a provider without WebP should be rejected")
+	}
+	for _, name := range []string{"", "cover.png", "cover.JPG"} {
+		if err := providers.CheckOutputFormat(name, noWebP); err != nil {
+			t.Errorf("%q should pass: %v", name, err)
+		}
+	}
+	if err := providers.CheckOutputFormat("cover.WEBP", webP); err != nil {
+		t.Errorf(".webp on a WebP provider should pass: %v", err)
+	}
+}

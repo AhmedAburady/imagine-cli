@@ -9,8 +9,10 @@ import (
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
 
-// "gemini-pro-latest" points at gemini-3.1-pro-preview latest pro model from google
-const DefaultVisionModel = "gemini-pro-latest"
+// DefaultVisionModel is GA on both the Gemini API and Vertex (the Vertex
+// provider reuses it). Thinking levels: low, medium, high; "minimal" errors.
+// gemini-4-argon, the flagship, stays reachable with -m.
+const DefaultVisionModel = "gemini-3.8-flash"
 
 func (p *Provider) Describe(ctx context.Context, req providers.DescribeRequest) (*providers.ImageDescription, error) {
 	model := req.Model
@@ -20,7 +22,7 @@ func (p *Provider) Describe(ctx context.Context, req providers.DescribeRequest) 
 	if model == "" {
 		model = DefaultVisionModel
 	}
-	return gvision.Describe(ctx, &genai.ClientConfig{APIKey: p.apiKey}, model, req)
+	return gvision.Describe(ctx, &genai.ClientConfig{APIKey: p.apiKey}, model, req, p.store)
 }
 
 func (p *Provider) DefaultInstructions() (text, json string) {

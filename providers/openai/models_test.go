@@ -16,17 +16,31 @@ func openaiInfo(t *testing.T) providers.Info {
 	return b.Info
 }
 
-func TestModels_OnlyGPTImage2Resolves(t *testing.T) {
+func TestModels_AliasesResolve(t *testing.T) {
 	info := openaiInfo(t)
-	for _, raw := range []string{"", "gpt-image-2", "2"} {
+	cases := map[string]string{
+		"":                       "gpt-image-2.5-flare",
+		"flare":                  "gpt-image-2.5-flare",
+		"2.5":                    "gpt-image-2.5-flare",
+		"gpt-image-2.5-flare":    "gpt-image-2.5-flare",
+		"sunburst":               "gpt-image-2.5-sunburst",
+		"gpt-image-2.5-sunburst": "gpt-image-2.5-sunburst",
+		"image2":                 "gpt-image-2",
+		"2":                      "gpt-image-2",
+		"gpt-image-2":            "gpt-image-2",
+	}
+	for raw, want := range cases {
 		got, err := info.ResolveModel(raw)
 		if err != nil {
 			t.Errorf("ResolveModel(%q): %v", raw, err)
 			continue
 		}
-		if got != "gpt-image-2" {
-			t.Errorf("ResolveModel(%q) = %q, want gpt-image-2", raw, got)
+		if got != want {
+			t.Errorf("ResolveModel(%q) = %q, want %q", raw, got, want)
 		}
+	}
+	if info.DefaultModel != "gpt-image-2.5-flare" {
+		t.Errorf("DefaultModel = %q, want gpt-image-2.5-flare", info.DefaultModel)
 	}
 }
 

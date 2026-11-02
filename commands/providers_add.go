@@ -315,7 +315,26 @@ func collectFields(cmd *cobra.Command, fields []providers.ConfigField) (map[stri
 			return nil, fmt.Errorf("required field %q is empty", f.Key)
 		}
 	}
+	dropUnchangedDefaults(cmd, fields, collected)
 	return collected, nil
+}
+
+// dropUnchangedDefaults keeps an optional field's default out of the config
+// unless the user passed it as a flag. A saved default pins the value: when
+// the provider's default moves on (gpt-5.5 to gpt-6.1-sol, or a plan-based
+// pick), the config would keep sending the old one. The key is set to ""
+// rather than deleted, so SaveProviderFields also clears a value saved by an
+// earlier run. The default still applies at runtime.
+func dropUnchangedDefaults(cmd *cobra.Command, fields []providers.ConfigField, collected map[string]string) {
+	for _, f := range fields {
+		if f.Required || f.Default == "" || collected[f.Key] != f.Default {
+			continue
+		}
+		if fl := cmd.Flags().Lookup(toFlag(f.Key)); fl != nil && fl.Changed {
+			continue
+		}
+		collected[f.Key] = ""
+	}
 }
 
 // persistAndReport writes the stanza and prints the success block.

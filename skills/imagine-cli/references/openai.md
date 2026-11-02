@@ -6,7 +6,7 @@ The `openai` provider authenticates one of two mutually-exclusive ways, set by `
 
 | | `api_key` (default) | `subscription` |
 |---|---|---|
-| Billed to | OpenAI Platform (pay-as-you-go) | the user's ChatGPT **Plus/Pro/Team** plan |
+| Billed to | OpenAI Platform (pay-as-you-go) | the user's ChatGPT plan (Free, Go, Plus, Pro, Business, Enterprise, Edu; the language model is picked by plan) |
 | Credential | `sk-…` in `config.yaml` (or an `op://` / `${VAR}` ref) | OAuth token cached in `~/.config/imagine/openai-subscription-auth.json` (`0600`), refreshed silently |
 | Endpoint | `api.openai.com/v1/images` (generate = JSON, edit = multipart), `Authorization: Bearer <api_key>` | OpenAI's ChatGPT/Codex Responses backend (SSE) — an unpublished endpoint, treat as best-effort |
 | Set up | `imagine providers add openai --api-key sk-…` (headless-OK) | `imagine providers add openai login` (**opens a browser** — needs a human; do NOT run headless) |
@@ -32,20 +32,22 @@ Aliases resolve to canonical IDs. Omit `-m` to use the default.
 
 | Alias | Canonical ID | Notes |
 |---|---|---|
-| `2` | `gpt-image-2` | Flagship - flexible sizes, high-fidelity inputs. |
+| `flare`, `2.5` | `gpt-image-2.5-flare` | Default. Fast, high-quality everyday generation and editing. |
+| `sunburst` | `gpt-image-2.5-sunburst` | Most capable; tighter editing precision, longer generation times. |
+| `image2`, `2` | `gpt-image-2` | Previous flagship. |
 
-`-m` also accepts the full canonical ID directly.
+`-m` also accepts the full canonical ID directly, and the dated snapshots `gpt-image-2.5-flare-2026-09-08`, `gpt-image-2.5-sunburst-2026-09-08` and `gpt-image-2-2026-04-21`. A snapshot is sent as written, so the run stays pinned to that version, and it follows the same rules as its base model.
 
 ## Flags (OpenAI-private — rejected by Gemini/Vertex)
 
 | Flag | Long | Values | Default |
 |---|---|---|---|
-| `-m` | `--model` | See models above | `gpt-image-2` |
+| `-m` | `--model` | See models above | `flare` (`gpt-image-2.5-flare`) |
 | `-s` | `--size` | Shorthand / raw / auto — see size matrix below | `auto` |
-| `-q` | `--quality` | `low`, `medium`, `high`, `auto` | `auto` |
+| `-q` | `--quality` | `low`, `medium`, `high`, `auto`; `xhigh`, `max` on the 2.5 models only | `auto` |
 | | `--compression` | 0-100 integer (jpeg/webp only) | `100` |
 | | `--moderation` | `auto`, `low` | `auto` |
-| | `--background` | `auto`, `opaque` | `auto` |
+| | `--background` | `auto`, `opaque`, `transparent` | `auto`. `transparent` needs a png or webp output (`-f` not `.jpg`); preview on `image2` |
 
 ## Size matrix
 
@@ -83,7 +85,7 @@ ANY `WxH` is accepted if it satisfies all of these:
 
 imagine enforces all four constraints client-side at flag-parse time, so a bad size errors before any API call, in edit mode (`-i`) too.
 
-**Subscription route caveat:** the ChatGPT/Codex backend is not observed to honour `size` at all - probing it with eleven different values returned roughly 1536x1024 (~1.6MP) every time, including for `1024x1024` and `auto`. The envelope is validated on both routes, but only the API-key route is known to deliver the size you asked for.
+**Subscription route caveat** (probed 2026-11-02): the request goes to a language model (`gpt-6.1-sol`; `gpt-6-luna` on Free and Go plans), which calls the image tool. The backend resets the tool to its own model, `gpt-image-2-codex`, for any accepted `-m` model or snapshot, and resets `size` to `auto`, so the language model picks the size: usually 1254x1254. `-q` is passed through. Use the API-key route when the exact model or size matters.
 
 ## Output format
 

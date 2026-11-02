@@ -31,7 +31,7 @@ func init() {
 			// OutputFormat comes from the common -f filename's extension.
 			filename, _ := cmd.Flags().GetString("filename")
 			o.OutputFormat = outputFormatFromFilename(filename)
-			return o, nil
+			return o, o.validateOutput()
 		},
 		ParseOptions: func(values map[string]any, common providers.Common) (any, error) {
 			optsAny, err := flagspec.Parse(Options{}, values, info)
@@ -40,7 +40,7 @@ func init() {
 			}
 			o := optsAny.(*Options)
 			o.OutputFormat = outputFormatFromFilename(common.Filename)
-			return o, nil
+			return o, o.validateOutput()
 		},
 		SupportedFlags: flagspec.FieldNames(Options{}),
 		Examples:       Examples,
@@ -48,7 +48,7 @@ func init() {
 		ConfigSchema:   (&Provider{}).ConfigSchema(),
 		Vision: &providers.Vision{
 			DefaultModel:  DefaultVisionModel,
-			Efforts:       []string{"none", "low", "medium", "high", "xhigh"}, // gpt-5.5 set; no "minimal"
+			Efforts:       []string{"low", "medium", "high", "xhigh"}, // gpt-6.1-sol via Chat Completions; no "none", "minimal" or "max"
 			DefaultEffort: "medium",
 		},
 		AuthMethods: []providers.AuthMethod{
@@ -59,15 +59,16 @@ func init() {
 			},
 			{
 				Key:   "subscription",
-				Title: "ChatGPT Plus/Pro (Codex Subscription)",
+				Title: "ChatGPT plan (Codex sign-in)",
 				// vision_model is declared here too (not just on api_key) because
 				// describe reads it on this route as well; declaring it keeps the
 				// resolver from skipping it as an "api_key-only" field.
 				Fields: []providers.ConfigField{{
-					Key:         "vision_model",
-					Title:       "Vision Model",
-					Description: "Model for `imagine describe`",
-					Default:     DefaultVisionModel,
+					Key:   "vision_model",
+					Title: "Vision Model",
+					// No Default: the sign-in default follows the ChatGPT plan
+					// (driverFor), so a fixed value here would be wrong for some.
+					Description: "Model for `imagine describe` (default: picked by ChatGPT plan)",
 				}},
 				Login: subscriptionLogin,
 			},

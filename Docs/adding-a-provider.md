@@ -174,6 +174,7 @@ const (
     ModelV2Pro  = "example-v2-pro"
     ModelV2Lite = "example-v2-lite"
     ModelV3     = "example-v3"
+    ModelV4     = "example-v4"
 )
 
 // httpClient is shared — transport.NewClient provides pooling defaults.
@@ -211,6 +212,9 @@ func (p *Provider) Info() providers.Info {
             // from resolution errors — use them when a vendor renames a model
             // so pinned configs keep working without advertising the old name.
             {ID: ModelV3, Aliases: []string{"v3"}, DeprecatedAliases: []string{"example-v3-preview"}},
+            // Snapshots are dated IDs: they resolve to themselves, so the
+            // pinned version is sent, and they validate as the model above.
+            {ID: ModelV4, Aliases: []string{"v4"}, Snapshots: []string{"example-v4-2026-09-08"}},
         },
         Capabilities: providers.Capabilities{
             Edit:         true,
@@ -574,6 +578,7 @@ One line of code. Runs 12 invariants without any network:
 | `EmptyInputResolvesToDefault` | `ResolveModel("")` returns `DefaultModel` |
 | `AliasesRoundTrip` | Every alias resolves to its canonical ID |
 | `DeprecatedAliasesRoundTrip` | Every `DeprecatedAliases` entry resolves too, and isn't also listed in `Aliases` |
+| `SnapshotsResolveToThemselves` | Every `Snapshots` entry resolves to itself (so the dated ID is sent) and maps back to its model for validation |
 | `CanonicalIDsRoundTrip` | Every canonical ID resolves to itself |
 | `NoDuplicateModelIDs` | No two `ModelInfo`s share an ID |
 | `ModelSupportedFlagsSubsetOfBundle` | `ModelInfo.SupportedFlags` ⊆ `Bundle.SupportedFlags` |

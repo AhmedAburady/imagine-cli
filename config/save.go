@@ -61,7 +61,7 @@ func Save(cfg *Config) error {
 // is the onboarding flow, and blocking on "no config" would be the wrong
 // UX. When an older-shape `provider_options:` sub-mapping exists for the
 // named provider, it's removed on write so the file migrates to the flat
-// shape naturally.
+// shape naturally. An empty value removes that key.
 func SaveProviderFields(name string, fields map[string]string) error {
 	path, existing, err := readExistingConfig()
 	if errors.Is(err, ErrNoConfig) {
@@ -99,6 +99,14 @@ func SaveProviderFields(name string, fields map[string]string) error {
 	sort.Strings(keys)
 
 	for _, k := range keys {
+		if fields[k] == "" {
+			// Empty clears the key, so a re-run of providers add that falls
+			// back to a default does not keep an older saved value.
+			if removeMappingKey(providerNode, k) {
+				changed = true
+			}
+			continue
+		}
 		if setMappingScalar(providerNode, k, fields[k]) {
 			changed = true
 		}
@@ -153,7 +161,9 @@ func writeInitialConfig(name string, fields map[string]string) error {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		setMappingScalar(providerNode, k, fields[k])
+		if fields[k] != "" {
+			setMappingScalar(providerNode, k, fields[k])
+		}
 	}
 
 	return writeNodeFile(&root, DefaultConfigPath())

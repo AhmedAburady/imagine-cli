@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 // Canonical model IDs — the GA names, not the retired -preview ones.
 const (
 	ModelPro       = "gemini-3-pro-image"
-	ModelFlash     = "gemini-3.1-flash-image"
+	ModelFlash     = "gemini-nano-banana-2.1"
 	ModelFlashLite = "gemini-3.1-flash-lite-image"
 
 	// Stays v1beta: v1 rejects image search as a tool ("not enabled for api
@@ -28,20 +29,41 @@ const (
 	baseURL = "https://generativelanguage.googleapis.com/v1beta/models/"
 )
 
-const (
-	legacyModelPro   = "gemini-3-pro-image-preview"
-	legacyModelFlash = "gemini-3.1-flash-image-preview"
-)
+const legacyModelPro = "gemini-3-pro-image-preview"
 
 // Sizes* are funcs, not vars, so the slices Vertex shares stay immutable.
-// Only flash renders 512; pro must say so explicitly or it inherits the wide set.
-func SizesPro() []string       { return []string{"1K", "2K", "4K"} }
-func SizesFlash() []string     { return []string{"512", "1K", "2K", "4K"} }
+// No current model renders 512; flash-lite narrows the wide set to 1K.
+func Sizes() []string          { return []string{"1K", "2K", "4K"} }
 func SizesFlashLite() []string { return []string{"1K"} }
 
-// Exported so configs pinned to a pre-GA ID resolve the same on Vertex.
-func DeprecatedAliasesPro() []string   { return []string{legacyModelPro} }
-func DeprecatedAliasesFlash() []string { return []string{legacyModelFlash} }
+// Exported so configs pinned to an older ID resolve the same on Vertex.
+// The 3.1 Flash Image IDs follow Google's named replacement, Nano Banana 2.1.
+func DeprecatedAliasesPro() []string { return []string{legacyModelPro} }
+func DeprecatedAliasesFlash() []string {
+	return []string{"gemini-3.1-flash-image", "gemini-3.1-flash-image-preview"}
+}
+
+// ThinkingLevels lists the --thinking values a model documents; nil means the
+// model takes no thinking level at all (CheckModel reports that case).
+func ThinkingLevels(model string) []string {
+	switch model {
+	case ModelFlash:
+		return []string{"MINIMAL", "MEDIUM", "HIGH"}
+	case ModelFlashLite:
+		return []string{"MINIMAL", "HIGH"}
+	}
+	return nil
+}
+
+// CheckThinking turns an opaque API 400 into a local error naming the model.
+func CheckThinking(model, level string) error {
+	levels := ThinkingLevels(model)
+	if level == "" || len(levels) == 0 || slices.Contains(levels, level) {
+		return nil
+	}
+	return fmt.Errorf("--thinking %s is not supported by model %q (supported: %s)",
+		strings.ToLower(level), model, strings.ToLower(strings.Join(levels, ", ")))
+}
 
 // Google's published per-model tables disagree with each other and with this.
 func AspectRatios() []string {
@@ -59,6 +81,7 @@ var httpClient = transport.NewClient(120 * time.Second)
 type Provider struct {
 	apiKey      string
 	visionModel string
+	store       *bool // nil: the project's logging setting decides
 }
 
 // New builds a Gemini provider from auth. Errors when api_key is empty.
@@ -67,7 +90,28 @@ func New(auth providers.Auth) (providers.Provider, error) {
 	if key == "" {
 		return nil, errors.New("gemini provider requires providers.gemini.api_key in ~/.config/imagine/config.yaml")
 	}
-	return &Provider{apiKey: key, visionModel: auth.Get("vision_model")}, nil
+	store, err := parseStore(auth.Get("store"))
+	if err != nil {
+		return nil, err
+	}
+	return &Provider{apiKey: key, visionModel: auth.Get("vision_model"), store: store}, nil
+}
+
+// parseStore reads the optional store setting. Empty sends nothing, so the
+// project's Logs and Datasets setting applies (new paid projects log
+// generateContent requests by default since 2026-10-26).
+func parseStore(raw string) (*bool, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "":
+		return nil, nil
+	case "true":
+		v := true
+		return &v, nil
+	case "false":
+		v := false
+		return &v, nil
+	}
+	return nil, fmt.Errorf("providers.gemini.store must be true or false, got %q", raw)
 }
 
 // ConfigSchema declares the fields `imagine providers add gemini` collects.
@@ -86,6 +130,11 @@ func (p *Provider) ConfigSchema() []providers.ConfigField {
 			Description: "Model for `imagine describe` (multimodal Gemini 3 variants)",
 			Default:     DefaultVisionModel,
 		},
+		{
+			Key:         "store",
+			Title:       "Store Requests",
+			Description: "false keeps requests out of Gemini API logs; empty follows the project setting",
+		},
 	}
 }
 
@@ -103,15 +152,13 @@ func (p *Provider) Info() providers.Info {
 				DeprecatedAliases: DeprecatedAliasesPro(),
 				Description:       "Highest quality; no thinking / image-search flags.",
 				SupportedFlags:    []string{"grounding"},
-				Sizes:             SizesPro(),
 			},
 			{
 				ID:                ModelFlash,
 				Aliases:           []string{"flash"},
 				DeprecatedAliases: DeprecatedAliasesFlash(),
-				Description:       "Faster; supports --thinking and --image-search.",
+				Description:       "Nano Banana 2.1: fast and low-cost; supports --thinking (minimal, medium, high) and --image-search.",
 				SupportedFlags:    []string{"grounding", "thinking", "image-search"},
-				Sizes:             SizesFlash(),
 			},
 			{
 				ID:             ModelFlashLite,
@@ -127,7 +174,7 @@ func (p *Provider) Info() providers.Info {
 			Thinking:     true,
 			ImageSearch:  true,
 			MaxBatchN:    1,
-			Sizes:        SizesFlash(),
+			Sizes:        Sizes(),
 			AspectRatios: AspectRatios(),
 		},
 	}
@@ -159,6 +206,7 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 				ImageSize:   opts.Size,
 			},
 		},
+		Store: p.store,
 	}
 	if gs := buildSearchTool(opts.Grounding, opts.ImageSearch); gs != nil {
 		body.Tools = append(body.Tools, tool{GoogleSearch: gs})
@@ -263,6 +311,7 @@ type geminiRequest struct {
 	Contents         []content        `json:"contents"`
 	GenerationConfig generationConfig `json:"generationConfig"`
 	Tools            []tool           `json:"tools,omitempty"`
+	Store            *bool            `json:"store,omitempty"`
 }
 
 type responseInlineData struct {

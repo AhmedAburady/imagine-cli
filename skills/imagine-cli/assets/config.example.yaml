@@ -26,15 +26,16 @@ providers:
   # Or: imagine providers add gemini --api-key AIza-...
   gemini:
     api_key: AIza-paste-your-gemini-key-here
-    # vision_model: gemini-pro-latest    # optional describe model override
+    # vision_model: gemini-3.8-flash    # optional describe model override
+    # store: "false"                   # optional: keep requests out of Gemini API logs
 
-  # OpenAI (GPT Image + GPT-5.5 vision) — two auth methods, pick one:
+  # OpenAI (GPT Image + GPT-6.1 Sol vision) — two auth methods, pick one:
   #   API key:       imagine providers add openai --api-key sk-...   (org verification req'd)
   #   Subscription:  imagine providers add openai login   (browser sign-in, billed to your ChatGPT plan)
   openai:
     auth_method: api_key               # "api_key" or "subscription"
     api_key: sk-paste-your-openai-key-here   # only for auth_method: api_key
-    # vision_model: gpt-5.5            # optional describe model override (default: gpt-5.5)
+    # vision_model: gpt-6.1-sol            # optional describe model override (default: gpt-6.1-sol)
     # For subscription auth, just: { auth_method: subscription } — tokens are stored separately.
 
   # Vertex AI (Gemini via GCP, ADC auth)
@@ -46,4 +47,4 @@ providers:
   vertex:
     gcp_project: your-gcp-project-id
     location: global                   # optional — "global" is the default
-    # vision_model: gemini-3-flash-preview  # optional describe model override
+    # vision_model: gemini-3.8-flash  # optional describe model override

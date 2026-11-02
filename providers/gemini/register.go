@@ -34,7 +34,7 @@ func init() {
 		Info:           info,
 		ConfigSchema:   (&Provider{}).ConfigSchema(),
 		Vision: &providers.Vision{
-			DefaultModel:  DefaultVisionModel, // gemini-pro-latest (3.1 Pro): no "minimal"
+			DefaultModel:  DefaultVisionModel, // gemini-3.8-flash: no "minimal"
 			Efforts:       []string{"low", "medium", "high"},
 			DefaultEffort: gvision.DefaultEffort,
 		},

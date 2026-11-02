@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -251,6 +252,10 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 	}
 	maps.Copy(pvtMap, providerKeys)
 
+	if err := checkEntryKeys(providerKeys, bundle); err != nil {
+		return Resolved{}, err
+	}
+
 	providerOpts, err := bundle.ParseOptions(pvtMap, providers.Common{Filename: effFilename})
 	if err != nil {
 		return Resolved{}, err
@@ -261,6 +266,9 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 	// which is the per-entry equivalent of cmd.Flags().Visit.
 	if errs := providers.CheckModel(mapKeys(pvtMap), bundle, providerOpts); len(errs) > 0 {
 		return Resolved{}, errs[0]
+	}
+	if err := providers.CheckOutputFormat(effFilename, bundle); err != nil {
+		return Resolved{}, err
 	}
 
 	// Auth + Provider construction. Cached by provider name — entries
@@ -356,6 +364,31 @@ type commonOverrides struct {
 	input         []string
 	replace       *bool
 	embedMetadata *bool
+}
+
+// commonKeys are the entry keys every provider accepts, in splitEntryRaw order.
+var commonKeys = []string{"prompt", "separator", "provider", "output", "filename", "count", "input", "replace", "embed-metadata"}
+
+// checkEntryKeys rejects keys neither common nor claimed by the entry's
+// provider, listing both sets. "name" gets its own hint: the entry key is
+// already the name and the filename stem.
+func checkEntryKeys(providerKeys map[string]any, bundle providers.Bundle) error {
+	var unknown []string
+	for k := range providerKeys {
+		if !slices.Contains(bundle.SupportedFlags, k) {
+			unknown = append(unknown, k)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	sort.Strings(unknown)
+	if slices.Contains(unknown, "name") {
+		return fmt.Errorf("unknown key \"name\": the entry key is the name and the filename stem (image1: -> image1.png); use filename: to pick another file name")
+	}
+	own := slices.Clone(bundle.SupportedFlags)
+	sort.Strings(own)
+	return fmt.Errorf("unknown key(s) %v (common: %v; %s: %v)", unknown, commonKeys, bundle.Info.Name, own)
 }
 
 // splitEntryRaw walks raw and partitions common-flag keys into c.
@@ -475,7 +508,12 @@ func detectCollisions(resolved []Resolved) []string {
 				Index:        i,
 				Total:        r.Params.NumImages,
 			})
-			full := filepath.Join(r.Params.OutputFolder, name)
+			full := images.OutputPath(r.Params.OutputFolder, name)
+			// Compare absolute, cleaned paths: an absolute filename: and a
+			// relative one can name the same file.
+			if abs, err := filepath.Abs(full); err == nil {
+				full = abs
+			}
 			if prev, ok := seen[full]; ok {
 				collisions = append(collisions, fmt.Sprintf("filename collision: entry %s and entry %s both produce %s", prev, r.DisplayName, full))
 				continue

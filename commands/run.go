@@ -119,7 +119,7 @@ func runGeneration(ctx context.Context, provider providers.Provider, req provide
 		}
 	}
 
-	outputPath := params.OutputFolder
+	outputPath := output.OutputFolder // -f may have moved it (absolute path)
 	if !filepath.IsAbs(outputPath) {
 		if abs, err := filepath.Abs(outputPath); err == nil {
 			outputPath = abs

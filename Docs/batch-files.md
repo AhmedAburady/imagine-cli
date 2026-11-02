@@ -185,8 +185,8 @@ Each provider has its own set. Setting a key for a provider that doesn't claim i
 | `size` | string | `1K` | `1K` / `2K` / `4K` only. **`flash-lite` accepts `1K` only** |
 | `aspect-ratio` | string | (model picks) | One of `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` |
 | `grounding` | bool | `false` | Enable Google Search grounding. **Not on `flash-lite`** |
-| `thinking` | string | (off) | `minimal` or `high`. **`flash` and `flash-lite` only** — pro rejects |
-| `image-search` | bool | `false` | **`flash` only** — pro and flash-lite reject. Vertex doesn't expose this flag |
+| `thinking` | string | (off) | `minimal`, `medium` or `high`. **`flash` and `flash-lite` only** (`medium`: `flash` only) — pro rejects |
+| `image-search` | bool | `false` | **`flash` only**; pro and flash-lite reject |
 
 ### Vertex
 
@@ -196,20 +196,19 @@ Each provider has its own set. Setting a key for a provider that doesn't claim i
 | `size` | string | `1K` | `1K` / `2K` / `4K` only. **`flash-lite` accepts `1K` only** |
 | `aspect-ratio` | string | (model picks) | One of `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` |
 | `grounding` | bool | `false` | Enable Google Search grounding. **Not on `flash-lite`** |
-| `thinking` | string | (off) | `minimal` or `high`. **`flash` and `flash-lite` only** — pro rejects |
-
-(No `image-search` — that's a Gemini direct-REST capability not exposed via Vertex AI.)
+| `thinking` | string | (off) | `minimal`, `medium` or `high`. **`flash` and `flash-lite` only** (`medium`: `flash` only) — pro rejects |
+| `image-search` | bool | `false` | **`flash` only**; pro and flash-lite reject |
 
 ### OpenAI
 
 | Key | Type | Default | Notes |
 |---|---|---|---|
-| `model` | string | `gpt-image-2` | `gpt-image-2` (alias `2`) |
+| `model` | string | `gpt-image-2.5-flare` | `flare` / `2.5`, `sunburst`, `image2` / `2`, or a full ID |
 | `size` | string | `auto` | `1K` / `2K` / `4K` shorthand, `auto`, or raw `WxH` (e.g. `1024x1024`, `1536x1024`) |
-| `quality` | string | `auto` | `auto`, `low`, `medium`, `high` |
+| `quality` | string | `auto` | `auto`, `low`, `medium`, `high`; `xhigh`, `max` on the 2.5 models |
 | `compression` | int | `100` | 0–100. Applies only when output format is JPEG or WebP (decided by `filename` extension) |
 | `moderation` | string | `auto` | `auto` or `low` |
-| `background` | string | `auto` | `auto`, `opaque` |
+| `background` | string | `auto` | `auto`, `opaque`, `transparent` (png/webp output only) |
 
 `size:` accepts any `WxH` with both edges divisible by 16, longest edge at most 3840, ratio within 1:3 to 3:1, and total pixels between 655,360 and 8,294,400. The same rule applies whether or not `input:` is set.
 

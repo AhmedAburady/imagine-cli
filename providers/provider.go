@@ -28,6 +28,9 @@ func (i Info) ResolveModel(raw string) (string, error) {
 		if slices.Contains(m.Aliases, raw) || slices.Contains(m.DeprecatedAliases, raw) {
 			return m.ID, nil
 		}
+		if slices.Contains(m.Snapshots, raw) {
+			return raw, nil // a pin: sent as written, validated as m
+		}
 		accepted = append(accepted, m.ID)
 		accepted = append(accepted, m.Aliases...)
 	}
@@ -35,12 +38,20 @@ func (i Info) ResolveModel(raw string) (string, error) {
 	return "", fmt.Errorf("unknown model %q for provider %q (accepted: %v)", raw, i.Name, accepted)
 }
 
+// Model finds the model a resolved ID belongs to: its own ID or a snapshot.
+func (i Info) Model(id string) (ModelInfo, bool) {
+	for _, m := range i.Models {
+		if m.ID == id || slices.Contains(m.Snapshots, id) {
+			return m, true
+		}
+	}
+	return ModelInfo{}, false
+}
+
 // SizesForModel falls back to the provider-wide set for an unknown ID.
 func (i Info) SizesForModel(id string) []string {
-	for _, m := range i.Models {
-		if m.ID == id && len(m.Sizes) > 0 {
-			return m.Sizes
-		}
+	if m, ok := i.Model(id); ok && len(m.Sizes) > 0 {
+		return m.Sizes
 	}
 	return i.Capabilities.Sizes
 }
@@ -101,6 +112,11 @@ type ModelInfo struct {
 
 	// DeprecatedAliases resolve but are advertised nowhere; for pinned configs.
 	DeprecatedAliases []string
+
+	// Snapshots are dated IDs of this model. Unlike aliases they resolve to
+	// themselves, so the pinned version is what gets sent; validation treats
+	// them as this model. Advertised nowhere.
+	Snapshots []string
 }
 
 // Capabilities tells the CLI what orchestration / validation rules apply.
@@ -109,6 +125,7 @@ type Capabilities struct {
 	Grounding    bool     // supports Google Search grounding
 	Thinking     bool     // supports thinking level
 	ImageSearch  bool     // supports image-search grounding
+	WebP         bool     // returns WebP data when -f ends in .webp
 	MaxBatchN    int      // images per single Generate call; 1 means orchestrator loops
 	Sizes        []string // accepted values for -s
 	AspectRatios []string // accepted values for -a; empty means the provider doesn't gate them

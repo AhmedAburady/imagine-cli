@@ -44,18 +44,18 @@
 
 ## Why imagine
 
-The best image models out there — Nano Banana, Nano Banana 2, and gpt-image-2 — are stuck behind web UIs. There's no official way to reach them from a terminal.
+The best image models out there — Nano Banana, Nano Banana 2.1, and GPT-Image-2.5 — are stuck behind web UIs. There's no official way to reach them from a terminal.
 
 I built [banana-cli](https://github.com/AhmedAburady/banana-cli) first — a focused CLI for Google's image models. imagine is the next step: same idea, built to be extensible. One tool that can grow to support whatever good image models come next, across any provider.
 
-- **The models that matter** — Nano Banana (`gemini-3-pro-image`), Nano Banana 2 (`gemini-3.1-flash-image`), Nano Banana 2 Lite (`gemini-3.1-flash-lite-image`), and gpt-image-2. Direct API access, no middlemen.
+- **The models that matter** — Nano Banana (`gemini-3-pro-image`), Nano Banana 2.1 (`gemini-nano-banana-2.1`), Nano Banana 2 Lite (`gemini-3.1-flash-lite-image`), GPT-Image-2.5 Flare and Sunburst (`gpt-image-2.5-flare`, `gpt-image-2.5-sunburst`), and gpt-image-2. Direct API access, no middlemen.
 - **Built for workflows** — pipe into scripts, run inside loops, chain with other CLI tools. Anywhere a command runs, imagine runs.
 - **Concurrent generation** — `-n 10` fires off 10 images in one invocation. No clicking, no waiting for one to finish before starting the next.
 - **Batch runs from a file** — `imagine -p batch.yaml` describes many jobs in one file: different prompts, different providers, different sizes. Every entry runs in parallel; validation is exhaustive before any HTTP fires; results land in a styled summary table. Built for scripts and CI.
 - **Iterate fast** — tweak the prompt, rerun, compare. Generate multiple variations in one shot with `-n` and keep what works. The terminal loop is the creative loop.
 - **Composable prompts** - `-p` is repeatable, so `-p style.md -p "at night" -p subject.md` concatenates reusable prompt files and one-off instructions into a single prompt. Keep a library of style/quality snippets and mix them per run.
 - **Generate and edit in one command** — `-p "..."` generates; add `-i reference.png` and the same command switches to edit mode.
-- **Use your ChatGPT subscription — no API key** — sign in with ChatGPT once (`imagine providers add openai login`) and generate with gpt-image-2 billed to your Plus/Pro plan. Prefer pay-as-you-go? Use a platform API key instead. Same `openai` provider, your choice.
+- **Use your ChatGPT subscription — no API key** — sign in with ChatGPT once (`imagine providers add openai login`) and generate on your ChatGPT plan (the backend runs its own `gpt-image-2-codex`). Prefer pay-as-you-go? Use a platform API key instead. Same `openai` provider, your choice.
 - **One config file, no env vars** — set your keys once in `~/.config/imagine/config.yaml` and forget about it.
 - **Extensible by design** — adding a new provider is one directory under `providers/` and one import line. As new models ship, imagine can keep up.
 
@@ -129,17 +129,17 @@ vision_default_provider: openai       # optional — describe default, falls bac
 providers:
   gemini:
     api_key: AIza-your-key-here
-    vision_model: gemini-pro-latest   # optional — defaults to gemini-pro-latest
+    vision_model: gemini-3.8-flash   # optional — defaults to gemini-3.8-flash
 
   openai:                             # two auth methods — pick one (see Credentials)
     auth_method: api_key              # "api_key" or "subscription" (ChatGPT sign-in)
     api_key: sk-your-openai-key-here  # only for auth_method: api_key
-    vision_model: gpt-5.5             # optional — defaults to gpt-5.5
+    vision_model: gpt-6.1-sol             # optional — defaults to gpt-6.1-sol
 
   vertex:
     gcp_project: your-gcp-project-id
     location: us-central1             # optional, defaults to "global"
-    vision_model: gemini-3-flash-preview
+    vision_model: gemini-3.8-flash
 ```
 
 | Field | Required | Notes |
@@ -149,9 +149,10 @@ providers:
 | `providers.gemini.api_key` | Yes | Google AI Studio API key. |
 | `providers.openai.auth_method` | No | `api_key` (default) or `subscription`. Picks how the `openai` provider authenticates — see [Credentials](#openai-api-key-or-chatgpt-subscription). Inferred from the presence of `api_key` when omitted. |
 | `providers.openai.api_key` | For `api_key` | OpenAI platform API key. Not needed (or read) when `auth_method: subscription`. |
+| `providers.gemini.store` | No | `false` keeps generate and describe requests out of the Gemini API's Logs and Datasets. Unset follows the project setting (new paid projects log requests by default since 2026-10-26). |
 | `providers.vertex.gcp_project` | Yes | GCP project id with the Vertex AI API enabled. |
-| `providers.vertex.location` | No | Vertex region. Defaults to `global`. |
-| `providers.<name>.vision_model` | No | Model `imagine describe` uses for that provider. Defaults are `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), and `gpt-5.5` (openai — same on both auth methods). |
+| `providers.vertex.location` | No | Vertex region. Defaults to `global`. `flash` (Nano Banana 2.1) runs only in `global`. |
+| `providers.<name>.vision_model` | No | Model `imagine describe` uses for that provider. Defaults are `gemini-3.8-flash` (gemini and vertex), and `gpt-6.1-sol` (openai — same on both auth methods). |
 
 Older configs that nested Vertex credentials under `provider_options:` still load — they're auto-migrated to flat on the next `imagine providers` write.
 
@@ -202,12 +203,12 @@ Run `imagine providers add openai` with no arguments for an interactive picker:
 ```
 How do you want to authenticate?
   › API key
-    ChatGPT Plus/Pro (Codex Subscription)
+    ChatGPT plan (Codex sign-in)
 ```
 
 - **`login`** runs a one-time browser sign-in (OAuth/PKCE on a `localhost` callback). The tokens are cached in a separate `0600` file — `~/.config/imagine/openai-subscription-auth.json` — never in `config.yaml`, and refreshed silently. Your config stanza is just `auth_method: subscription`.
 - Switch methods anytime by re-running `imagine providers add openai` (or editing `auth_method:`). You can keep both credentials in the stanza; only the active method's is ever read.
-- The subscription route reaches gpt-image-2 through OpenAI's ChatGPT backend rather than the public `/v1/images` API. It rides an endpoint OpenAI hasn't published for third parties, so treat it as **best-effort** — if it ever stops working, the API-key method is the stable fallback.
+- The subscription route reaches `gpt-image-2-codex` through OpenAI's ChatGPT backend, whatever `-m` says, and often picks its own size rather than the public `/v1/images` API. It rides an endpoint OpenAI hasn't published for third parties, so treat it as **best-effort** — if it ever stops working, the API-key method is the stable fallback.
 
 #### Secret references — keep plaintext out of `config.yaml`
 
@@ -387,11 +388,11 @@ Models and flags are shared between Gemini (direct REST) and Vertex (Gemini via 
 | Flag | Long | Description | Default |
 |---|---|---|---|
 | `-m` | `--model` | `pro`, `flash`, or `flash-lite` (aliases; or full ID) | `pro` |
-| `-s` | `--size` | `512`, `1K`, `2K`, or `4K` (`512`: `flash` only; `flash-lite`: `1K` only) | `1K` |
+| `-s` | `--size` | `1K`, `2K`, or `4K` (`flash-lite`: `1K` only) | `1K` |
 | `-a` | `--aspect-ratio` | 14 values: `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` | Auto |
 | `-g` | `--grounding` | Google Search grounding (not on `flash-lite`) | `false` |
-| `-t` | `--thinking` | `minimal` or `high` (`flash` and `flash-lite`) | Auto |
-| `-I` | `--image-search` | Image Search grounding (Gemini flash only) | `false` |
+| `-t` | `--thinking` | `minimal`, `medium` or `high` (`flash` and `flash-lite`; `medium`: `flash` only) | Auto |
+| `-I` | `--image-search` | Image Search grounding (`flash` only) | `false` |
 
 **Examples**
 
@@ -408,13 +409,10 @@ imagine -p "die-cut sticker of an avocado" -m flash-lite -a 1:1
 # Ultra-wide banner
 imagine -p "a mountain range panorama" -m flash -a 8:1
 
-# 512px draft, flash only - cheapest Gemini render
-imagine -p "thumbnail of a lighthouse" -m flash -s 512
-
 # Edit a photo, keep its filename
 imagine -p "add rain" -i photo.png -r
 
-# Image Search grounding (Gemini flash only)
+# Image Search grounding (flash only)
 imagine -p "cat wearing a hoodie" -m flash -I
 ```
 
@@ -424,20 +422,20 @@ imagine -p "cat wearing a hoodie" -m flash -I
 imagine -p "a sunset" --provider vertex -n 3
 ```
 
-Vertex does not support `--image-search`.
+Vertex `flash` (Nano Banana 2.1) runs only in the `global` location.
 
 ### OpenAI
 
-Uses `gpt-image-2`. The flags below are identical whether you authenticate with an API key or a [ChatGPT subscription](#openai-api-key-or-chatgpt-subscription); only the billing and endpoint differ.
+Defaults to `gpt-image-2.5-flare`. The flags below are identical whether you authenticate with an API key or a [ChatGPT subscription](#openai-api-key-or-chatgpt-subscription); only the billing and endpoint differ.
 
 | Flag | Long | Description | Default |
 |---|---|---|---|
-| `-m` | `--model` | `gpt-image-2` (alias `2`) | `gpt-image-2` |
+| `-m` | `--model` | `flare` (`gpt-image-2.5-flare`), `sunburst` (`gpt-image-2.5-sunburst`), `image2` (`gpt-image-2`) | `flare` |
 | `-s` | `--size` | `1K` / `2K` / `4K` shorthand, `auto`, or raw `WxH` (e.g. `1536x1024`) | `auto` |
-| `-q` | `--quality` | `low`, `medium`, `high`, `auto` | `auto` |
+| `-q` | `--quality` | `low`, `medium`, `high`, `auto`; plus `xhigh`, `max` on the 2.5 models | `auto` |
 |  | `--compression` | 0–100 (jpeg/webp only) | `100` |
 |  | `--moderation` | `auto`, `low` | `auto` |
-|  | `--background` | `auto`, `opaque` | `auto` |
+|  | `--background` | `auto`, `opaque`, `transparent` (`transparent`: png/webp output only) | `auto` |
 
 **Size shorthand**
 
@@ -526,9 +524,9 @@ Default vision models per provider:
 
 | Provider | Default | Override |
 |---|---|---|
-| gemini | `gemini-pro-latest` | `providers.gemini.vision_model` OR `-m <id>` |
-| vertex | `gemini-3-flash-preview` | `providers.vertex.vision_model` OR `-m <id>` |
-| openai | `gpt-5.5` | `providers.openai.vision_model` OR `-m <id>` |
+| gemini | `gemini-3.8-flash` | `providers.gemini.vision_model` OR `-m <id>` |
+| vertex | `gemini-3.8-flash` | `providers.vertex.vision_model` OR `-m <id>` |
+| openai | `gpt-6.1-sol` (`gpt-6-luna` on a Free/Go ChatGPT sign-in) | `providers.openai.vision_model` OR `-m <id>` |
 
 **Examples**
 
@@ -606,9 +604,9 @@ OpenAI is multi-auth: `imagine providers add openai` opens an API-key / ChatGPT-
 **Input** (reference images for edit mode): `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`
 
 **Output** — driven by the `-f` filename extension:
-- `.png` (default)
-- `.jpg` / `.jpeg` — For Gemini/Vertex, imagine converts locally at quality 95. For OpenAI, the API returns JPEG directly.
-- `.webp` — OpenAI only.
+- `.png` (default). The Gemini API returns JPEG for some models; imagine converts it so a `.png` file always holds PNG data.
+- `.jpg` / `.jpeg`: for Gemini/Vertex, imagine converts PNG locally at quality 95 (JPEG passes through as is). For OpenAI, the API returns JPEG directly.
+- `.webp`: OpenAI only. Gemini/Vertex reject it before any API call.
 
 [↑ Back to top](#table-of-contents)
 

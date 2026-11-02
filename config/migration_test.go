@@ -159,3 +159,34 @@ providers:
 		t.Errorf("new provider not added:\n%s", gotStr)
 	}
 }
+
+// An empty value clears a key an earlier run saved; other keys stay.
+func TestSaveProviderFields_EmptyValueClearsKey(t *testing.T) {
+	path := setupTempConfigDir(t)
+	existing := "providers:\n  vertex:\n    gcp_project: p\n    location: us-central1\n    vision_model: old\n"
+	if err := os.WriteFile(path, []byte(existing), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.SaveProviderFields("vertex", map[string]string{"gcp_project": "p2", "location": "", "vision_model": ""}); err != nil {
+		t.Fatalf("SaveProviderFields: %v", err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := cfg.Providers["vertex"]
+	if v["gcp_project"] != "p2" || v["location"] != "" || v["vision_model"] != "" {
+		t.Errorf("want gcp_project=p2 and the other keys cleared, got %+v", v)
+	}
+}
+
+func TestSaveProviderFields_InitialConfigSkipsEmptyValues(t *testing.T) {
+	_ = setupTempConfigDir(t)
+	if err := config.SaveProviderFields("gemini", map[string]string{"api_key": "k", "vision_model": ""}); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(config.DefaultConfigPath())
+	if strings.Contains(string(data), "vision_model") {
+		t.Errorf("empty value written to a new config:\n%s", data)
+	}
+}

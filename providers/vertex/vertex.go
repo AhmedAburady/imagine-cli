@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"google.golang.org/genai"
 
@@ -61,9 +62,9 @@ func (p *Provider) ConfigSchema() []providers.ConfigField {
 	}
 }
 
-// Info mirrors Gemini's models (Vertex is Gemini under a different transport),
-// with capability flags trimmed to what Vertex actually supports today:
-// no image-search tool.
+// Info mirrors Gemini's models (Vertex is Gemini under a different transport).
+// Image search is flash-only, as on the Gemini API (verified live 2026-11-02:
+// Vertex returns imageSearchQueries for gemini-nano-banana-2.1).
 func (p *Provider) Info() providers.Info {
 	return providers.Info{
 		Name:         "vertex",
@@ -77,15 +78,13 @@ func (p *Provider) Info() providers.Info {
 				DeprecatedAliases: gemini.DeprecatedAliasesPro(),
 				Description:       "Highest quality; no thinking flags.",
 				SupportedFlags:    []string{"grounding"},
-				Sizes:             gemini.SizesPro(),
 			},
 			{
 				ID:                gemini.ModelFlash,
 				Aliases:           []string{"flash"},
 				DeprecatedAliases: gemini.DeprecatedAliasesFlash(),
-				Description:       "Faster; supports --thinking.",
-				SupportedFlags:    []string{"grounding", "thinking"},
-				Sizes:             gemini.SizesFlash(),
+				Description:       "Nano Banana 2.1: fast and low-cost; supports --thinking (minimal, medium, high). Global region only.",
+				SupportedFlags:    []string{"grounding", "thinking", "image-search"},
 			},
 			{
 				ID:             gemini.ModelFlashLite,
@@ -99,12 +98,40 @@ func (p *Provider) Info() providers.Info {
 			Edit:         true,
 			Grounding:    true,
 			Thinking:     true,
-			ImageSearch:  false,
+			ImageSearch:  true,
 			MaxBatchN:    1,
-			Sizes:        gemini.SizesFlash(),
+			Sizes:        gemini.Sizes(),
 			AspectRatios: gemini.AspectRatios(),
 		},
 	}
+}
+
+// searchTool mirrors the Gemini provider's buildSearchTool: image search
+// nests under google_search.searchTypes, and web search joins it only when
+// grounding is on. Grounding alone stays a bare googleSearch.
+func searchTool(grounding, images bool) *genai.GoogleSearch {
+	if !images {
+		if !grounding {
+			return nil
+		}
+		return &genai.GoogleSearch{}
+	}
+	st := &genai.SearchTypes{ImageSearch: &genai.ImageSearch{}}
+	if grounding {
+		st.WebSearch = &genai.WebSearch{}
+	}
+	return &genai.GoogleSearch{SearchTypes: st}
+}
+
+// globalOnly lists models Vertex serves from the global endpoint alone.
+var globalOnly = []string{gemini.ModelFlash}
+
+// checkLocation turns Vertex's opaque 404 for a regional endpoint into a fix.
+func checkLocation(model, location string) error {
+	if location == "global" || !slices.Contains(globalOnly, model) {
+		return nil
+	}
+	return fmt.Errorf("model %q is served only in the Vertex \"global\" location (configured: %q); set providers.vertex.location to global", model, location)
 }
 
 // Generate runs one image generation via Vertex. MaxBatchN=1.
@@ -112,6 +139,9 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 	opts, ok := req.Options.(*Options)
 	if !ok {
 		return nil, fmt.Errorf("vertex: internal: expected *Options, got %T", req.Options)
+	}
+	if err := checkLocation(opts.Model, p.location); err != nil {
+		return nil, err
 	}
 
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
@@ -151,8 +181,8 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 		genConfig.ImageConfig = imgCfg
 	}
 
-	if opts.Grounding {
-		genConfig.Tools = append(genConfig.Tools, &genai.Tool{GoogleSearch: &genai.GoogleSearch{}})
+	if gs := searchTool(opts.Grounding, opts.ImageSearch); gs != nil {
+		genConfig.Tools = append(genConfig.Tools, &genai.Tool{GoogleSearch: gs})
 	}
 	if opts.Thinking != "" {
 		genConfig.ThinkingConfig = &genai.ThinkingConfig{

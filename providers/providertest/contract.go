@@ -41,6 +41,7 @@ func Contract(t *testing.T, name string) {
 	t.Run("EmptyInputResolvesToDefault", func(t *testing.T) { checkEmptyResolvesToDefault(t, bundle) })
 	t.Run("AliasesRoundTrip", func(t *testing.T) { checkAliasesRoundTrip(t, bundle) })
 	t.Run("DeprecatedAliasesRoundTrip", func(t *testing.T) { checkDeprecatedAliasesRoundTrip(t, bundle) })
+	t.Run("SnapshotsResolveToThemselves", func(t *testing.T) { checkSnapshots(t, bundle) })
 	t.Run("CanonicalIDsRoundTrip", func(t *testing.T) { checkCanonicalIDsRoundTrip(t, bundle) })
 	t.Run("NoDuplicateModelIDs", func(t *testing.T) { checkNoDuplicateModelIDs(t, bundle) })
 	t.Run("ModelSupportedFlagsSubsetOfBundle", func(t *testing.T) { checkModelFlagsSubset(t, bundle) })
@@ -129,6 +130,20 @@ func checkDeprecatedAliasesRoundTrip(t *testing.T, b providers.Bundle) {
 				if live == alias {
 					t.Errorf("model %q lists %q in both Aliases and DeprecatedAliases", m.ID, alias)
 				}
+			}
+		}
+	}
+}
+
+func checkSnapshots(t *testing.T, b providers.Bundle) {
+	for _, m := range b.Info.Models {
+		for _, snap := range m.Snapshots {
+			got, err := b.Info.ResolveModel(snap)
+			if err != nil || got != snap {
+				t.Errorf("ResolveModel(snapshot=%q) = %q, %v; want the snapshot itself", snap, got, err)
+			}
+			if owner, ok := b.Info.Model(snap); !ok || owner.ID != m.ID {
+				t.Errorf("Info.Model(%q) = %q, want %q", snap, owner.ID, m.ID)
 			}
 		}
 	}
