@@ -85,7 +85,7 @@ ANY `WxH` is accepted if it satisfies all of these:
 
 imagine enforces all four constraints client-side at flag-parse time, so a bad size errors before any API call, in edit mode (`-i`) too.
 
-**Subscription route caveat** (probed 2026-11-02): the request goes to the `gpt-6.1-sol` language model, which calls the image tool. The backend resets the tool to its own model, `gpt-image-2-codex`, whatever `-m` says (a made-up ID works too), and resets `size` to `auto`, so the language model picks the size: usually 1254x1254. `-q` is passed through. Use the API-key route when the exact model or size matters.
+**Subscription route caveat** (probed 2026-11-02): the request goes to a language model (`gpt-6.1-sol`; `gpt-6-luna` on Free and Go plans), which calls the image tool. The backend resets the tool to its own model, `gpt-image-2-codex`, whatever `-m` says (a made-up ID works too), and resets `size` to `auto`, so the language model picks the size: usually 1254x1254. `-q` is passed through. Use the API-key route when the exact model or size matters.
 
 ## Output format
 

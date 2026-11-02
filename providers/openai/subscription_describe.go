@@ -29,7 +29,7 @@ func (p *Provider) describeSubscription(ctx context.Context, req providers.Descr
 		model = p.visionModel
 	}
 	if model == "" {
-		model = DefaultVisionModel
+		model = driverFor(access) // the plan's model; gpt-6.1-sol on paid plans
 	}
 
 	instruction := providers.PickInstruction(req, TextInstruction, JSONInstruction)

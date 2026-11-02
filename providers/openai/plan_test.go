@@ -1,0 +1,42 @@
+package openai
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"testing"
+)
+
+func fakeJWT(t *testing.T, claims map[string]any) string {
+	t.Helper()
+	b, err := json.Marshal(claims)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return "x." + base64.RawURLEncoding.EncodeToString(b) + ".sig"
+}
+
+func TestDriverFor_ByPlan(t *testing.T) {
+	cases := map[string]string{
+		"free":       driverModelLite,
+		"go":         driverModelLite,
+		"GO":         driverModelLite,
+		"plus":       driverModel,
+		"pro":        driverModel,
+		"business":   driverModel,
+		"enterprise": driverModel,
+	}
+	for plan, want := range cases {
+		tok := fakeJWT(t, map[string]any{authClaim: map[string]any{"chatgpt_plan_type": plan}})
+		if got := driverFor(tok); got != want {
+			t.Errorf("plan %q: got %q, want %q", plan, got, want)
+		}
+	}
+}
+
+func TestDriverFor_UnreadableTokenUsesPaidModel(t *testing.T) {
+	for _, tok := range []string{"", "not-a-jwt", fakeJWT(t, map[string]any{"exp": 1})} {
+		if got := driverFor(tok); got != driverModel {
+			t.Errorf("token %q: got %q, want %q", tok, got, driverModel)
+		}
+	}
+}

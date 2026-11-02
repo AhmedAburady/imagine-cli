@@ -100,7 +100,7 @@ imagine describe -i ./refs/ --json -o style.json  # structured
 imagine describe -i photo.jpg -a "focus on lighting"
 ```
 
-`-m` overrides the vision model (defaults: `gemini-3.8-flash` on Gemini and Vertex, `gpt-6.1-sol` on OpenAI); `-e` sets the reasoning effort.
+`-m` overrides the vision model (defaults: `gemini-3.8-flash` on Gemini and Vertex, `gpt-6.1-sol` on OpenAI, `gpt-6-luna` on a Free or Go ChatGPT sign-in); `-e` sets the reasoning effort.
 
 ## When something fails
 

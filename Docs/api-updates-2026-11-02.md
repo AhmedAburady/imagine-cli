@@ -7,7 +7,7 @@ Research date: 2026-11-02. Method: Firecrawl scrapes of the OpenAI developer and
 | Area | Change | Live-verified |
 |---|---|---|
 | SDKs | `google.golang.org/genai` v1.43.0 -> v1.77.0; adk-go v0.3.0 -> `google.golang.org/adk/v2` v2.6.0 | describe on both platforms |
-| OpenAI text model | `gpt-6.1-sol` replaces the retired `gpt-5.5` as the describe default (both routes) and the ChatGPT sign-in driver model. Efforts `low, medium, high, xhigh` | describe on both routes; sign-in image path not yet |
+| OpenAI text model | `gpt-6.1-sol` replaces the retired `gpt-5.5` as the describe default (both routes) and the ChatGPT sign-in driver model; Free and Go sign-ins get `gpt-6-luna`, read from the token's plan. Efforts `low, medium, high, xhigh` | describe on both routes; sign-in image path not yet |
 | Gemini/Vertex describe | default `gemini-3.8-flash` on both; Vertex drops `minimal`; `gemini-4-argon` via `-m` | both platforms |
 | Gemini/Vertex image | `flash` = `gemini-nano-banana-2.1`; 3.1 Flash Image IDs resolve to it; `512` gone; `--thinking medium` (flash only); Vertex 2.1 checked for `global`; `-I` on Vertex `flash` | both platforms (`-t medium`, `-g`, `-I -g`) |
 | OpenAI image | `--background transparent` (png/webp only); dated snapshots accepted and sent as written | API-key route |
@@ -39,5 +39,5 @@ Research date: 2026-11-02. Method: Firecrawl scrapes of the OpenAI developer and
 
 ## Open items
 
-1. **ChatGPT sign-in route.** Live-test image generation with the `gpt-6.1-sol` driver, then re-probe whether the backend serves 2.5 or still swaps in `gpt-image-2-codex`.
+1. **ChatGPT sign-in route** (probed live 2026-11-02 on a Business plan): generation and describe work with the `gpt-6.1-sol` driver. The backend still runs `gpt-image-2-codex` whatever `-m` says and resets `size` to `auto`; a size stated in the instructions is followed. Follow-ups: pass the size through the instructions, and warn when the model is swapped.
 2. **`markup` edit parameter** (OpenAI) is not implemented.

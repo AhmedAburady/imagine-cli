@@ -33,8 +33,10 @@ const (
 
 	// driverModel hosts the image_generation tool call; the image model
 	// itself travels inside the tool object. Codex retired gpt-5.5 for ChatGPT
-	// sign-in on 2026-10-14; gpt-6.1-sol is the Plus/Pro/Business replacement.
-	driverModel = "gpt-6.1-sol"
+	// sign-in on 2026-10-14 and named a replacement per plan: gpt-6.1-sol on
+	// Plus, Pro, Business, Enterprise and Edu, gpt-6-luna on Free and Go.
+	driverModel     = "gpt-6.1-sol"
+	driverModelLite = "gpt-6-luna"
 
 	// imageInstructions is the minimal system prompt the endpoint needs to
 	// reliably invoke the tool (it misbehaves with none).
@@ -53,14 +55,35 @@ func (p *Provider) generateSubscription(ctx context.Context, opts *Options, req 
 	}
 	auth := &codexAuth{accessToken: access, accountID: account, sessionID: uuid.NewString()}
 
-	return p.doResponses(ctx, auth, subscriptionBody(opts, req), opts.OutputFormat)
+	return p.doResponses(ctx, auth, subscriptionBody(opts, req, driverFor(access)), opts.OutputFormat)
+}
+
+// driverFor picks the sign-in driver model for the account's plan, read from
+// the access token. An unreadable plan gets the paid-plan model.
+func driverFor(accessToken string) string {
+	switch planType(accessToken) {
+	case "free", "go":
+		return driverModelLite
+	}
+	return driverModel
+}
+
+// planType reads chatgpt_plan_type from the access token ("" if absent).
+func planType(accessToken string) string {
+	claims, err := jwtClaims(accessToken)
+	if err != nil {
+		return ""
+	}
+	auth, _ := claims[authClaim].(map[string]any)
+	plan, _ := auth["chatgpt_plan_type"].(string)
+	return strings.ToLower(strings.TrimSpace(plan))
 }
 
 // subscriptionBody assembles the Responses request: the driver model hosting
 // one image_generation tool call.
-func subscriptionBody(opts *Options, req providers.Request) responsesBody {
+func subscriptionBody(opts *Options, req providers.Request, driver string) responsesBody {
 	return responsesBody{
-		Model:        driverModel,
+		Model:        driver,
 		Instructions: imageInstructions,
 		Input:        []inputMessage{{Role: "user", Content: responsesContent(req.Prompt, req.References)}},
 		Tools:        []imageTool{buildTool(opts)},

@@ -526,7 +526,7 @@ Default vision models per provider:
 |---|---|---|
 | gemini | `gemini-3.8-flash` | `providers.gemini.vision_model` OR `-m <id>` |
 | vertex | `gemini-3.8-flash` | `providers.vertex.vision_model` OR `-m <id>` |
-| openai | `gpt-6.1-sol` | `providers.openai.vision_model` OR `-m <id>` |
+| openai | `gpt-6.1-sol` (`gpt-6-luna` on a Free/Go ChatGPT sign-in) | `providers.openai.vision_model` OR `-m <id>` |
 
 **Examples**
 
