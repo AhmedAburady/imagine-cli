@@ -328,7 +328,7 @@ func TestStallReader_StallsOnCustomIdleAfterData(t *testing.T) {
 
 func TestStallReader_PassesDataThrough(t *testing.T) {
 	sr := newStallReader(io.NopCloser(strings.NewReader("hello")), time.Second)
-	defer sr.Close()
+	defer func() { _ = sr.Close() }()
 	if got, err := io.ReadAll(sr); err != nil || string(got) != "hello" {
 		t.Fatalf("got %q, %v", got, err)
 	}
