@@ -209,7 +209,7 @@ Each provider has its own set. Setting a key for a provider that doesn't claim i
 | `quality` | string | `auto` | `auto`, `low`, `medium`, `high`; `xhigh`, `max` on the 2.5 models |
 | `compression` | int | `100` | 0–100. Applies only when output format is JPEG or WebP (decided by `filename` extension) |
 | `moderation` | string | `auto` | `auto` or `low` |
-| `background` | string | `auto` | `auto`, `opaque` |
+| `background` | string | `auto` | `auto`, `opaque`, `transparent` (png/webp output only) |
 
 `size:` accepts any `WxH` with both edges divisible by 16, longest edge at most 3840, ratio within 1:3 to 3:1, and total pixels between 655,360 and 8,294,400. The same rule applies whether or not `input:` is set.
 

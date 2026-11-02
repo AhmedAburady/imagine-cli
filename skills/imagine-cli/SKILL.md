@@ -224,7 +224,7 @@ Setting a key for the wrong provider errors. Defaults are applied per provider; 
 
 **Vertex:** same as Gemini but **no `image-search`** (not exposed via Vertex AI).
 
-**OpenAI:** `model` (`flare` / `gpt-image-2.5-flare` default, `sunburst`, `image2` / `2`), `size` (`1K`/`2K`/`4K` shorthand, `auto`, or raw `WxH` like `1024x1024`, default `auto`), `quality` (`auto`/`low`/`medium`/`high`, plus `xhigh`/`max` on the 2.5 models, default `auto`), `compression` (0–100 int, default `100`, jpeg/webp only), `moderation` (`auto`/`low`), `background` (`auto`/`opaque`).
+**OpenAI:** `model` (`flare` / `gpt-image-2.5-flare` default, `sunburst`, `image2` / `2`), `size` (`1K`/`2K`/`4K` shorthand, `auto`, or raw `WxH` like `1024x1024`, default `auto`), `quality` (`auto`/`low`/`medium`/`high`, plus `xhigh`/`max` on the 2.5 models, default `auto`), `compression` (0–100 int, default `100`, jpeg/webp only), `moderation` (`auto`/`low`), `background` (`auto`/`opaque`/`transparent`; transparent needs png/webp output).
 
 OpenAI `size:` must sit inside the gpt-image-2 envelope, whether or not the entry has `input:`.
 

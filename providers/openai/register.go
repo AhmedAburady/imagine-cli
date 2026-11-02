@@ -31,7 +31,7 @@ func init() {
 			// OutputFormat comes from the common -f filename's extension.
 			filename, _ := cmd.Flags().GetString("filename")
 			o.OutputFormat = outputFormatFromFilename(filename)
-			return o, nil
+			return o, o.validateOutput()
 		},
 		ParseOptions: func(values map[string]any, common providers.Common) (any, error) {
 			optsAny, err := flagspec.Parse(Options{}, values, info)
@@ -40,7 +40,7 @@ func init() {
 			}
 			o := optsAny.(*Options)
 			o.OutputFormat = outputFormatFromFilename(common.Filename)
-			return o, nil
+			return o, o.validateOutput()
 		},
 		SupportedFlags: flagspec.FieldNames(Options{}),
 		Examples:       Examples,

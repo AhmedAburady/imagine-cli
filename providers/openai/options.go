@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -24,7 +25,7 @@ type Options struct {
 	Quality     string `flag:"quality,q"   desc:"Rendering quality: low, medium, high, xhigh, max, auto (xhigh/max: 2.5 models only; default: auto)" enum:"auto,low,medium,high,xhigh,max" default:"auto"`
 	Compression int    `flag:"compression" desc:"Compression 0-100 (jpeg/webp only; 100=best quality)" default:"100" range:"0:100"`
 	Moderation  string `flag:"moderation"  desc:"Content moderation: auto, low (default: auto)" enum:"auto,low"`
-	Background  string `flag:"background"  desc:"Background: auto, opaque (default: auto)" enum:"auto,opaque"`
+	Background  string `flag:"background"  desc:"Background: auto, opaque, transparent (transparent: png/webp output only; default: auto)" enum:"auto,opaque,transparent"`
 
 	// OutputFormat is derived from the -f filename's extension by the
 	// caller (CLI ReadFlags closure or batch runner) before Generate.
@@ -134,6 +135,16 @@ func (o *Options) Validate(_ providers.Info) error {
 		return err
 	}
 	return validateImageSize(o.Size)
+}
+
+// validateOutput runs once OutputFormat is known, which is after flagspec's
+// Validate hook: a transparent background needs an alpha channel, and jpeg
+// has none.
+func (o *Options) validateOutput() error {
+	if o.Background == "transparent" && o.OutputFormat == "jpeg" {
+		return errors.New("--background transparent needs a png or webp output (-f ends in .jpg/.jpeg)")
+	}
+	return nil
 }
 
 // The documented size envelope shared by gpt-image-2 and both gpt-image-2.5

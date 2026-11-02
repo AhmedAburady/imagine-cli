@@ -434,7 +434,7 @@ Defaults to `gpt-image-2.5-flare`. The flags below are identical whether you aut
 | `-q` | `--quality` | `low`, `medium`, `high`, `auto`; plus `xhigh`, `max` on the 2.5 models | `auto` |
 |  | `--compression` | 0–100 (jpeg/webp only) | `100` |
 |  | `--moderation` | `auto`, `low` | `auto` |
-|  | `--background` | `auto`, `opaque` | `auto` |
+|  | `--background` | `auto`, `opaque`, `transparent` (`transparent`: png/webp output only) | `auto` |
 
 **Size shorthand**
 

@@ -47,7 +47,7 @@ Aliases resolve to canonical IDs. Omit `-m` to use the default.
 | `-q` | `--quality` | `low`, `medium`, `high`, `auto`; `xhigh`, `max` on the 2.5 models only | `auto` |
 | | `--compression` | 0-100 integer (jpeg/webp only) | `100` |
 | | `--moderation` | `auto`, `low` | `auto` |
-| | `--background` | `auto`, `opaque` | `auto` |
+| | `--background` | `auto`, `opaque`, `transparent` | `auto`. `transparent` needs a png or webp output (`-f` not `.jpg`); preview on `image2` |
 
 ## Size matrix
 
