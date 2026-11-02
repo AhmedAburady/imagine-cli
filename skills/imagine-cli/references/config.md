@@ -119,7 +119,7 @@ providers:
 
 Needs organization verification enabled on the account for GPT Image models — see OpenAI's docs.
 
-**2. ChatGPT subscription** — gpt-image-2 billed to the user's Plus/Pro/Team plan, no API key.
+**2. ChatGPT subscription** — images billed to the user's ChatGPT plan, no API key. The backend runs its own `gpt-image-2-codex`.
 
 ```bash
 imagine providers add openai login    # opens the user's BROWSER for OAuth sign-in

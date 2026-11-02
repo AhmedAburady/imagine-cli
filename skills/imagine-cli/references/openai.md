@@ -6,7 +6,7 @@ The `openai` provider authenticates one of two mutually-exclusive ways, set by `
 
 | | `api_key` (default) | `subscription` |
 |---|---|---|
-| Billed to | OpenAI Platform (pay-as-you-go) | the user's ChatGPT **Plus/Pro/Team** plan |
+| Billed to | OpenAI Platform (pay-as-you-go) | the user's ChatGPT plan (Free, Go, Plus, Pro, Business, Enterprise, Edu; the language model is picked by plan) |
 | Credential | `sk-…` in `config.yaml` (or an `op://` / `${VAR}` ref) | OAuth token cached in `~/.config/imagine/openai-subscription-auth.json` (`0600`), refreshed silently |
 | Endpoint | `api.openai.com/v1/images` (generate = JSON, edit = multipart), `Authorization: Bearer <api_key>` | OpenAI's ChatGPT/Codex Responses backend (SSE) — an unpublished endpoint, treat as best-effort |
 | Set up | `imagine providers add openai --api-key sk-…` (headless-OK) | `imagine providers add openai login` (**opens a browser** — needs a human; do NOT run headless) |
@@ -85,7 +85,7 @@ ANY `WxH` is accepted if it satisfies all of these:
 
 imagine enforces all four constraints client-side at flag-parse time, so a bad size errors before any API call, in edit mode (`-i`) too.
 
-**Subscription route caveat** (probed 2026-11-02): the request goes to a language model (`gpt-6.1-sol`; `gpt-6-luna` on Free and Go plans), which calls the image tool. The backend resets the tool to its own model, `gpt-image-2-codex`, whatever `-m` says (a made-up ID works too), and resets `size` to `auto`, so the language model picks the size: usually 1254x1254. `-q` is passed through. Use the API-key route when the exact model or size matters.
+**Subscription route caveat** (probed 2026-11-02): the request goes to a language model (`gpt-6.1-sol`; `gpt-6-luna` on Free and Go plans), which calls the image tool. The backend resets the tool to its own model, `gpt-image-2-codex`, for any accepted `-m` model or snapshot, and resets `size` to `auto`, so the language model picks the size: usually 1254x1254. `-q` is passed through. Use the API-key route when the exact model or size matters.
 
 ## Output format
 
