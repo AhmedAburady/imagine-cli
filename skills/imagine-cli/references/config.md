@@ -26,7 +26,7 @@ vision_default_provider: openai         # describe default — optional, falls b
 providers:
   gemini:
     api_key: AIza-your-key-here
-    vision_model: gemini-pro-latest     # optional, defaults to gemini-pro-latest
+    vision_model: gemini-3.8-flash     # optional, defaults to gemini-3.8-flash
 
   openai:
     auth_method: api_key                # "api_key" (default) or "subscription"
@@ -36,7 +36,7 @@ providers:
   vertex:
     gcp_project: your-gcp-project-id
     location: us-central1               # optional, defaults to "global"
-    vision_model: gemini-3-flash-preview
+    vision_model: gemini-3.8-flash
 ```
 
 Per-provider config is **flat**: every key/value under `providers.<name>` is a direct field (no nested `provider_options:` sub-map). Each provider declares its fields via a `ConfigSchema` in the code, and `imagine providers add` surfaces them as flags + form inputs.
@@ -53,7 +53,7 @@ Per-provider config is **flat**: every key/value under `providers.<name>` is a d
 | `providers.openai.api_key` | For `api_key` | OpenAI platform API key. Not read when `auth_method: subscription`. |
 | `providers.vertex.gcp_project` | Yes | GCP project id with Vertex AI API enabled. |
 | `providers.vertex.location` | No | Vertex region. Defaults to `global`. |
-| `providers.<name>.vision_model` | No | Model `imagine describe` uses for this provider. Defaults: `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), `gpt-6.1-sol` (openai). |
+| `providers.<name>.vision_model` | No | Model `imagine describe` uses for this provider. Defaults: `gemini-3.8-flash` (gemini and vertex), `gpt-6.1-sol` (openai). |
 
 ### Legacy `provider_options:` shape (still supported on read)
 

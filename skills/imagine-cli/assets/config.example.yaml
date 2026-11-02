@@ -26,7 +26,7 @@ providers:
   # Or: imagine providers add gemini --api-key AIza-...
   gemini:
     api_key: AIza-paste-your-gemini-key-here
-    # vision_model: gemini-pro-latest    # optional describe model override
+    # vision_model: gemini-3.8-flash    # optional describe model override
 
   # OpenAI (GPT Image + GPT-5.5 vision) — two auth methods, pick one:
   #   API key:       imagine providers add openai --api-key sk-...   (org verification req'd)
@@ -46,4 +46,4 @@ providers:
   vertex:
     gcp_project: your-gcp-project-id
     location: global                   # optional — "global" is the default
-    # vision_model: gemini-3-flash-preview  # optional describe model override
+    # vision_model: gemini-3.8-flash  # optional describe model override

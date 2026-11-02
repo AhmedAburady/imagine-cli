@@ -7,9 +7,11 @@ import (
 
 	"github.com/AhmedAburady/imagine-cli/internal/gvision"
 	"github.com/AhmedAburady/imagine-cli/providers"
+	"github.com/AhmedAburady/imagine-cli/providers/gemini"
 )
 
-const DefaultVisionModel = "gemini-3-flash-preview"
+// DefaultVisionModel matches the Gemini API provider's describe default.
+const DefaultVisionModel = gemini.DefaultVisionModel
 
 func (p *Provider) Describe(ctx context.Context, req providers.DescribeRequest) (*providers.ImageDescription, error) {
 	model := req.Model

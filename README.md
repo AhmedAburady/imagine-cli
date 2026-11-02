@@ -129,7 +129,7 @@ vision_default_provider: openai       # optional — describe default, falls bac
 providers:
   gemini:
     api_key: AIza-your-key-here
-    vision_model: gemini-pro-latest   # optional — defaults to gemini-pro-latest
+    vision_model: gemini-3.8-flash   # optional — defaults to gemini-3.8-flash
 
   openai:                             # two auth methods — pick one (see Credentials)
     auth_method: api_key              # "api_key" or "subscription" (ChatGPT sign-in)
@@ -139,7 +139,7 @@ providers:
   vertex:
     gcp_project: your-gcp-project-id
     location: us-central1             # optional, defaults to "global"
-    vision_model: gemini-3-flash-preview
+    vision_model: gemini-3.8-flash
 ```
 
 | Field | Required | Notes |
@@ -151,7 +151,7 @@ providers:
 | `providers.openai.api_key` | For `api_key` | OpenAI platform API key. Not needed (or read) when `auth_method: subscription`. |
 | `providers.vertex.gcp_project` | Yes | GCP project id with the Vertex AI API enabled. |
 | `providers.vertex.location` | No | Vertex region. Defaults to `global`. |
-| `providers.<name>.vision_model` | No | Model `imagine describe` uses for that provider. Defaults are `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), and `gpt-6.1-sol` (openai — same on both auth methods). |
+| `providers.<name>.vision_model` | No | Model `imagine describe` uses for that provider. Defaults are `gemini-3.8-flash` (gemini and vertex), and `gpt-6.1-sol` (openai — same on both auth methods). |
 
 Older configs that nested Vertex credentials under `provider_options:` still load — they're auto-migrated to flat on the next `imagine providers` write.
 
@@ -526,8 +526,8 @@ Default vision models per provider:
 
 | Provider | Default | Override |
 |---|---|---|
-| gemini | `gemini-pro-latest` | `providers.gemini.vision_model` OR `-m <id>` |
-| vertex | `gemini-3-flash-preview` | `providers.vertex.vision_model` OR `-m <id>` |
+| gemini | `gemini-3.8-flash` | `providers.gemini.vision_model` OR `-m <id>` |
+| vertex | `gemini-3.8-flash` | `providers.vertex.vision_model` OR `-m <id>` |
 | openai | `gpt-6.1-sol` | `providers.openai.vision_model` OR `-m <id>` |
 
 **Examples**

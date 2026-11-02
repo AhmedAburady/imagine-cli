@@ -88,10 +88,10 @@ Each provider also accepts an optional `--vision-model` flag to override the def
 
 ```bash
 imagine providers add openai --api-key sk-XXX --vision-model gpt-5.4
-imagine providers add gemini --api-key AIza-XXX --vision-model gemini-pro-latest
+imagine providers add gemini --api-key AIza-XXX --vision-model gemini-4-argon
 ```
 
-Defaults (used when `vision_model` is unset): `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), `gpt-6.1-sol` (openai).
+Defaults (used when `vision_model` is unset): `gemini-3.8-flash` (gemini and vertex), `gpt-6.1-sol` (openai).
 
 `imagine providers add <name>` writes to `~/.config/imagine/config.yaml` (creates the file on first run), preserves existing comments and unrelated keys, and writes atomically.
 
@@ -328,7 +328,7 @@ Analyse an image and produce a style description. Works with **all three provide
 imagine describe -i photo.jpg                                  # plain text, active describer
 imagine describe -i ./styles/ --json -o style.json             # structured JSON from a folder
 imagine describe -i photo.jpg --provider openai                # per-invocation override
-imagine describe -i photo.jpg --provider vertex -m gemini-pro-latest   # model override
+imagine describe -i photo.jpg --provider vertex -m gemini-4-argon   # model override
 imagine describe --show-instructions                            # print built-in prompts, exit
 imagine describe -i photo.jpg -p "Rate composition 1-10"       # custom instruction (replaces default)
 imagine describe -i photo.jpg -a "Focus on lighting"           # extra context prepended to default
@@ -351,8 +351,8 @@ Resolution order when `--provider` is omitted:
 3. First configured describer-capable provider
 
 Default vision models per provider (overridable in config as `vision_model`):
-- **gemini**: `gemini-pro-latest`
-- **vertex**: `gemini-3-flash-preview`
+- **gemini**: `gemini-3.8-flash`
+- **vertex**: `gemini-3.8-flash`
 - **openai**: `gpt-6.1-sol` (both auth methods)
 
 Describe works on both OpenAI auth methods.
@@ -370,7 +370,7 @@ vision_default_provider: openai        # describe default (optional; falls back 
 providers:
   gemini:
     api_key: AIza-...
-    vision_model: gemini-pro-latest    # optional per-provider describe model
+    vision_model: gemini-3.8-flash    # optional per-provider describe model
   openai:
     auth_method: api_key             # "api_key" or "subscription" (ChatGPT sign-in via `add openai login`)
     api_key: sk-...                  # only for auth_method: api_key
@@ -378,7 +378,7 @@ providers:
   vertex:
     gcp_project: my-project-id
     location: global                   # optional — "global" when omitted
-    vision_model: gemini-3-flash-preview
+    vision_model: gemini-3.8-flash
 ```
 
 Older configs with `providers.vertex.provider_options.gcp_project` still load; the next `imagine providers add` / `use` rewrites them flat.
