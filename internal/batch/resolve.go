@@ -506,6 +506,11 @@ func detectCollisions(resolved []Resolved) []string {
 				Total:        r.Params.NumImages,
 			})
 			full := images.OutputPath(r.Params.OutputFolder, name)
+			// Compare absolute, cleaned paths: an absolute filename: and a
+			// relative one can name the same file.
+			if abs, err := filepath.Abs(full); err == nil {
+				full = abs
+			}
 			if prev, ok := seen[full]; ok {
 				collisions = append(collisions, fmt.Sprintf("filename collision: entry %s and entry %s both produce %s", prev, r.DisplayName, full))
 				continue
