@@ -395,7 +395,7 @@ func TestBackgroundRejectsTransparent(t *testing.T) {
 func TestSubscriptionBody_ToolCarriesModel(t *testing.T) {
 	opts := &Options{Model: "gpt-image-2.5-sunburst", Size: "auto", Quality: "max", OutputFormat: "png", Compression: 100}
 	raw, _ := json.Marshal(subscriptionBody(opts, providers.Request{Prompt: "a mug"}))
-	for _, want := range []string{`"model":"gpt-5.5"`, `"type":"image_generation"`, `"model":"gpt-image-2.5-sunburst"`, `"quality":"max"`} {
+	for _, want := range []string{`"model":"gpt-6.1-sol"`, `"type":"image_generation"`, `"model":"gpt-image-2.5-sunburst"`, `"quality":"max"`} {
 		if !strings.Contains(string(raw), want) {
 			t.Errorf("wire body missing %s: %s", want, raw)
 		}

@@ -91,7 +91,7 @@ imagine providers add openai --api-key sk-XXX --vision-model gpt-5.4
 imagine providers add gemini --api-key AIza-XXX --vision-model gemini-pro-latest
 ```
 
-Defaults (used when `vision_model` is unset): `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), `gpt-5.5` (openai).
+Defaults (used when `vision_model` is unset): `gemini-pro-latest` (gemini), `gemini-3-flash-preview` (vertex), `gpt-6.1-sol` (openai).
 
 `imagine providers add <name>` writes to `~/.config/imagine/config.yaml` (creates the file on first run), preserves existing comments and unrelated keys, and writes atomically.
 
@@ -353,7 +353,7 @@ Resolution order when `--provider` is omitted:
 Default vision models per provider (overridable in config as `vision_model`):
 - **gemini**: `gemini-pro-latest`
 - **vertex**: `gemini-3-flash-preview`
-- **openai**: `gpt-5.5` (both auth methods)
+- **openai**: `gpt-6.1-sol` (both auth methods)
 
 Describe works on both OpenAI auth methods.
 
@@ -374,7 +374,7 @@ providers:
   openai:
     auth_method: api_key             # "api_key" or "subscription" (ChatGPT sign-in via `add openai login`)
     api_key: sk-...                  # only for auth_method: api_key
-    vision_model: gpt-5.5
+    vision_model: gpt-6.1-sol
   vertex:
     gcp_project: my-project-id
     location: global                   # optional — "global" when omitted

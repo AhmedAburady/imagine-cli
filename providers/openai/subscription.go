@@ -32,8 +32,9 @@ const (
 	responsesPath = "/responses"
 
 	// driverModel hosts the image_generation tool call; the image model
-	// itself travels inside the tool object.
-	driverModel = "gpt-5.5"
+	// itself travels inside the tool object. Codex retired gpt-5.5 for ChatGPT
+	// sign-in on 2026-10-14; gpt-6.1-sol is the Plus/Pro/Business replacement.
+	driverModel = "gpt-6.1-sol"
 
 	// imageInstructions is the minimal system prompt the endpoint needs to
 	// reliably invoke the tool (it misbehaves with none).

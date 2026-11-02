@@ -48,7 +48,7 @@ func init() {
 		ConfigSchema:   (&Provider{}).ConfigSchema(),
 		Vision: &providers.Vision{
 			DefaultModel:  DefaultVisionModel,
-			Efforts:       []string{"none", "low", "medium", "high", "xhigh"}, // gpt-5.5 set; no "minimal"
+			Efforts:       []string{"low", "medium", "high", "xhigh"}, // gpt-6.1-sol via Chat Completions; no "none", "minimal" or "max"
 			DefaultEffort: "medium",
 		},
 		AuthMethods: []providers.AuthMethod{

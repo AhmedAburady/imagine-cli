@@ -109,7 +109,7 @@ func (p *Provider) ConfigSchema() []providers.ConfigField {
 		{
 			Key:         "vision_model",
 			Title:       "Vision Model",
-			Description: "Model for `imagine describe` (default: gpt-5.5)",
+			Description: "Model for `imagine describe` (default: gpt-6.1-sol)",
 			Default:     DefaultVisionModel,
 		},
 	}
