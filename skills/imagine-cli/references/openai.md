@@ -85,7 +85,7 @@ ANY `WxH` is accepted if it satisfies all of these:
 
 imagine enforces all four constraints client-side at flag-parse time, so a bad size errors before any API call, in edit mode (`-i`) too.
 
-**Subscription route caveat:** the ChatGPT/Codex backend is not observed to honour `size` at all - probing it with eleven different values returned roughly 1536x1024 (~1.6MP) every time, including for `1024x1024` and `auto`. The envelope is validated on both routes, but only the API-key route is known to deliver the size you asked for.
+**Subscription route caveat** (probed 2026-11-02): the request goes to the `gpt-6.1-sol` language model, which calls the image tool. The backend resets the tool to its own model, `gpt-image-2-codex`, whatever `-m` says (a made-up ID works too), and resets `size` to `auto`, so the language model picks the size: usually 1254x1254. `-q` is passed through. Use the API-key route when the exact model or size matters.
 
 ## Output format
 
