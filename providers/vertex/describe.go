@@ -25,7 +25,7 @@ func (p *Provider) Describe(ctx context.Context, req providers.DescribeRequest) 
 		Project:  p.project,
 		Location: p.location,
 		Backend:  genai.BackendVertexAI,
-	}, model, req)
+	}, model, req, nil)
 }
 
 func (p *Provider) DefaultInstructions() (text, json string) {

@@ -20,8 +20,9 @@ import (
 )
 
 // Describe runs an ADK agent against the given genai ClientConfig and
-// returns an ImageDescription.
-func Describe(ctx context.Context, cc *genai.ClientConfig, model string, req providers.DescribeRequest) (*providers.ImageDescription, error) {
+// returns an ImageDescription. store is the Gemini API logging opt-out; nil
+// leaves the project setting in charge (Vertex must pass nil).
+func Describe(ctx context.Context, cc *genai.ClientConfig, model string, req providers.DescribeRequest, store *bool) (*providers.ImageDescription, error) {
 	if len(req.Images) == 0 {
 		return nil, fmt.Errorf("no images provided")
 	}
@@ -41,10 +42,12 @@ func Describe(ctx context.Context, cc *genai.ClientConfig, model string, req pro
 	}
 	// Only constrain thinking when an effort was resolved; an empty effort
 	// (custom --model pass-through) leaves the model on its native default.
-	if req.Effort != "" {
-		cfg.GenerateContentConfig = &genai.GenerateContentConfig{
-			ThinkingConfig: &genai.ThinkingConfig{ThinkingLevel: thinkingLevel(req.Effort)},
+	if req.Effort != "" || store != nil {
+		gc := &genai.GenerateContentConfig{Store: store}
+		if req.Effort != "" {
+			gc.ThinkingConfig = &genai.ThinkingConfig{ThinkingLevel: thinkingLevel(req.Effort)}
 		}
+		cfg.GenerateContentConfig = gc
 	}
 	if req.StructuredOutput {
 		cfg.OutputSchema = styleSchema()

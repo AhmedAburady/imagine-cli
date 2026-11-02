@@ -81,6 +81,7 @@ var httpClient = transport.NewClient(120 * time.Second)
 type Provider struct {
 	apiKey      string
 	visionModel string
+	store       *bool // nil: the project's logging setting decides
 }
 
 // New builds a Gemini provider from auth. Errors when api_key is empty.
@@ -89,7 +90,28 @@ func New(auth providers.Auth) (providers.Provider, error) {
 	if key == "" {
 		return nil, errors.New("gemini provider requires providers.gemini.api_key in ~/.config/imagine/config.yaml")
 	}
-	return &Provider{apiKey: key, visionModel: auth.Get("vision_model")}, nil
+	store, err := parseStore(auth.Get("store"))
+	if err != nil {
+		return nil, err
+	}
+	return &Provider{apiKey: key, visionModel: auth.Get("vision_model"), store: store}, nil
+}
+
+// parseStore reads the optional store setting. Empty sends nothing, so the
+// project's Logs and Datasets setting applies (new paid projects log
+// generateContent requests by default since 2026-10-26).
+func parseStore(raw string) (*bool, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "":
+		return nil, nil
+	case "true":
+		v := true
+		return &v, nil
+	case "false":
+		v := false
+		return &v, nil
+	}
+	return nil, fmt.Errorf("providers.gemini.store must be true or false, got %q", raw)
 }
 
 // ConfigSchema declares the fields `imagine providers add gemini` collects.
@@ -107,6 +129,11 @@ func (p *Provider) ConfigSchema() []providers.ConfigField {
 			Title:       "Vision Model",
 			Description: "Model for `imagine describe` (multimodal Gemini 3 variants)",
 			Default:     DefaultVisionModel,
+		},
+		{
+			Key:         "store",
+			Title:       "Store Requests",
+			Description: "false keeps requests out of Gemini API logs; empty follows the project setting",
 		},
 	}
 }
@@ -179,6 +206,7 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 				ImageSize:   opts.Size,
 			},
 		},
+		Store: p.store,
 	}
 	if gs := buildSearchTool(opts.Grounding, opts.ImageSearch); gs != nil {
 		body.Tools = append(body.Tools, tool{GoogleSearch: gs})
@@ -283,6 +311,7 @@ type geminiRequest struct {
 	Contents         []content        `json:"contents"`
 	GenerationConfig generationConfig `json:"generationConfig"`
 	Tools            []tool           `json:"tools,omitempty"`
+	Store            *bool            `json:"store,omitempty"`
 }
 
 type responseInlineData struct {

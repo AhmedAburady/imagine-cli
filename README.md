@@ -149,8 +149,9 @@ providers:
 | `providers.gemini.api_key` | Yes | Google AI Studio API key. |
 | `providers.openai.auth_method` | No | `api_key` (default) or `subscription`. Picks how the `openai` provider authenticates — see [Credentials](#openai-api-key-or-chatgpt-subscription). Inferred from the presence of `api_key` when omitted. |
 | `providers.openai.api_key` | For `api_key` | OpenAI platform API key. Not needed (or read) when `auth_method: subscription`. |
+| `providers.gemini.store` | No | `false` keeps generate and describe requests out of the Gemini API's Logs and Datasets. Unset follows the project setting (new paid projects log requests by default since 2026-10-26). |
 | `providers.vertex.gcp_project` | Yes | GCP project id with the Vertex AI API enabled. |
-| `providers.vertex.location` | No | Vertex region. Defaults to `global`. |
+| `providers.vertex.location` | No | Vertex region. Defaults to `global`. `flash` (Nano Banana 2.1) runs only in `global`. |
 | `providers.<name>.vision_model` | No | Model `imagine describe` uses for that provider. Defaults are `gemini-3.8-flash` (gemini and vertex), and `gpt-6.1-sol` (openai — same on both auth methods). |
 
 Older configs that nested Vertex credentials under `provider_options:` still load — they're auto-migrated to flat on the next `imagine providers` write.

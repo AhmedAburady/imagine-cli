@@ -27,8 +27,9 @@ providers:
   gemini:
     api_key: AIza-paste-your-gemini-key-here
     # vision_model: gemini-3.8-flash    # optional describe model override
+    # store: "false"                   # optional: keep requests out of Gemini API logs
 
-  # OpenAI (GPT Image + GPT-5.5 vision) — two auth methods, pick one:
+  # OpenAI (GPT Image + GPT-6.1 Sol vision) — two auth methods, pick one:
   #   API key:       imagine providers add openai --api-key sk-...   (org verification req'd)
   #   Subscription:  imagine providers add openai login   (browser sign-in, billed to your ChatGPT plan)
   openai:

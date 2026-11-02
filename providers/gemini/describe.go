@@ -22,7 +22,7 @@ func (p *Provider) Describe(ctx context.Context, req providers.DescribeRequest) 
 	if model == "" {
 		model = DefaultVisionModel
 	}
-	return gvision.Describe(ctx, &genai.ClientConfig{APIKey: p.apiKey}, model, req)
+	return gvision.Describe(ctx, &genai.ClientConfig{APIKey: p.apiKey}, model, req, p.store)
 }
 
 func (p *Provider) DefaultInstructions() (text, json string) {
