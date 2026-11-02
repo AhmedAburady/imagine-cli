@@ -28,11 +28,12 @@ func TestDropUnchangedDefaults(t *testing.T) {
 
 	collected := map[string]string{"api_key": "k", "vision_model": "model-a", "location": "global"}
 	dropUnchangedDefaults(newCmd(), fields, collected)
-	if _, ok := collected["vision_model"]; ok {
-		t.Error("unchosen vision_model default was kept")
+	// "" tells SaveProviderFields to clear any value an earlier run saved.
+	if v, ok := collected["vision_model"]; !ok || v != "" {
+		t.Errorf("unchosen vision_model default: got %q, want cleared", v)
 	}
-	if _, ok := collected["location"]; ok {
-		t.Error("unchosen location default was kept")
+	if v, ok := collected["location"]; !ok || v != "" {
+		t.Errorf("unchosen location default: got %q, want cleared", v)
 	}
 	if collected["api_key"] != "k" {
 		t.Error("required field dropped")
