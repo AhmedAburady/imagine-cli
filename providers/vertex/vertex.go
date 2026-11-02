@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"google.golang.org/genai"
 
@@ -77,15 +78,13 @@ func (p *Provider) Info() providers.Info {
 				DeprecatedAliases: gemini.DeprecatedAliasesPro(),
 				Description:       "Highest quality; no thinking flags.",
 				SupportedFlags:    []string{"grounding"},
-				Sizes:             gemini.SizesPro(),
 			},
 			{
 				ID:                gemini.ModelFlash,
 				Aliases:           []string{"flash"},
 				DeprecatedAliases: gemini.DeprecatedAliasesFlash(),
-				Description:       "Faster; supports --thinking.",
+				Description:       "Nano Banana 2.1: fast and low-cost; supports --thinking (minimal, medium, high). Global region only.",
 				SupportedFlags:    []string{"grounding", "thinking"},
-				Sizes:             gemini.SizesFlash(),
 			},
 			{
 				ID:             gemini.ModelFlashLite,
@@ -101,10 +100,21 @@ func (p *Provider) Info() providers.Info {
 			Thinking:     true,
 			ImageSearch:  false,
 			MaxBatchN:    1,
-			Sizes:        gemini.SizesFlash(),
+			Sizes:        gemini.Sizes(),
 			AspectRatios: gemini.AspectRatios(),
 		},
 	}
+}
+
+// globalOnly lists models Vertex serves from the global endpoint alone.
+var globalOnly = []string{gemini.ModelFlash}
+
+// checkLocation turns Vertex's opaque 404 for a regional endpoint into a fix.
+func checkLocation(model, location string) error {
+	if location == "global" || !slices.Contains(globalOnly, model) {
+		return nil
+	}
+	return fmt.Errorf("model %q is served only in the Vertex \"global\" location (configured: %q); set providers.vertex.location to global", model, location)
 }
 
 // Generate runs one image generation via Vertex. MaxBatchN=1.
@@ -112,6 +122,9 @@ func (p *Provider) Generate(ctx context.Context, req providers.Request) (*provid
 	opts, ok := req.Options.(*Options)
 	if !ok {
 		return nil, fmt.Errorf("vertex: internal: expected *Options, got %T", req.Options)
+	}
+	if err := checkLocation(opts.Model, p.location); err != nil {
+		return nil, err
 	}
 
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{

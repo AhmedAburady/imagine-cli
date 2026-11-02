@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/AhmedAburady/imagine-cli/providers"
+	"github.com/AhmedAburady/imagine-cli/providers/gemini"
 )
 
 // Options is Vertex's private parameter struct. Vertex exposes the same
@@ -18,10 +19,10 @@ import (
 // when Vertex is active.
 type Options struct {
 	Model       string `flag:"model,m"        desc:"Model: pro, flash, flash-lite"                       default:"pro" enum:"@models"`
-	Size        string `flag:"size,s"         desc:"Image size: 512, 1K, 2K, 4K (512: flash only; flash-lite: 1K only)" default:"1K" enum:"512,1K,2K,4K"`
+	Size        string `flag:"size,s"         desc:"Image size: 1K, 2K, 4K (flash-lite: 1K only)" default:"1K" enum:"1K,2K,4K"`
 	AspectRatio string `flag:"aspect-ratio,a" desc:"Aspect ratio: 14 options, see ASPECT RATIOS (default: Auto)"`
 	Grounding   bool   `flag:"grounding,g"    desc:"Enable Google Search grounding (not on flash-lite)"`
-	Thinking    string `flag:"thinking,t"     desc:"Thinking level: minimal, high (not on pro)"          enum:"MINIMAL,HIGH"`
+	Thinking    string `flag:"thinking,t"     desc:"Thinking level: minimal, medium, high (medium: flash only; not on pro)" enum:"MINIMAL,MEDIUM,HIGH"`
 }
 
 // RequestLabel implements providers.RequestLabeler for status output —
@@ -44,6 +45,9 @@ func (o *Options) Normalize() {
 // Validate runs on the CLI and batch paths alike.
 func (o *Options) Validate(info providers.Info) error {
 	if err := info.CheckSize(o.Model, o.Size); err != nil {
+		return err
+	}
+	if err := gemini.CheckThinking(o.Model, o.Thinking); err != nil {
 		return err
 	}
 	return info.CheckAspectRatio(o.AspectRatio)

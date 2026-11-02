@@ -44,11 +44,11 @@
 
 ## Why imagine
 
-The best image models out there — Nano Banana, Nano Banana 2, and GPT-Image-2.5 — are stuck behind web UIs. There's no official way to reach them from a terminal.
+The best image models out there — Nano Banana, Nano Banana 2.1, and GPT-Image-2.5 — are stuck behind web UIs. There's no official way to reach them from a terminal.
 
 I built [banana-cli](https://github.com/AhmedAburady/banana-cli) first — a focused CLI for Google's image models. imagine is the next step: same idea, built to be extensible. One tool that can grow to support whatever good image models come next, across any provider.
 
-- **The models that matter** — Nano Banana (`gemini-3-pro-image`), Nano Banana 2 (`gemini-3.1-flash-image`), Nano Banana 2 Lite (`gemini-3.1-flash-lite-image`), GPT-Image-2.5 Flare and Sunburst (`gpt-image-2.5-flare`, `gpt-image-2.5-sunburst`), and gpt-image-2. Direct API access, no middlemen.
+- **The models that matter** — Nano Banana (`gemini-3-pro-image`), Nano Banana 2.1 (`gemini-nano-banana-2.1`), Nano Banana 2 Lite (`gemini-3.1-flash-lite-image`), GPT-Image-2.5 Flare and Sunburst (`gpt-image-2.5-flare`, `gpt-image-2.5-sunburst`), and gpt-image-2. Direct API access, no middlemen.
 - **Built for workflows** — pipe into scripts, run inside loops, chain with other CLI tools. Anywhere a command runs, imagine runs.
 - **Concurrent generation** — `-n 10` fires off 10 images in one invocation. No clicking, no waiting for one to finish before starting the next.
 - **Batch runs from a file** — `imagine -p batch.yaml` describes many jobs in one file: different prompts, different providers, different sizes. Every entry runs in parallel; validation is exhaustive before any HTTP fires; results land in a styled summary table. Built for scripts and CI.
@@ -387,10 +387,10 @@ Models and flags are shared between Gemini (direct REST) and Vertex (Gemini via 
 | Flag | Long | Description | Default |
 |---|---|---|---|
 | `-m` | `--model` | `pro`, `flash`, or `flash-lite` (aliases; or full ID) | `pro` |
-| `-s` | `--size` | `512`, `1K`, `2K`, or `4K` (`512`: `flash` only; `flash-lite`: `1K` only) | `1K` |
+| `-s` | `--size` | `1K`, `2K`, or `4K` (`flash-lite`: `1K` only) | `1K` |
 | `-a` | `--aspect-ratio` | 14 values: `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` | Auto |
 | `-g` | `--grounding` | Google Search grounding (not on `flash-lite`) | `false` |
-| `-t` | `--thinking` | `minimal` or `high` (`flash` and `flash-lite`) | Auto |
+| `-t` | `--thinking` | `minimal`, `medium` or `high` (`flash` and `flash-lite`; `medium`: `flash` only) | Auto |
 | `-I` | `--image-search` | Image Search grounding (Gemini flash only) | `false` |
 
 **Examples**
@@ -407,9 +407,6 @@ imagine -p "die-cut sticker of an avocado" -m flash-lite -a 1:1
 
 # Ultra-wide banner
 imagine -p "a mountain range panorama" -m flash -a 8:1
-
-# 512px draft, flash only - cheapest Gemini render
-imagine -p "thumbnail of a lighthouse" -m flash -s 512
 
 # Edit a photo, keep its filename
 imagine -p "add rain" -i photo.png -r

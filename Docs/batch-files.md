@@ -185,7 +185,7 @@ Each provider has its own set. Setting a key for a provider that doesn't claim i
 | `size` | string | `1K` | `1K` / `2K` / `4K` only. **`flash-lite` accepts `1K` only** |
 | `aspect-ratio` | string | (model picks) | One of `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` |
 | `grounding` | bool | `false` | Enable Google Search grounding. **Not on `flash-lite`** |
-| `thinking` | string | (off) | `minimal` or `high`. **`flash` and `flash-lite` only** — pro rejects |
+| `thinking` | string | (off) | `minimal`, `medium` or `high`. **`flash` and `flash-lite` only** (`medium`: `flash` only) — pro rejects |
 | `image-search` | bool | `false` | **`flash` only** — pro and flash-lite reject. Vertex doesn't expose this flag |
 
 ### Vertex
@@ -196,7 +196,7 @@ Each provider has its own set. Setting a key for a provider that doesn't claim i
 | `size` | string | `1K` | `1K` / `2K` / `4K` only. **`flash-lite` accepts `1K` only** |
 | `aspect-ratio` | string | (model picks) | One of `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` |
 | `grounding` | bool | `false` | Enable Google Search grounding. **Not on `flash-lite`** |
-| `thinking` | string | (off) | `minimal` or `high`. **`flash` and `flash-lite` only** — pro rejects |
+| `thinking` | string | (off) | `minimal`, `medium` or `high`. **`flash` and `flash-lite` only** (`medium`: `flash` only) — pro rejects |
 
 (No `image-search` — that's a Gemini direct-REST capability not exposed via Vertex AI.)
 

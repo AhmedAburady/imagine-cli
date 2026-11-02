@@ -9,22 +9,22 @@ Aliases resolve to canonical IDs. Omit `-m` to use the default.
 | Alias | Canonical ID | Notes |
 |---|---|---|
 | `pro` | `gemini-3-pro-image` | **Default.** Highest quality. Does NOT support `--thinking` or `--image-search`. |
-| `flash` | `gemini-3.1-flash-image` | Faster. Supports `--thinking` and `--image-search` (Gemini only). |
+| `flash` | `gemini-nano-banana-2.1` | Nano Banana 2.1: fast and low-cost. Supports `--thinking` (`minimal`/`medium`/`high`, server default `medium`) and `--image-search` (Gemini only). On Vertex it runs in the `global` location only. |
 | `flash-lite`, `lite` | `gemini-3.1-flash-lite-image` | Fastest and cheapest (Nano Banana 2 Lite). **1K only** and no `--grounding` / `--image-search`. Supports `--thinking`. |
 
 `-m` also accepts the full canonical ID directly.
 
-Google renamed `pro` and `flash` at GA by dropping the `-preview` suffix. The retired spellings `gemini-3-pro-image-preview` and `gemini-3.1-flash-image-preview` still resolve to the GA IDs, so pinned scripts and batch files keep working — but they aren't advertised in `--help`, and the results table reports the GA ID that actually ran. Prefer the aliases (`pro`, `flash`) or the GA IDs in new work.
+Older IDs still resolve so pinned scripts and batch files keep working: `gemini-3-pro-image-preview` runs `gemini-3-pro-image`, and `gemini-3.1-flash-image` / `gemini-3.1-flash-image-preview` run `gemini-nano-banana-2.1`, Google's named replacement. They aren't advertised in `--help`, and the results table reports the ID that actually ran. Prefer the aliases (`pro`, `flash`) in new work.
 
 ## Flags
 
 | Flag | Long | Values | Notes |
 |---|---|---|---|
 | `-m` | `--model` | `pro` / `flash` / `flash-lite` / full ID | Default `pro` |
-| `-s` | `--size` | `512`, `1K`, `2K`, `4K` | Default `1K`. Not pixels; Gemini picks resolution within each tier. **`512` is `flash` only; `flash-lite` accepts `1K` only.** |
+| `-s` | `--size` | `1K`, `2K`, `4K` | Default `1K`. Not pixels; Gemini picks resolution within each tier. **`flash-lite` accepts `1K` only.** |
 | `-a` | `--aspect-ratio` | 14 values: `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9` | Omit for auto. All three models accept the full set; anything else is rejected locally. |
 | `-g` | `--grounding` | bool | Google Search grounding, pulling live web context into the prompt. **Not on `flash-lite`.** |
-| `-t` | `--thinking` | `minimal` / `high` | **`flash` and `flash-lite` only** — pro rejects it. Higher thinking = better reasoning, more tokens |
+| `-t` | `--thinking` | `minimal` / `medium` / `high` | **`flash` and `flash-lite` only** — pro rejects it. `medium` is `flash` only. Higher thinking = better reasoning, more tokens |
 | `-I` | `--image-search` | bool | **Gemini `flash` only** (Vertex does NOT support this). Image Search grounding. |
 
 ## Capability matrix
@@ -38,7 +38,6 @@ Google renamed `pro` and `flash` at GA by dropping the `-preview` suffix. The re
 | Grounding (`-g`, pro/flash) | ✅ | ✅ |
 | Thinking (`-t`, flash/flash-lite) | ✅ | ✅ |
 | Image Search (`-I`, flash) | ✅ | ❌ |
-| `512` size (flash) | ✅ | ✅ |
 | `flash-lite` model | ✅ | ✅ |
 | MaxBatchN (images per API call) | 1 | 1 |
 
@@ -79,7 +78,6 @@ imagine -p "a cat" --provider vertex -n 3
 
 - **Format:** PNG (Gemini-native). If `-f` ends in `.jpg`/`.jpeg`, imagine converts locally at quality 95 (orchestrator-side, not API-side).
 - **Resolution:** determined by `-s` tier and `-a`. Approximate:
-  - `512` → ~512px on the long edge (`flash` only)
   - `1K` → ~1024px on the long edge
   - `2K` → ~2048px
   - `4K` → ~3840px
@@ -90,8 +88,10 @@ Exact dimensions are Gemini's choice — the API picks based on aspect ratio + s
 
 - **`-t` on `-m pro` errors out.** Thinking is gated to `flash` and `flash-lite`; imagine rejects the flag at validation time rather than sending it.
 - **Any `-s` but `1K` on `-m flash-lite` errors out.** That model renders 1K only. Drop `-s` (1K is the default) or switch to `flash`.
-- **`-s 512` on `-m pro` errors out.** Only `flash` documents the 512 tier.
-- **`-g` on `-m flash-lite` errors out** on both providers. Note the Vertex `flash` model card lists grounding as unsupported, but imagine still sends it: grounding leaves no visible trace in the output, so blocking it locally would remove a capability with no way to find out the card was wrong.
+- **`-s 512` errors out on every model.** No current Gemini image model renders the 512 tier.
+- **`-t medium` on `-m flash-lite` errors out.** flash-lite takes `minimal` or `high`.
+- **Vertex `flash` outside `global` errors out.** Nano Banana 2.1 is served from the `global` location only; set `providers.vertex.location: global`.
+- **`-g` on `-m flash-lite` errors out** on both providers.
 - **`-I` with Vertex errors out.** Vertex doesn't expose the image-search tool. imagine rejects the flag at validation time.
 - **Grounding adds latency.** Expect 10–20% longer generation times with `-g`.
 - **No streaming.** imagine always waits for the full image. Some Gemini tiers support streaming but imagine doesn't surface it.

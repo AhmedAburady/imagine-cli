@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 // Canonical model IDs — the GA names, not the retired -preview ones.
 const (
 	ModelPro       = "gemini-3-pro-image"
-	ModelFlash     = "gemini-3.1-flash-image"
+	ModelFlash     = "gemini-nano-banana-2.1"
 	ModelFlashLite = "gemini-3.1-flash-lite-image"
 
 	// Stays v1beta: v1 rejects image search as a tool ("not enabled for api
@@ -28,20 +29,41 @@ const (
 	baseURL = "https://generativelanguage.googleapis.com/v1beta/models/"
 )
 
-const (
-	legacyModelPro   = "gemini-3-pro-image-preview"
-	legacyModelFlash = "gemini-3.1-flash-image-preview"
-)
+const legacyModelPro = "gemini-3-pro-image-preview"
 
 // Sizes* are funcs, not vars, so the slices Vertex shares stay immutable.
-// Only flash renders 512; pro must say so explicitly or it inherits the wide set.
-func SizesPro() []string       { return []string{"1K", "2K", "4K"} }
-func SizesFlash() []string     { return []string{"512", "1K", "2K", "4K"} }
+// No current model renders 512; flash-lite narrows the wide set to 1K.
+func Sizes() []string          { return []string{"1K", "2K", "4K"} }
 func SizesFlashLite() []string { return []string{"1K"} }
 
-// Exported so configs pinned to a pre-GA ID resolve the same on Vertex.
-func DeprecatedAliasesPro() []string   { return []string{legacyModelPro} }
-func DeprecatedAliasesFlash() []string { return []string{legacyModelFlash} }
+// Exported so configs pinned to an older ID resolve the same on Vertex.
+// The 3.1 Flash Image IDs follow Google's named replacement, Nano Banana 2.1.
+func DeprecatedAliasesPro() []string { return []string{legacyModelPro} }
+func DeprecatedAliasesFlash() []string {
+	return []string{"gemini-3.1-flash-image", "gemini-3.1-flash-image-preview"}
+}
+
+// ThinkingLevels lists the --thinking values a model documents; nil means the
+// model takes no thinking level at all (CheckModel reports that case).
+func ThinkingLevels(model string) []string {
+	switch model {
+	case ModelFlash:
+		return []string{"MINIMAL", "MEDIUM", "HIGH"}
+	case ModelFlashLite:
+		return []string{"MINIMAL", "HIGH"}
+	}
+	return nil
+}
+
+// CheckThinking turns an opaque API 400 into a local error naming the model.
+func CheckThinking(model, level string) error {
+	levels := ThinkingLevels(model)
+	if level == "" || len(levels) == 0 || slices.Contains(levels, level) {
+		return nil
+	}
+	return fmt.Errorf("--thinking %s is not supported by model %q (supported: %s)",
+		strings.ToLower(level), model, strings.ToLower(strings.Join(levels, ", ")))
+}
 
 // Google's published per-model tables disagree with each other and with this.
 func AspectRatios() []string {
@@ -103,15 +125,13 @@ func (p *Provider) Info() providers.Info {
 				DeprecatedAliases: DeprecatedAliasesPro(),
 				Description:       "Highest quality; no thinking / image-search flags.",
 				SupportedFlags:    []string{"grounding"},
-				Sizes:             SizesPro(),
 			},
 			{
 				ID:                ModelFlash,
 				Aliases:           []string{"flash"},
 				DeprecatedAliases: DeprecatedAliasesFlash(),
-				Description:       "Faster; supports --thinking and --image-search.",
+				Description:       "Nano Banana 2.1: fast and low-cost; supports --thinking (minimal, medium, high) and --image-search.",
 				SupportedFlags:    []string{"grounding", "thinking", "image-search"},
-				Sizes:             SizesFlash(),
 			},
 			{
 				ID:             ModelFlashLite,
@@ -127,7 +147,7 @@ func (p *Provider) Info() providers.Info {
 			Thinking:     true,
 			ImageSearch:  true,
 			MaxBatchN:    1,
-			Sizes:        SizesFlash(),
+			Sizes:        Sizes(),
 			AspectRatios: AspectRatios(),
 		},
 	}
