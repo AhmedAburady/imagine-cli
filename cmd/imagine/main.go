@@ -12,6 +12,7 @@ import (
 	"charm.land/fang/v2"
 
 	"github.com/AhmedAburady/imagine-cli/commands"
+	"github.com/AhmedAburady/imagine-cli/internal/clierr"
 	// providers/all blank-imports every built-in provider, triggering each
 	// one's init() to self-register. Adding a provider = edit providers/all,
 	// never this file.
@@ -50,6 +51,7 @@ func main() {
 	if err := fang.Execute(context.Background(), root,
 		fang.WithVersion(v),
 		fang.WithNotifySignal(os.Interrupt, syscall.SIGTERM),
+		fang.WithErrorHandler(clierr.Handler),
 	); err != nil {
 		os.Exit(1)
 	}
