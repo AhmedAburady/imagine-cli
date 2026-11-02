@@ -148,6 +148,16 @@ func applyRefresh(sa *storedAuth, tr *tokenResponse, now time.Time) {
 	sa.LastRefresh = now
 }
 
+// idToken returns the cached id_token; call after ensureFreshToken.
+func (p *Provider) idToken() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.cached == nil {
+		return ""
+	}
+	return p.cached.Tokens.IDToken
+}
+
 // ensureFreshToken loads (then caches) the store, refreshes when due, persists
 // any change, and returns the bearer token + account id. The whole sequence
 // runs under p.mu so concurrent Generate goroutines share one refresh rather

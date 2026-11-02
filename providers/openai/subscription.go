@@ -62,22 +62,27 @@ func (p *Provider) generateSubscription(ctx context.Context, opts *Options, req 
 	}
 	auth := &codexAuth{accessToken: access, accountID: account, sessionID: uuid.NewString()}
 
-	return p.doResponses(ctx, auth, subscriptionBody(opts, req, driverFor(access)), opts.OutputFormat)
+	return p.doResponses(ctx, auth, subscriptionBody(opts, req, driverFor(p.idToken(), access)), opts.OutputFormat)
 }
 
-// driverFor picks the sign-in driver model for the account's plan, read from
-// the access token. An unreadable plan gets the paid-plan model.
-func driverFor(accessToken string) string {
-	switch planType(accessToken) {
+// driverFor picks the sign-in driver model for the account's plan. The plan
+// is read from the id_token first (where Codex reads it), then the access
+// token; an unreadable plan gets the paid-plan model.
+func driverFor(idToken, accessToken string) string {
+	plan := planType(idToken)
+	if plan == "" {
+		plan = planType(accessToken)
+	}
+	switch plan {
 	case "free", "go":
 		return driverModelLite
 	}
 	return driverModel
 }
 
-// planType reads chatgpt_plan_type from the access token ("" if absent).
-func planType(accessToken string) string {
-	claims, err := jwtClaims(accessToken)
+// planType reads chatgpt_plan_type from a token's auth claim ("" if absent).
+func planType(token string) string {
+	claims, err := jwtClaims(token)
 	if err != nil {
 		return ""
 	}

@@ -26,17 +26,17 @@ const describeSystem = "You are an expert image style analyst. Follow the user's
 // configured model Codex no longer serves on sign-in is skipped and
 // returned as retired so the caller can say so. An explicit -m is never
 // replaced.
-func signInVisionModel(requested, configured, accessToken string) (model, retired string) {
+func signInVisionModel(requested, configured, idToken, accessToken string) (model, retired string) {
 	if requested != "" {
 		return requested, ""
 	}
 	if slices.Contains(retiredOnSignIn, configured) {
-		return driverFor(accessToken), configured
+		return driverFor(idToken, accessToken), configured
 	}
 	if configured != "" {
 		return configured, ""
 	}
-	return driverFor(accessToken), ""
+	return driverFor(idToken, accessToken), ""
 }
 
 func (p *Provider) describeSubscription(ctx context.Context, req providers.DescribeRequest) (*providers.ImageDescription, error) {
@@ -46,7 +46,7 @@ func (p *Provider) describeSubscription(ctx context.Context, req providers.Descr
 	}
 	auth := &codexAuth{accessToken: access, accountID: account, sessionID: uuid.NewString()}
 
-	model, retired := signInVisionModel(req.Model, p.visionModel, access)
+	model, retired := signInVisionModel(req.Model, p.visionModel, p.idToken(), access)
 	if retired != "" {
 		fmt.Fprintf(os.Stderr, "note: vision_model %s is retired for ChatGPT sign-in; using %s. Remove vision_model from providers.openai in config.yaml.\n", retired, model)
 	}

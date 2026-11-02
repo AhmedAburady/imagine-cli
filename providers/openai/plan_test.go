@@ -27,7 +27,10 @@ func TestDriverFor_ByPlan(t *testing.T) {
 	}
 	for plan, want := range cases {
 		tok := fakeJWT(t, map[string]any{authClaim: map[string]any{"chatgpt_plan_type": plan}})
-		if got := driverFor(tok); got != want {
+		if got := driverFor(tok, ""); got != want {
+			t.Errorf("plan %q in id_token: got %q, want %q", plan, got, want)
+		}
+		if got := driverFor("", tok); got != want {
 			t.Errorf("plan %q: got %q, want %q", plan, got, want)
 		}
 	}
@@ -35,7 +38,7 @@ func TestDriverFor_ByPlan(t *testing.T) {
 
 func TestDriverFor_UnreadableTokenUsesPaidModel(t *testing.T) {
 	for _, tok := range []string{"", "not-a-jwt", fakeJWT(t, map[string]any{"exp": 1})} {
-		if got := driverFor(tok); got != driverModel {
+		if got := driverFor(tok, tok); got != driverModel {
 			t.Errorf("token %q: got %q, want %q", tok, got, driverModel)
 		}
 	}
@@ -56,9 +59,21 @@ func TestSignInVisionModel(t *testing.T) {
 		{"gpt-5.5", "", paid, "gpt-5.5", ""}, // explicit -m is never replaced
 	}
 	for _, c := range cases {
-		got, retired := signInVisionModel(c.requested, c.configured, c.token)
+		got, retired := signInVisionModel(c.requested, c.configured, c.token, "")
 		if got != c.want || retired != c.retired {
 			t.Errorf("(%q, %q): got (%q, %q), want (%q, %q)", c.requested, c.configured, got, retired, c.want, c.retired)
 		}
+	}
+}
+
+// The id_token wins when both carry a plan; the access token fills a gap.
+func TestDriverFor_IDTokenFirst(t *testing.T) {
+	free := fakeJWT(t, map[string]any{authClaim: map[string]any{"chatgpt_plan_type": "free"}})
+	plus := fakeJWT(t, map[string]any{authClaim: map[string]any{"chatgpt_plan_type": "plus"}})
+	if got := driverFor(free, plus); got != driverModelLite {
+		t.Errorf("id_token free, access plus: got %q, want %q", got, driverModelLite)
+	}
+	if got := driverFor("", free); got != driverModelLite {
+		t.Errorf("no id_token, access free: got %q, want %q", got, driverModelLite)
 	}
 }
