@@ -146,7 +146,7 @@ A 403 from the ChatGPT backend, usually a stale session. Re-run `imagine provide
 
 ## OpenAI: 429 rate limit
 
-Happens at high `-n` values or short loops. imagine doesn't auto-retry. Options:
+Happens at high `-n` values or short loops. The gpt-image-2.5 models allow 20 images per minute on the Build tier (Launch 150, Grow 250; the Free tier has no access), so `-n 10` or a parallel batch can hit it quickly. imagine doesn't auto-retry. Options:
 
 - Wait and re-run.
 - Reduce `-n`.
