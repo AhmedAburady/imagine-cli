@@ -8,7 +8,7 @@ The `openai` provider authenticates one of two mutually-exclusive ways, set by `
 |---|---|---|
 | Billed to | OpenAI Platform (pay-as-you-go) | the user's ChatGPT plan (Free, Go, Plus, Pro, Business, Enterprise, Edu; the language model is picked by plan) |
 | Credential | `sk-…` in `config.yaml` (or an `op://` / `${VAR}` ref) | OAuth token cached in `~/.config/imagine/openai-subscription-auth.json` (`0600`), refreshed silently |
-| Endpoint | `api.openai.com/v1/images` (generate = JSON, edit = multipart), `Authorization: Bearer <api_key>` | OpenAI's ChatGPT/Codex Responses backend (SSE) — an unpublished endpoint, treat as best-effort |
+| Endpoint | `api.openai.com/v1/images` (generate = JSON, edit = multipart), `Authorization: Bearer <api_key>` | The Codex image endpoints on OpenAI's ChatGPT backend (`chatgpt.com/backend-api/codex/images/generations` and `/images/edits`, JSON) - unpublished, treat as best-effort |
 | Set up | `imagine providers add openai --api-key sk-…` (headless-OK) | `imagine providers add openai login` (**opens a browser** — needs a human; do NOT run headless) |
 
 Config stanza for each:
@@ -85,7 +85,7 @@ ANY `WxH` is accepted if it satisfies all of these:
 
 imagine enforces all four constraints client-side at flag-parse time, so a bad size errors before any API call, in edit mode (`-i`) too.
 
-**Subscription route caveat** (probed 2026-11-02): the request goes to a language model (`gpt-6.1-sol`; `gpt-6-luna` on Free and Go plans), which calls the image tool. The backend resets the tool to its own model, `gpt-image-2-codex`, for any accepted `-m` model or snapshot, and resets `size` to `auto`, so the language model picks the size: usually 1254x1254. `-q` is passed through. Use the API-key route when the exact model or size matters.
+**Subscription route caveat** (probed 2026-11-09): imagine sends `-m`, `-s`, `-q` and `--background` to the Codex image endpoints, but the backend picks the image model and the output size itself; the prompt steers the aspect (a "wide 16:9" prompt came back 1672x941). Only `-q low|medium|high|auto` is accepted; `xhigh` and `max` are refused before any request. `--moderation` and `--compression` are not sent, and the backend always returns PNG (imagine converts to JPEG when `-f` ends in `.jpg`). Use the API-key route when the exact model, size or quality matters.
 
 ## Output format
 
@@ -95,7 +95,7 @@ Driven by `-f`'s extension:
 |---|---|---|
 | `.png` (default) | PNG | none |
 | `.jpg` / `.jpeg` | JPEG | none (API encodes) |
-| `.webp` | WebP | none |
+| `.webp` | WebP (API key only; refused on a ChatGPT sign-in, which returns PNG) | none |
 | anything else | PNG | none |
 
 This is a win over Gemini — for JPEG, OpenAI's API encodes server-side, avoiding a local re-encode round-trip.
@@ -119,7 +119,7 @@ Cost scales with quality + size. `low` quality on `1024x1024` is the cheapest po
 
 This is faster and cheaper than Gemini's 1-per-call pattern for multi-image runs.
 
-**Subscription route:** `MaxBatchN = 1` (the Responses image tool yields one image per call), so `-n N` issues N parallel calls — same result, more requests. Generation takes longer per image than the API-key route.
+**Subscription route:** `MaxBatchN = 1` (the Codex image endpoints return one image per call), so `-n N` issues N parallel calls — same result, more requests. Generation takes longer per image than the API-key route.
 
 ## Examples
 

@@ -208,7 +208,7 @@ How do you want to authenticate?
 
 - **`login`** runs a one-time browser sign-in (OAuth/PKCE on a `localhost` callback). The tokens are cached in a separate `0600` file — `~/.config/imagine/openai-subscription-auth.json` — never in `config.yaml`, and refreshed silently. Your config stanza is just `auth_method: subscription`.
 - Switch methods anytime by re-running `imagine providers add openai` (or editing `auth_method:`). You can keep both credentials in the stanza; only the active method's is ever read.
-- The subscription route reaches `gpt-image-2-codex` through OpenAI's ChatGPT backend, whatever `-m` says, and often picks its own size rather than the public `/v1/images` API. It rides an endpoint OpenAI hasn't published for third parties, so treat it as **best-effort** — if it ever stops working, the API-key method is the stable fallback.
+- The subscription route uses the Codex image endpoints on OpenAI's ChatGPT backend, not the public `/v1/images` API. That backend picks the image model and the output size itself (the prompt steers the aspect), whatever `-m` and `-s` say, and accepts only `-q low|medium|high|auto`. It rides an endpoint OpenAI hasn't published for third parties, so treat it as **best-effort**. If it ever stops working, the API-key method is the stable fallback.
 
 #### Secret references — keep plaintext out of `config.yaml`
 
@@ -463,7 +463,7 @@ Any `WxH` is accepted if: edge ≤ 3840px, both multiples of 16, long:short ≤ 
 **Output format** — inferred from `-f` extension:
 - `-f cat.png` → API returns PNG
 - `-f cat.jpg` → API returns JPEG directly (no local re-encode)
-- `-f cat.webp` → API returns WebP
+- `-f cat.webp` → API returns WebP (API key only; a ChatGPT sign-in returns PNG, so `.webp` is refused)
 
 **Examples**
 

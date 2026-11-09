@@ -146,8 +146,8 @@ func TestCheckClaimedSomewhere_RejectsIfNoBundleClaims(t *testing.T) {
 }
 
 func TestCheckOutputFormat(t *testing.T) {
-	noWebP := providers.Bundle{Info: providers.Info{Name: "gemini"}}
-	webP := providers.Bundle{Info: providers.Info{Name: "openai", Capabilities: providers.Capabilities{WebP: true}}}
+	noWebP := providers.Info{Name: "gemini"}
+	webP := providers.Info{Name: "openai", Capabilities: providers.Capabilities{WebP: true}}
 	if err := providers.CheckOutputFormat("cover.webp", noWebP); err == nil {
 		t.Error(".webp on a provider without WebP should be rejected")
 	}

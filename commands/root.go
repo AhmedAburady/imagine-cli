@@ -89,11 +89,7 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 				return err
 			}
 
-			if err := enforceModelSupport(cmd, bundle, providerOptions); err != nil {
-				return err
-			}
-			filename, _ := cmd.Flags().GetString("filename")
-			return providers.CheckOutputFormat(filename, bundle)
+			return enforceModelSupport(cmd, bundle, providerOptions)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Bare invocation (no -p) → print help and exit cleanly.
@@ -121,6 +117,10 @@ Configuration lives in ~/.config/imagine/config.yaml (see README for the schema)
 
 			provider, err := bundle.Factory(auth)
 			if err != nil {
+				return err
+			}
+			// Checked on the built provider: WebP support can depend on the auth method.
+			if err := providers.CheckOutputFormat(opts.OutputFilename, provider.Info()); err != nil {
 				return err
 			}
 

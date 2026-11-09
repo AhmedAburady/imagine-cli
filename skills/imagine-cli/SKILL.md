@@ -40,7 +40,7 @@ OpenAI can also bill a ChatGPT plan instead of an API key: the user runs `imagin
 |---|---|
 | `-p` | Prompt text or a file path. Repeat to join parts in order (`-p style.md -p "at night"`). |
 | `-o` | Output folder (default `.`) |
-| `-f` | File name. `.jpg` gives JPEG, `.webp` WebP (OpenAI only), anything else PNG. With `-n` > 1: `name_1.png`, `name_2.png`, ... |
+| `-f` | File name. `.jpg` gives JPEG, `.webp` WebP (OpenAI with an API key only), anything else PNG. With `-n` > 1: `name_1.png`, `name_2.png`, ... |
 | `-n` | Number of images, 1-20 |
 | `-i` | Reference image or folder, repeatable. Switches to edit mode. |
 | `-r` | Name the output after the single `-i` file (not with `-f`) |
@@ -61,7 +61,7 @@ Values to offer when asking (rule 2). A flag the active provider doesn't have is
 - `-s auto` (default), `1K`, `2K`, `4K`, or `WxH` (e.g. `1536x1024`; edges multiple of 16, max edge 3840, ratio up to 3:1)
 - `-q auto|low|medium|high`, plus `xhigh|max` on flare and sunburst
 - `--background auto|opaque|transparent` (transparent: PNG or WebP output), `--moderation auto|low`, `--compression 0-100` (JPEG/WebP)
-- On a ChatGPT sign-in the backend picks its own image model (`gpt-image-2-codex`) and often its own size; use an API key when the exact model or size matters.
+- On a ChatGPT sign-in the backend picks its own image model and output size (the prompt steers the aspect), and `-q xhigh|max` is refused; use an API key when the exact model, size or quality matters.
 
 ## Batch files
 

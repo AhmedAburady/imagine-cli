@@ -2,7 +2,7 @@
 // models. It supports two mutually-exclusive auth methods, selected at
 // `providers add` time and recorded as auth_method: an API key billed via
 // platform.openai.com (the /v1/images endpoints), or a ChatGPT subscription
-// signed in via OAuth (the Codex Responses route). The route is chosen per
+// signed in via OAuth (the Codex image endpoints on chatgpt.com). The route is chosen per
 // Provider instance; everything below dispatches on p.method.
 package openai
 
@@ -44,8 +44,12 @@ const (
 // httpClient serves the API-key path: one JSON blob, so a total request cap fits.
 var httpClient = transport.NewClient(180 * time.Second)
 
-// streamClient serves the subscription SSE path: bounded by connection-phase timeouts + the stall watchdog, no total cap.
+// streamClient serves the subscription SSE path (describe): bounded by connection-phase timeouts + the stall watchdog, no total cap.
 var streamClient = transport.NewStreamingClient()
+
+// imagesClient serves the sign-in image endpoints: one JSON blob, but a
+// high-quality render on a busy ChatGPT backend can take several minutes.
+var imagesClient = transport.NewClient(10 * time.Minute)
 
 // Provider is the OpenAI Images implementation of providers.Provider. It holds
 // the credentials for whichever auth method is active; mu/cached guard the
@@ -116,11 +120,13 @@ func (p *Provider) ConfigSchema() []providers.ConfigField {
 }
 
 // Info advertises OpenAI's models from the modelSpecs table.
-// MaxBatchN is 10 on the API-key endpoint, 1 on the subscription Responses tool.
+// MaxBatchN is 10 on the API-key endpoint, 1 on the sign-in image endpoints.
+// WebP is API-key only: sign-in always returns PNG and imagine has no WebP
+// encoder, so a .webp output is rejected up front instead of saved as .png.
 func (p *Provider) Info() providers.Info {
-	maxBatch := 10
+	maxBatch, webp := 10, true
 	if p.method == methodSubscription {
-		maxBatch = 1
+		maxBatch, webp = 1, false
 	}
 	return providers.Info{
 		Name:         "openai",
@@ -131,7 +137,7 @@ func (p *Provider) Info() providers.Info {
 		Capabilities: providers.Capabilities{
 			Edit:      true,
 			MaxBatchN: maxBatch,
-			WebP:      true,
+			WebP:      webp,
 		},
 	}
 }
@@ -208,6 +214,7 @@ type generationsResponse struct {
 	Data []struct {
 		B64JSON string `json:"b64_json"`
 	} `json:"data"`
+	OutputFormat string `json:"output_format"` // read on the sign-in route, which picks the format itself
 }
 
 func (p *Provider) generate(ctx context.Context, r generateRequest) (*providers.Response, error) {
@@ -315,8 +322,8 @@ func (p *Provider) edit(ctx context.Context, r editRequest) (*providers.Response
 // describeAPIError appends the moderation_stage and categories OpenAI attaches
 // to moderation_blocked errors; every other error passes through untouched.
 func describeAPIError(err error) error {
-	var apiErr *transport.APIError
-	if !errors.As(err, &apiErr) || apiErr.Code != "moderation_blocked" {
+	apiErr, ok := errors.AsType[*transport.APIError](err)
+	if !ok || apiErr.Code != "moderation_blocked" {
 		return err
 	}
 	var body struct {

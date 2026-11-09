@@ -1,11 +1,11 @@
 package openai
 
-// Subscription route: image generation through the Codex Responses endpoint
-// (chatgpt.com/backend-api/codex/responses) driving the built-in
-// image_generation tool, billed to the user's ChatGPT plan. The dedicated
-// /images endpoints on that host are Cloudflare-gated for non-browser TLS
-// clients (403 challenge); /responses, the official hot path, is reachable
-// with the OAuth token — both verified empirically.
+// Subscription route, billed to the user's ChatGPT plan. Images go through
+// the Codex image endpoints (chatgpt.com/backend-api/codex/images/generations
+// and /images/edits), the route Codex itself uses. The Responses
+// image_generation tool stopped working on this host in November 2026: the
+// backend now forwards the driver's reasoning effort as an image "complexity"
+// that every image model rejects. Describe still uses /responses.
 
 import (
 	"bufio"
@@ -16,23 +16,23 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/AhmedAburady/imagine-cli/internal/images"
 	"github.com/AhmedAburady/imagine-cli/internal/transport"
 	"github.com/AhmedAburady/imagine-cli/providers"
 )
 
+// codexBaseURL is a var so tests can point the sign-in route at an httptest server.
+var codexBaseURL = "https://chatgpt.com/backend-api/codex"
+
 const (
-	codexBaseURL  = "https://chatgpt.com/backend-api/codex"
 	responsesPath = "/responses"
 
-	// driverModel hosts the image_generation tool call; the image model
-	// itself travels inside the tool object. Codex retired gpt-5.5 for ChatGPT
+	// driverModel is the default describe model on sign-in. Codex retired gpt-5.5 for ChatGPT
 	// sign-in on 2026-10-14 and named a replacement per plan: gpt-6.1-sol on
 	// Plus, Pro, Business, Enterprise and Edu, gpt-6-luna on Free and Go.
 	driverModel     = "gpt-6.1-sol"
@@ -44,25 +44,80 @@ const (
 // vision_model falls back to the plan's model on this route.
 var retiredOnSignIn = []string{"gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex-spark"}
 
-const (
-	// imageInstructions is the minimal system prompt the endpoint needs to
-	// reliably invoke the tool (it misbehaves with none).
-	imageInstructions = "You are an image generation assistant. Generate exactly one image for the user's request using the image_generation tool."
-)
-
 // stallTimeout aborts the SSE read only after this much continuous silence; it resets on every byte received.
 const stallTimeout = 180 * time.Second
 
 var errStalled = errors.New("stream stalled: no data for 180s (network hang or backend stall) — retry")
 
 func (p *Provider) generateSubscription(ctx context.Context, opts *Options, req providers.Request) (*providers.Response, error) {
+	if q := emptyToAuto(strings.ToLower(opts.Quality)); !slices.Contains(signInQualities, q) {
+		return nil, fmt.Errorf("--quality %s needs an API key; ChatGPT sign-in supports %s", opts.Quality, strings.Join(signInQualities, ", "))
+	}
 	access, account, err := p.ensureFreshToken(ctx)
 	if err != nil {
 		return nil, err
 	}
-	auth := &codexAuth{accessToken: access, accountID: account, sessionID: uuid.NewString()}
+	path, body := signInImageRequest(opts, req)
+	resp, err := transport.PostJSON[generationsResponse](ctx, imagesClient, codexBaseURL+path, &codexAuth{accessToken: access, accountID: account}, body)
+	if err != nil {
+		return nil, subscriptionAPIError(err)
+	}
+	return decodeImages(resp, mimeTypeFor(resp.OutputFormat))
+}
 
-	return p.doResponses(ctx, auth, subscriptionBody(opts, req, driverFor(p.idToken(), access)), opts.OutputFormat)
+// signInQualities are the quality levels the sign-in image endpoints accept;
+// anything else (xhigh, max) is silently downgraded server-side, so it is
+// rejected here instead.
+var signInQualities = []string{"low", "medium", "high", "auto"}
+
+// signInImageBody is the Codex images request, the same shape Codex itself
+// sends. The backend currently picks the model and the output size itself
+// (steered by the prompt) and always returns PNG; model and size are still
+// sent so the request states what the user asked for.
+type signInImageBody struct {
+	Images     []signInImageRef `json:"images,omitempty"` // edits only
+	Prompt     string           `json:"prompt"`
+	Model      string           `json:"model"`
+	Background string           `json:"background,omitempty"`
+	Quality    string           `json:"quality,omitempty"`
+	Size       string           `json:"size,omitempty"`
+}
+
+type signInImageRef struct {
+	ImageURL string `json:"image_url"`
+}
+
+// signInImageRequest picks /images/edits when references are attached, else
+// /images/generations, and builds the matching body.
+func signInImageRequest(opts *Options, req providers.Request) (path string, body signInImageBody) {
+	body = signInImageBody{
+		Prompt:     req.Prompt,
+		Model:      opts.Model,
+		Background: opts.Background,
+		Quality:    emptyToAuto(strings.ToLower(opts.Quality)),
+		Size:       emptyToAuto(opts.Size),
+	}
+	if len(req.References) == 0 {
+		return generationsPath, body
+	}
+	for _, ref := range req.References {
+		body.Images = append(body.Images, signInImageRef{ImageURL: dataURL(ref.MimeType, ref.Data)})
+	}
+	return editsPath, body
+}
+
+// subscriptionAPIError labels a non-2xx from the images endpoints, falling
+// back to summarizeError for bodies without an OpenAI error envelope
+// (Codex's {"detail": ...} and Cloudflare pages).
+func subscriptionAPIError(err error) error {
+	apiErr, ok := errors.AsType[*transport.APIError](err)
+	if !ok {
+		return fmt.Errorf("openai subscription: %w", err)
+	}
+	if apiErr.Message == "" {
+		return fmt.Errorf("openai subscription error (status %d): %s", apiErr.StatusCode, summarizeError(apiErr.StatusCode, apiErr.Raw))
+	}
+	return fmt.Errorf("openai subscription error (status %d): %w", apiErr.StatusCode, describeAPIError(err))
 }
 
 // driverFor picks the sign-in driver model for the account's plan. The plan
@@ -91,19 +146,6 @@ func planType(token string) string {
 	return strings.ToLower(strings.TrimSpace(plan))
 }
 
-// subscriptionBody assembles the Responses request: the driver model hosting
-// one image_generation tool call.
-func subscriptionBody(opts *Options, req providers.Request, driver string) responsesBody {
-	return responsesBody{
-		Model:        driver,
-		Instructions: imageInstructions,
-		Input:        []inputMessage{{Role: "user", Content: responsesContent(req.Prompt, req.References)}},
-		Tools:        []imageTool{buildTool(opts)},
-		ToolChoice:   &toolChoice{Type: "image_generation"},
-		Stream:       true,
-	}
-}
-
 func responsesContent(text string, refs []images.Reference) []contentItem {
 	content := []contentItem{{Type: "input_text", Text: text}}
 	for _, ref := range refs {
@@ -112,32 +154,12 @@ func responsesContent(text string, refs []images.Reference) []contentItem {
 	return content
 }
 
-// buildTool maps Options onto the image_generation tool, omitting anything left
-// on its auto/default sentinel.
-func buildTool(opts *Options) imageTool {
-	t := imageTool{
-		Type:         "image_generation",
-		Model:        opts.Model,
-		Size:         apiSize(opts.Size),
-		Quality:      apiQuality(opts.Quality),
-		OutputFormat: opts.OutputFormat,
-		Moderation:   opts.Moderation,
-		Background:   opts.Background,
-	}
-	if (opts.OutputFormat == "jpeg" || opts.OutputFormat == "webp") && opts.Compression > 0 && opts.Compression < 100 {
-		t.OutputCompression = new(opts.Compression)
-	}
-	return t
-}
-
 // --- Request wire types ------------------------------------------------------
 
 type responsesBody struct {
 	Model        string          `json:"model"`
 	Instructions string          `json:"instructions"`
 	Input        []inputMessage  `json:"input"`
-	Tools        []imageTool     `json:"tools,omitempty"`
-	ToolChoice   *toolChoice     `json:"tool_choice,omitempty"`
 	Reasoning    *reasoningParam `json:"reasoning,omitempty"`
 	Stream       bool            `json:"stream"`
 	Store        bool            `json:"store"`
@@ -158,34 +180,13 @@ type contentItem struct {
 	ImageURL string `json:"image_url,omitempty"`
 }
 
-type imageTool struct {
-	Type              string `json:"type"`
-	Model             string `json:"model,omitempty"`
-	Size              string `json:"size,omitempty"`
-	Quality           string `json:"quality,omitempty"`
-	OutputFormat      string `json:"output_format,omitempty"`
-	Moderation        string `json:"moderation,omitempty"`
-	Background        string `json:"background,omitempty"`
-	OutputCompression *int   `json:"output_compression,omitempty"`
-}
-
-type toolChoice struct {
-	Type string `json:"type"`
-}
-
 // --- SSE response handling ---------------------------------------------------
 
-// sseEvent is the subset of each streamed event we inspect: the terminal image
-// item (base64 result), assistant text (describe), and error envelopes.
+// sseEvent is the subset of each streamed event describe inspects: assistant
+// text and error envelopes.
 type sseEvent struct {
-	Type string `json:"type"`
-	Text string `json:"text"` // response.output_text.done
-	Item *struct {
-		Type         string `json:"type"`
-		Status       string `json:"status"`
-		Result       string `json:"result"`
-		OutputFormat string `json:"output_format"`
-	} `json:"item"`
+	Type     string `json:"type"`
+	Text     string `json:"text"` // response.output_text.done
 	Response *struct {
 		Error *struct {
 			Message string `json:"message"`
@@ -213,6 +214,8 @@ func (p *Provider) postResponses(ctx context.Context, auth *codexAuth, body resp
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("OpenAI-Beta", "responses=experimental")
 	if err := auth.Apply(req); err != nil {
 		return nil, err
 	}
@@ -227,17 +230,6 @@ func (p *Provider) postResponses(ctx context.Context, auth *codexAuth, body resp
 		return nil, fmt.Errorf("openai subscription error (status %d): %s", resp.StatusCode, summarizeError(resp.StatusCode, snippet))
 	}
 	return resp, nil
-}
-
-// doResponses scans the SSE stream for the rendered image. wantFormat is the
-// MIME fallback when the server doesn't echo an output_format.
-func (p *Provider) doResponses(ctx context.Context, auth *codexAuth, body responsesBody, wantFormat string) (*providers.Response, error) {
-	resp, err := p.postResponses(ctx, auth, body)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	return parseImageStream(resp.Body, wantFormat)
 }
 
 // stallReader wraps a streaming body, closing it (which unblocks the read) after its idle duration of silence.
@@ -319,36 +311,6 @@ func scanSSE(r io.Reader, fn func(ev *sseEvent) (stop bool, err error)) error {
 	}
 }
 
-func parseImageStream(r io.Reader, wantFormat string) (*providers.Response, error) {
-	var out *providers.Response
-	err := scanSSE(r, func(ev *sseEvent) (bool, error) {
-		if msg := eventError(ev); msg != "" {
-			return false, fmt.Errorf("openai subscription: %s", msg)
-		}
-		if ev.Type == "response.output_item.done" && ev.Item != nil &&
-			ev.Item.Type == "image_generation_call" && ev.Item.Result != "" {
-			raw, derr := transport.DecodeB64(ev.Item.Result)
-			if derr != nil {
-				return false, derr
-			}
-			format := ev.Item.OutputFormat
-			if format == "" {
-				format = wantFormat
-			}
-			out = &providers.Response{Images: []providers.GeneratedImage{{Data: raw, MimeType: mimeTypeFor(format)}}}
-			return true, nil
-		}
-		return false, nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if out == nil {
-		return nil, errors.New("openai subscription returned no image")
-	}
-	return out, nil
-}
-
 func eventError(ev *sseEvent) string {
 	if ev.Error != nil && ev.Error.Message != "" {
 		return ev.Error.Message
@@ -393,23 +355,10 @@ func summarizeError(status int, raw []byte) string {
 	return s
 }
 
-func apiSize(size string) string {
-	if size == "auto" {
-		return ""
-	}
-	return size
-}
-
-func apiQuality(q string) string {
-	if q == "auto" {
-		return ""
-	}
-	return q
-}
-
-// codexAuth sets the headers the Codex Responses endpoint expects: bearer token,
-// workspace account id, streaming/beta markers, a per-request session id, and
-// the client identity we authenticated as. Implements transport.Auth.
+// codexAuth sets the headers every Codex endpoint expects: bearer token,
+// workspace account id, the client identity we authenticated as, and (for
+// describe's Responses calls) a per-request session id. Implements
+// transport.Auth.
 type codexAuth struct {
 	accessToken string
 	accountID   string
@@ -421,8 +370,6 @@ func (a *codexAuth) Apply(req *http.Request) error {
 	if a.accountID != "" {
 		req.Header.Set("ChatGPT-Account-Id", a.accountID)
 	}
-	req.Header.Set("Accept", "text/event-stream")
-	req.Header.Set("OpenAI-Beta", "responses=experimental")
 	req.Header.Set("originator", originator)
 	req.Header.Set("User-Agent", userAgent)
 	if a.sessionID != "" {
