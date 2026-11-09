@@ -80,6 +80,15 @@ func TestNew_SubscriptionNoKeyOK(t *testing.T) {
 	}
 }
 
+func TestInfo_WebPOnlyOnAPIKey(t *testing.T) {
+	if !(&Provider{method: methodAPIKey}).Info().Capabilities.WebP {
+		t.Error("api_key should write WebP")
+	}
+	if (&Provider{method: methodSubscription}).Info().Capabilities.WebP {
+		t.Error("sign-in returns PNG only, so it must not advertise WebP")
+	}
+}
+
 func TestInfo_MaxBatchNByMethod(t *testing.T) {
 	if (&Provider{method: methodAPIKey}).Info().Capabilities.MaxBatchN != 10 {
 		t.Error("api_key MaxBatchN should be 10")

@@ -267,9 +267,6 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 	if errs := providers.CheckModel(mapKeys(pvtMap), bundle, providerOpts); len(errs) > 0 {
 		return Resolved{}, errs[0]
 	}
-	if err := providers.CheckOutputFormat(effFilename, bundle); err != nil {
-		return Resolved{}, err
-	}
 
 	// Auth + Provider construction. Cached by provider name — entries
 	// sharing a provider reuse one instance. Missing credentials still
@@ -302,6 +299,10 @@ func resolveOne(entry Entry, rc ResolveContext, explicit map[string]any, provide
 			return Resolved{}, err
 		}
 		providerCache[provName] = providerInst
+	}
+	// Checked on the built provider: WebP support can depend on the auth method.
+	if err := providers.CheckOutputFormat(effFilename, providerInst.Info()); err != nil {
+		return Resolved{}, err
 	}
 
 	refs, err := loadReferences(effInputs)

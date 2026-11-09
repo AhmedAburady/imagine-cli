@@ -463,7 +463,7 @@ Any `WxH` is accepted if: edge ≤ 3840px, both multiples of 16, long:short ≤ 
 **Output format** — inferred from `-f` extension:
 - `-f cat.png` → API returns PNG
 - `-f cat.jpg` → API returns JPEG directly (no local re-encode)
-- `-f cat.webp` → API returns WebP
+- `-f cat.webp` → API returns WebP (API key only; a ChatGPT sign-in returns PNG, so `.webp` is refused)
 
 **Examples**
 

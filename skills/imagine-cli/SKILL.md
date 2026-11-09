@@ -40,7 +40,7 @@ OpenAI can also bill a ChatGPT plan instead of an API key: the user runs `imagin
 |---|---|
 | `-p` | Prompt text or a file path. Repeat to join parts in order (`-p style.md -p "at night"`). |
 | `-o` | Output folder (default `.`) |
-| `-f` | File name. `.jpg` gives JPEG, `.webp` WebP (OpenAI only), anything else PNG. With `-n` > 1: `name_1.png`, `name_2.png`, ... |
+| `-f` | File name. `.jpg` gives JPEG, `.webp` WebP (OpenAI with an API key only), anything else PNG. With `-n` > 1: `name_1.png`, `name_2.png`, ... |
 | `-n` | Number of images, 1-20 |
 | `-i` | Reference image or folder, repeatable. Switches to edit mode. |
 | `-r` | Name the output after the single `-i` file (not with `-f`) |

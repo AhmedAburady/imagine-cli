@@ -95,7 +95,7 @@ Driven by `-f`'s extension:
 |---|---|---|
 | `.png` (default) | PNG | none |
 | `.jpg` / `.jpeg` | JPEG | none (API encodes) |
-| `.webp` | WebP | none |
+| `.webp` | WebP (API key only; refused on a ChatGPT sign-in, which returns PNG) | none |
 | anything else | PNG | none |
 
 This is a win over Gemini — for JPEG, OpenAI's API encodes server-side, avoiding a local re-encode round-trip.

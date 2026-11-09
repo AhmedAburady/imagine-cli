@@ -110,8 +110,8 @@ func signInImageRequest(opts *Options, req providers.Request) (path string, body
 // back to summarizeError for bodies without an OpenAI error envelope
 // (Codex's {"detail": ...} and Cloudflare pages).
 func subscriptionAPIError(err error) error {
-	var apiErr *transport.APIError
-	if !errors.As(err, &apiErr) {
+	apiErr, ok := errors.AsType[*transport.APIError](err)
+	if !ok {
 		return fmt.Errorf("openai subscription: %w", err)
 	}
 	if apiErr.Message == "" {
