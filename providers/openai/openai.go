@@ -2,7 +2,7 @@
 // models. It supports two mutually-exclusive auth methods, selected at
 // `providers add` time and recorded as auth_method: an API key billed via
 // platform.openai.com (the /v1/images endpoints), or a ChatGPT subscription
-// signed in via OAuth (the Codex Responses route). The route is chosen per
+// signed in via OAuth (the Codex image endpoints on chatgpt.com). The route is chosen per
 // Provider instance; everything below dispatches on p.method.
 package openai
 
@@ -44,8 +44,12 @@ const (
 // httpClient serves the API-key path: one JSON blob, so a total request cap fits.
 var httpClient = transport.NewClient(180 * time.Second)
 
-// streamClient serves the subscription SSE path: bounded by connection-phase timeouts + the stall watchdog, no total cap.
+// streamClient serves the subscription SSE path (describe): bounded by connection-phase timeouts + the stall watchdog, no total cap.
 var streamClient = transport.NewStreamingClient()
+
+// imagesClient serves the sign-in image endpoints: one JSON blob, but a
+// high-quality render on a busy ChatGPT backend can take several minutes.
+var imagesClient = transport.NewClient(10 * time.Minute)
 
 // Provider is the OpenAI Images implementation of providers.Provider. It holds
 // the credentials for whichever auth method is active; mu/cached guard the
@@ -208,6 +212,7 @@ type generationsResponse struct {
 	Data []struct {
 		B64JSON string `json:"b64_json"`
 	} `json:"data"`
+	OutputFormat string `json:"output_format"` // read on the sign-in route, which picks the format itself
 }
 
 func (p *Provider) generate(ctx context.Context, r generateRequest) (*providers.Response, error) {

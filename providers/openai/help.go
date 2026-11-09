@@ -14,7 +14,7 @@ func Examples() string {
   imagine -p "make it winter" -i photo.png
   imagine -p "product shot" -m image2
 
-  QUALITY: low, medium, high, auto on every model; xhigh and max on the 2.5 models only.
+  QUALITY: low, medium, high, auto on every model; xhigh and max on the 2.5 models with an API key only.
 
   SIZES — shorthand:
     1K → 1024x1024

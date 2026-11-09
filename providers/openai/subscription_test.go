@@ -243,28 +243,6 @@ func TestDoTokenRequest(t *testing.T) {
 	})
 }
 
-func TestApiSizeQuality(t *testing.T) {
-	if apiSize("auto") != "" || apiSize("1024x1024") != "1024x1024" {
-		t.Error("apiSize wrong")
-	}
-	if apiQuality("auto") != "" || apiQuality("high") != "high" {
-		t.Error("apiQuality wrong")
-	}
-}
-
-func TestBuildTool(t *testing.T) {
-	raw, _ := json.Marshal(buildTool(&Options{Model: "gpt-image-2", Size: "auto", Quality: "auto", OutputFormat: "png", Compression: 100}))
-	if s := string(raw); strings.Contains(s, "\"size\"") || strings.Contains(s, "output_compression") || !strings.Contains(s, `"output_format":"png"`) {
-		t.Errorf("tool omit/keep wrong: %s", s)
-	}
-	raw2, _ := json.Marshal(buildTool(&Options{Model: "gpt-image-1.5", Size: "1536x1024", Quality: "high", OutputFormat: "jpeg", Compression: 80, Background: "opaque"}))
-	for _, want := range []string{`"size":"1536x1024"`, `"quality":"high"`, `"output_compression":80`, `"background":"opaque"`} {
-		if !strings.Contains(string(raw2), want) {
-			t.Errorf("tool missing %s", want)
-		}
-	}
-}
-
 func TestResponsesContent_EditAttachesImages(t *testing.T) {
 	content := responsesContent("make it winter", []images.Reference{{MimeType: "image/png", Data: []byte("foo")}})
 	if len(content) != 2 || content[0].Type != "input_text" || content[1].Type != "input_image" {
@@ -272,40 +250,6 @@ func TestResponsesContent_EditAttachesImages(t *testing.T) {
 	}
 	if content[1].ImageURL != "data:image/png;base64,Zm9v" {
 		t.Errorf("image url = %q", content[1].ImageURL)
-	}
-}
-
-func TestParseImageStream(t *testing.T) {
-	stream := strings.Join([]string{
-		`data: {"type":"response.created"}`,
-		`data: {"type":"response.output_item.done","item":{"type":"image_generation_call","output_format":"jpeg","result":"Zm9v"}}`,
-		`data: [DONE]`,
-	}, "\n")
-	out, err := parseImageStream(strings.NewReader(stream), "png")
-	if err != nil {
-		t.Fatalf("parseImageStream: %v", err)
-	}
-	if len(out.Images) != 1 || string(out.Images[0].Data) != "foo" || out.Images[0].MimeType != "image/jpeg" {
-		t.Errorf("bad image: %+v", out.Images)
-	}
-}
-
-func TestParseImageStream_Errors(t *testing.T) {
-	fail := `data: {"type":"response.failed","response":{"error":{"message":"blocked"}}}` + "\n"
-	if _, err := parseImageStream(strings.NewReader(fail), "png"); err == nil || !strings.Contains(err.Error(), "blocked") {
-		t.Fatalf("expected blocked error, got %v", err)
-	}
-	none := `data: {"type":"response.completed","response":{}}` + "\n" + "data: [DONE]\n"
-	if _, err := parseImageStream(strings.NewReader(none), "png"); err == nil {
-		t.Error("expected no-image error")
-	}
-}
-
-func TestParseImageStream_IncompleteSurfacesReason(t *testing.T) {
-	stream := `data: {"type":"response.incomplete","response":{"incomplete_details":{"reason":"content_filter"}}}` + "\n"
-	_, err := parseImageStream(strings.NewReader(stream), "png")
-	if err == nil || !strings.Contains(err.Error(), "content_filter") {
-		t.Fatalf("expected incomplete reason surfaced, got %v", err)
 	}
 }
 
@@ -375,15 +319,5 @@ func TestOptionsValidateNormalize(t *testing.T) {
 	o.Normalize()
 	if o.Size != "1024x1024" || o.Background != "" {
 		t.Errorf("normalize wrong: %+v", o)
-	}
-}
-
-func TestSubscriptionBody_ToolCarriesModel(t *testing.T) {
-	opts := &Options{Model: "gpt-image-2.5-sunburst", Size: "auto", Quality: "max", OutputFormat: "png", Compression: 100}
-	raw, _ := json.Marshal(subscriptionBody(opts, providers.Request{Prompt: "a mug"}, driverModel))
-	for _, want := range []string{`"model":"gpt-6.1-sol"`, `"type":"image_generation"`, `"model":"gpt-image-2.5-sunburst"`, `"quality":"max"`} {
-		if !strings.Contains(string(raw), want) {
-			t.Errorf("wire body missing %s: %s", want, raw)
-		}
 	}
 }
